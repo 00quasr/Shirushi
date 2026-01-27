@@ -2864,3 +2864,60 @@ main {
         min-width: 100px;
     }
 }
+
+/* JSON Syntax Highlighting */
+.json-highlight {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin: 0;
+    overflow-x: auto;
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.json-highlight code {
+    background: transparent;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    color: var(--text-1);
+}
+
+.json-key {
+    color: #7dd3fc; /* sky-300 */
+}
+
+.json-string {
+    color: #86efac; /* green-300 */
+}
+
+.json-number {
+    color: #fcd34d; /* amber-300 */
+}
+
+.json-boolean {
+    color: #c4b5fd; /* violet-300 */
+}
+
+.json-null {
+    color: #f87171; /* red-400 */
+    font-style: italic;
+}
+
+/* JSON highlight in nak console output */
+#nak-output .json-highlight {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+}
+
+/* JSON highlight in modal */
+.modal-body .json-highlight {
+    max-height: 400px;
+    overflow-y: auto;
+}

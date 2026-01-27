@@ -690,10 +690,74 @@ class Shirushi {
         return div.innerHTML;
     }
 
+    /**
+     * Syntax highlight JSON string
+     * @param {string|object} json - JSON string or object to highlight
+     * @returns {string} HTML with syntax-highlighted JSON
+     */
+    syntaxHighlightJson(json) {
+        let jsonString;
+        if (typeof json === 'string') {
+            try {
+                // Parse and re-stringify to ensure proper formatting
+                jsonString = JSON.stringify(JSON.parse(json), null, 2);
+            } catch (e) {
+                // If it's not valid JSON, just escape and return
+                return `<pre class="json-highlight"><code>${this.escapeHtml(json)}</code></pre>`;
+            }
+        } else {
+            jsonString = JSON.stringify(json, null, 2);
+        }
+
+        // Escape HTML first
+        const escaped = this.escapeHtml(jsonString);
+
+        // Apply syntax highlighting with regex
+        const highlighted = escaped
+            // Strings (property values) - must be after keys to not double-match
+            .replace(/("(?:\\.|[^"\\])*")(\s*[,\n\r\]])/g, '<span class="json-string">$1</span>$2')
+            // Property keys
+            .replace(/("(?:\\.|[^"\\])*")(\s*:)/g, '<span class="json-key">$1</span>$2')
+            // Numbers (standalone values - after colon, comma, or opening bracket)
+            .replace(/(?<=[:\[,]\s*)(-?\d+\.?\d*)(?=\s*[,\]\n\r])/g, '<span class="json-number">$1</span>')
+            // Booleans
+            .replace(/(?<=[:\[,]\s*)(true|false)(?=\s*[,\]\n\r])/g, '<span class="json-boolean">$1</span>')
+            // Null
+            .replace(/(?<=[:\[,]\s*)(null)(?=\s*[,\]\n\r])/g, '<span class="json-null">$1</span>');
+
+        return `<pre class="json-highlight"><code>${highlighted}</code></pre>`;
+    }
+
+    /**
+     * Check if a string looks like JSON
+     * @param {string} str - String to check
+     * @returns {boolean} True if string appears to be JSON
+     */
+    isJsonString(str) {
+        if (typeof str !== 'string') return false;
+        const trimmed = str.trim();
+        return (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+               (trimmed.startsWith('[') && trimmed.endsWith(']'));
+    }
+
     showEventJson(eventId) {
         const event = this.events.find(e => e.id === eventId);
         if (event) {
-            this.toastInfo('Event JSON', JSON.stringify(event, null, 2));
+            this.showModal({
+                title: 'Event JSON',
+                body: this.syntaxHighlightJson(event),
+                size: 'lg',
+                buttons: [
+                    { text: 'Copy', type: 'default', value: 'copy' },
+                    { text: 'Close', type: 'primary', value: null }
+                ]
+            }).then(value => {
+                if (value === 'copy') {
+                    navigator.clipboard.writeText(JSON.stringify(event, null, 2))
+                        .then(() => this.toastSuccess('Copied', 'JSON copied to clipboard'))
+                        .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
+                }
+            });
         }
     }
 
@@ -1011,7 +1075,13 @@ class Shirushi {
             if (result.error) {
                 output.textContent = `Error: ${result.error}`;
             } else {
-                output.textContent = result.output || '(no output)';
+                const outputText = result.output || '(no output)';
+                // Apply syntax highlighting if output looks like JSON
+                if (this.isJsonString(outputText)) {
+                    output.innerHTML = this.syntaxHighlightJson(outputText);
+                } else {
+                    output.textContent = outputText;
+                }
             }
         } catch (error) {
             output.textContent = `Error: ${error.message}`;

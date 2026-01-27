@@ -3088,52 +3088,52 @@
             app.toastContainer = container;
         }
 
-        it('showEventJson should call toastInfo instead of alert', () => {
+        it('showEventJson should call showModal with syntax-highlighted JSON', () => {
             setupToastTests();
             // Add a test event to the events array
             const testEvent = { id: 'test-event-123', content: 'Test content', kind: 1 };
             app.events = [testEvent];
 
-            // Spy on toastInfo
-            let toastInfoCalled = false;
-            let toastTitle = null;
-            let toastMessage = null;
-            const originalToastInfo = app.toastInfo.bind(app);
-            app.toastInfo = function(title, message) {
-                toastInfoCalled = true;
-                toastTitle = title;
-                toastMessage = message;
-                return originalToastInfo(title, message, 0);
+            // Spy on showModal
+            let showModalCalled = false;
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                showModalCalled = true;
+                modalOptions = options;
+                return Promise.resolve(null);
             };
 
             app.showEventJson('test-event-123');
 
-            assertTrue(toastInfoCalled, 'toastInfo should be called');
-            assertEqual(toastTitle, 'Event JSON', 'Toast title should be "Event JSON"');
-            assertTrue(toastMessage.includes('test-event-123'), 'Toast message should contain event ID');
-            assertTrue(toastMessage.includes('Test content'), 'Toast message should contain event content');
+            assertTrue(showModalCalled, 'showModal should be called');
+            assertEqual(modalOptions.title, 'Event JSON', 'Modal title should be "Event JSON"');
+            assertTrue(modalOptions.body.includes('json-highlight'), 'Modal body should contain syntax-highlighted JSON');
+            assertTrue(modalOptions.body.includes('test-event-123'), 'Modal body should contain event ID');
+            assertTrue(modalOptions.body.includes('Test content'), 'Modal body should contain event content');
+            assertEqual(modalOptions.size, 'lg', 'Modal should use large size');
 
             // Restore original method
-            app.toastInfo = originalToastInfo;
+            app.showModal = originalShowModal;
             app.events = [];
         });
 
-        it('showEventJson should not show toast if event not found', () => {
+        it('showEventJson should not show modal if event not found', () => {
             setupToastTests();
             app.events = [];
 
-            let toastInfoCalled = false;
-            const originalToastInfo = app.toastInfo.bind(app);
-            app.toastInfo = function() {
-                toastInfoCalled = true;
-                return originalToastInfo.apply(this, arguments);
+            let showModalCalled = false;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function() {
+                showModalCalled = true;
+                return Promise.resolve(null);
             };
 
             app.showEventJson('non-existent-event');
 
-            assertFalse(toastInfoCalled, 'toastInfo should not be called for non-existent event');
+            assertFalse(showModalCalled, 'showModal should not be called for non-existent event');
 
-            app.toastInfo = originalToastInfo;
+            app.showModal = originalShowModal;
         });
 
         it('generateKeys should call toastError on API error response', async () => {
@@ -3687,6 +3687,181 @@
             assertTrue(hasDanger, 'Should have .modal-danger CSS rule');
             assertTrue(hasWarning, 'Should have .modal-warning CSS rule');
             assertTrue(hasSuccess, 'Should have .modal-success CSS rule');
+        });
+    });
+
+    // ==========================================
+    // JSON Syntax Highlighting Tests
+    // ==========================================
+    describe('JSON Syntax Highlighting', () => {
+        it('isJsonString should detect valid JSON objects', () => {
+            assertTrue(app.isJsonString('{"key": "value"}'), 'Should detect simple JSON object');
+            assertTrue(app.isJsonString('  { "key": 123 }  '), 'Should detect JSON with whitespace');
+            assertTrue(app.isJsonString('[1, 2, 3]'), 'Should detect JSON array');
+            assertTrue(app.isJsonString('[]'), 'Should detect empty array');
+            assertTrue(app.isJsonString('{}'), 'Should detect empty object');
+        });
+
+        it('isJsonString should reject non-JSON strings', () => {
+            assertFalse(app.isJsonString('hello world'), 'Should reject plain text');
+            assertFalse(app.isJsonString('123'), 'Should reject numbers');
+            assertFalse(app.isJsonString(''), 'Should reject empty string');
+            assertFalse(app.isJsonString(null), 'Should reject null');
+            assertFalse(app.isJsonString(undefined), 'Should reject undefined');
+            assertFalse(app.isJsonString('key: value'), 'Should reject YAML-like');
+        });
+
+        it('syntaxHighlightJson should return HTML with pre and code tags', () => {
+            const result = app.syntaxHighlightJson({ key: 'value' });
+            assertTrue(result.includes('<pre class="json-highlight">'), 'Should contain pre tag with json-highlight class');
+            assertTrue(result.includes('<code>'), 'Should contain code tag');
+            assertTrue(result.includes('</code>'), 'Should close code tag');
+            assertTrue(result.includes('</pre>'), 'Should close pre tag');
+        });
+
+        it('syntaxHighlightJson should highlight keys', () => {
+            const result = app.syntaxHighlightJson({ myKey: 'value' });
+            assertTrue(result.includes('<span class="json-key">"myKey"</span>'), 'Should wrap key in json-key span');
+        });
+
+        it('syntaxHighlightJson should highlight string values', () => {
+            const result = app.syntaxHighlightJson({ key: 'stringValue' });
+            assertTrue(result.includes('<span class="json-string">"stringValue"</span>'), 'Should wrap string value in json-string span');
+        });
+
+        it('syntaxHighlightJson should highlight number values', () => {
+            const result = app.syntaxHighlightJson({ count: 42 });
+            assertTrue(result.includes('<span class="json-number">42</span>'), 'Should wrap number in json-number span');
+        });
+
+        it('syntaxHighlightJson should highlight boolean values', () => {
+            const resultTrue = app.syntaxHighlightJson({ active: true });
+            const resultFalse = app.syntaxHighlightJson({ active: false });
+            assertTrue(resultTrue.includes('<span class="json-boolean">true</span>'), 'Should wrap true in json-boolean span');
+            assertTrue(resultFalse.includes('<span class="json-boolean">false</span>'), 'Should wrap false in json-boolean span');
+        });
+
+        it('syntaxHighlightJson should highlight null values', () => {
+            const result = app.syntaxHighlightJson({ empty: null });
+            assertTrue(result.includes('<span class="json-null">null</span>'), 'Should wrap null in json-null span');
+        });
+
+        it('syntaxHighlightJson should handle nested objects', () => {
+            const result = app.syntaxHighlightJson({
+                outer: {
+                    inner: 'value'
+                }
+            });
+            assertTrue(result.includes('<span class="json-key">"outer"</span>'), 'Should highlight outer key');
+            assertTrue(result.includes('<span class="json-key">"inner"</span>'), 'Should highlight inner key');
+            assertTrue(result.includes('<span class="json-string">"value"</span>'), 'Should highlight nested string value');
+        });
+
+        it('syntaxHighlightJson should handle arrays', () => {
+            const result = app.syntaxHighlightJson({ items: [1, 2, 3] });
+            assertTrue(result.includes('<span class="json-number">1</span>'), 'Should highlight array number 1');
+            assertTrue(result.includes('<span class="json-number">2</span>'), 'Should highlight array number 2');
+            assertTrue(result.includes('<span class="json-number">3</span>'), 'Should highlight array number 3');
+        });
+
+        it('syntaxHighlightJson should accept JSON string input', () => {
+            const jsonStr = '{"name": "test"}';
+            const result = app.syntaxHighlightJson(jsonStr);
+            assertTrue(result.includes('<span class="json-key">"name"</span>'), 'Should highlight key from string input');
+            assertTrue(result.includes('<span class="json-string">"test"</span>'), 'Should highlight value from string input');
+        });
+
+        it('syntaxHighlightJson should handle invalid JSON string gracefully', () => {
+            const result = app.syntaxHighlightJson('not valid json');
+            assertTrue(result.includes('<pre class="json-highlight">'), 'Should still wrap in pre tag');
+            assertTrue(result.includes('not valid json'), 'Should contain original text');
+        });
+
+        it('syntaxHighlightJson should escape HTML in values', () => {
+            const result = app.syntaxHighlightJson({ content: '<script>alert("xss")</script>' });
+            assertFalse(result.includes('<script>'), 'Should not contain raw script tag');
+            assertTrue(result.includes('&lt;script&gt;'), 'Should escape HTML special characters');
+        });
+
+        it('syntaxHighlightJson should handle complex Nostr event', () => {
+            const event = {
+                id: 'abc123',
+                kind: 1,
+                pubkey: 'pubkey123',
+                content: 'Hello World',
+                created_at: 1700000000,
+                tags: [['e', 'eventid'], ['p', 'pubkey']],
+                sig: 'signature123'
+            };
+            const result = app.syntaxHighlightJson(event);
+
+            assertTrue(result.includes('<span class="json-key">"id"</span>'), 'Should highlight id key');
+            assertTrue(result.includes('<span class="json-key">"kind"</span>'), 'Should highlight kind key');
+            assertTrue(result.includes('<span class="json-number">1</span>'), 'Should highlight kind value');
+            assertTrue(result.includes('<span class="json-key">"tags"</span>'), 'Should highlight tags key');
+        });
+    });
+
+    // ==========================================
+    // JSON Highlighting CSS Tests
+    // ==========================================
+    describe('JSON Highlighting CSS', () => {
+        it('json-highlight CSS class should be defined', () => {
+            const styleSheets = document.styleSheets;
+            let hasJsonHighlight = false;
+
+            for (const sheet of styleSheets) {
+                try {
+                    const rules = sheet.cssRules || sheet.rules;
+                    if (!rules) continue;
+
+                    for (const rule of rules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.json-highlight')) {
+                            hasJsonHighlight = true;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+                if (hasJsonHighlight) break;
+            }
+
+            assertTrue(hasJsonHighlight, 'Should have .json-highlight CSS rule');
+        });
+
+        it('json syntax highlighting color classes should be defined', () => {
+            const styleSheets = document.styleSheets;
+            let hasKey = false;
+            let hasString = false;
+            let hasNumber = false;
+            let hasBoolean = false;
+            let hasNull = false;
+
+            for (const sheet of styleSheets) {
+                try {
+                    const rules = sheet.cssRules || sheet.rules;
+                    if (!rules) continue;
+
+                    for (const rule of rules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.json-key')) hasKey = true;
+                        if (selector.includes('.json-string')) hasString = true;
+                        if (selector.includes('.json-number')) hasNumber = true;
+                        if (selector.includes('.json-boolean')) hasBoolean = true;
+                        if (selector.includes('.json-null')) hasNull = true;
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+            }
+
+            assertTrue(hasKey, 'Should have .json-key CSS rule');
+            assertTrue(hasString, 'Should have .json-string CSS rule');
+            assertTrue(hasNumber, 'Should have .json-number CSS rule');
+            assertTrue(hasBoolean, 'Should have .json-boolean CSS rule');
+            assertTrue(hasNull, 'Should have .json-null CSS rule');
         });
     });
 
