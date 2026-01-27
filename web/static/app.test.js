@@ -6280,6 +6280,90 @@
             assertTrue(firstCard.classList.contains('expanded'), 'card should remain expanded after re-render');
             removeNipListDOM();
         });
+
+        it('should render category badge with correct CSS class for each category type', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            // Test all category types
+            mockApp.nips = [
+                { id: 'nip-core', name: 'NIP-CORE', title: 'Core', description: 'Core', category: 'core', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false },
+                { id: 'nip-identity', name: 'NIP-IDENTITY', title: 'Identity', description: 'Identity', category: 'identity', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false },
+                { id: 'nip-encoding', name: 'NIP-ENCODING', title: 'Encoding', description: 'Encoding', category: 'encoding', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false },
+                { id: 'nip-encryption', name: 'NIP-ENCRYPTION', title: 'Encryption', description: 'Encryption', category: 'encryption', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false },
+                { id: 'nip-payments', name: 'NIP-PAYMENTS', title: 'Payments', description: 'Payments', category: 'payments', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false },
+                { id: 'nip-dvms', name: 'NIP-DVMS', title: 'DVMs', description: 'DVMs', category: 'dvms', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false },
+                { id: 'nip-social', name: 'NIP-SOCIAL', title: 'Social', description: 'Social', category: 'social', relatedNIPs: [], eventKinds: [], exampleEvents: [], specUrl: '', hasTest: false }
+            ];
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const categories = ['core', 'identity', 'encoding', 'encryption', 'payments', 'dvms', 'social'];
+
+            categories.forEach(category => {
+                const card = container.querySelector(`.nip-card[data-nip="nip-${category}"]`);
+                assertDefined(card, `card for ${category} should exist`);
+                const badge = card.querySelector('.category-badge');
+                assertDefined(badge, `badge for ${category} should exist`);
+                assertTrue(badge.classList.contains(category), `badge should have ${category} class`);
+            });
+            removeNipListDOM();
+        });
+
+        it('should render encoding category badge with correct class', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            // NIP-19 has encoding category
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const nip19Card = container.querySelector('.nip-card[data-nip="nip19"]');
+            const badge = nip19Card.querySelector('.category-badge');
+
+            assertDefined(badge, 'encoding badge should exist for NIP-19');
+            assertTrue(badge.classList.contains('encoding'), 'badge should have encoding class');
+            removeNipListDOM();
+        });
+
+        it('should not render category badge when category is null', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.nips = [{
+                id: 'nip-null',
+                name: 'NIP-NULL',
+                title: 'No Category',
+                description: 'Test',
+                category: null,
+                relatedNIPs: [],
+                eventKinds: [],
+                exampleEvents: [],
+                specUrl: '',
+                hasTest: false
+            }];
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const card = container.querySelector('.nip-card[data-nip="nip-null"]');
+            const badge = card.querySelector('.category-badge');
+
+            assertEqual(badge, null, 'badge should not exist when category is null');
+            removeNipListDOM();
+        });
+
+        it('should have event kind badges with nip-card-kind-badge class', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.expandedNipCards.add('nip01');
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const kindBadges = container.querySelectorAll('.nip-card-kind-badge');
+
+            assertTrue(kindBadges.length > 0, 'should have at least one kind badge');
+            kindBadges.forEach(badge => {
+                assertTrue(badge.textContent.includes('Kind'), 'kind badge should contain "Kind" text');
+            });
+            removeNipListDOM();
+        });
     });
 
     // Export test runner for browser and Node.js
