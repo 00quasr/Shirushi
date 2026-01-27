@@ -47,13 +47,15 @@ type TestStep struct {
 
 // NIPInfo describes a NIP for the testing UI.
 type NIPInfo struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	SpecURL     string `json:"specUrl"`
-	HasTest     bool   `json:"hasTest"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Category    string   `json:"category"`
+	RelatedNIPs []string `json:"relatedNIPs,omitempty"`
+	EventKinds  []int    `json:"eventKinds,omitempty"`
+	SpecURL     string   `json:"specUrl"`
+	HasTest     bool     `json:"hasTest"`
 }
 
 // Profile represents a Nostr user profile (NIP-01 kind 0 metadata).

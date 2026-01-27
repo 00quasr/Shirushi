@@ -484,3 +484,124 @@ func TestMonitoringDataOmitEmpty(t *testing.T) {
 		t.Error("empty event_rate_history should be omitted")
 	}
 }
+
+func TestNIPInfoJSONSerialization(t *testing.T) {
+	nip := NIPInfo{
+		ID:          "nip01",
+		Name:        "NIP-01",
+		Title:       "Basic Protocol",
+		Description: "Core protocol: events, signatures, subscriptions",
+		Category:    "core",
+		RelatedNIPs: []string{"nip02", "nip05", "nip19"},
+		EventKinds:  []int{0, 1},
+		SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/01.md",
+		HasTest:     true,
+	}
+
+	data, err := json.Marshal(nip)
+	if err != nil {
+		t.Fatalf("failed to marshal NIPInfo: %v", err)
+	}
+
+	var decoded NIPInfo
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal NIPInfo: %v", err)
+	}
+
+	if decoded.ID != nip.ID {
+		t.Errorf("ID mismatch: got %s, want %s", decoded.ID, nip.ID)
+	}
+	if decoded.Name != nip.Name {
+		t.Errorf("Name mismatch: got %s, want %s", decoded.Name, nip.Name)
+	}
+	if decoded.Title != nip.Title {
+		t.Errorf("Title mismatch: got %s, want %s", decoded.Title, nip.Title)
+	}
+	if decoded.Description != nip.Description {
+		t.Errorf("Description mismatch: got %s, want %s", decoded.Description, nip.Description)
+	}
+	if decoded.Category != nip.Category {
+		t.Errorf("Category mismatch: got %s, want %s", decoded.Category, nip.Category)
+	}
+	if len(decoded.RelatedNIPs) != len(nip.RelatedNIPs) {
+		t.Fatalf("RelatedNIPs length mismatch: got %d, want %d", len(decoded.RelatedNIPs), len(nip.RelatedNIPs))
+	}
+	for i, related := range decoded.RelatedNIPs {
+		if related != nip.RelatedNIPs[i] {
+			t.Errorf("RelatedNIPs[%d] mismatch: got %s, want %s", i, related, nip.RelatedNIPs[i])
+		}
+	}
+	if len(decoded.EventKinds) != len(nip.EventKinds) {
+		t.Fatalf("EventKinds length mismatch: got %d, want %d", len(decoded.EventKinds), len(nip.EventKinds))
+	}
+	for i, kind := range decoded.EventKinds {
+		if kind != nip.EventKinds[i] {
+			t.Errorf("EventKinds[%d] mismatch: got %d, want %d", i, kind, nip.EventKinds[i])
+		}
+	}
+	if decoded.SpecURL != nip.SpecURL {
+		t.Errorf("SpecURL mismatch: got %s, want %s", decoded.SpecURL, nip.SpecURL)
+	}
+	if decoded.HasTest != nip.HasTest {
+		t.Errorf("HasTest mismatch: got %v, want %v", decoded.HasTest, nip.HasTest)
+	}
+}
+
+func TestNIPInfoOmitEmpty(t *testing.T) {
+	nip := NIPInfo{
+		ID:       "nip19",
+		Name:     "NIP-19",
+		Title:    "Bech32 Encoding",
+		Category: "encoding",
+		SpecURL:  "https://github.com/nostr-protocol/nips/blob/master/19.md",
+		HasTest:  true,
+	}
+
+	data, err := json.Marshal(nip)
+	if err != nil {
+		t.Fatalf("failed to marshal NIPInfo: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := m["relatedNIPs"]; exists {
+		t.Error("empty relatedNIPs should be omitted")
+	}
+	if _, exists := m["eventKinds"]; exists {
+		t.Error("empty eventKinds should be omitted")
+	}
+}
+
+func TestNIPInfoJSONFieldNames(t *testing.T) {
+	nip := NIPInfo{
+		ID:          "nip01",
+		Name:        "NIP-01",
+		Title:       "Basic Protocol",
+		Description: "Test description",
+		Category:    "core",
+		RelatedNIPs: []string{"nip02"},
+		EventKinds:  []int{0, 1},
+		SpecURL:     "https://example.com",
+		HasTest:     true,
+	}
+
+	data, err := json.Marshal(nip)
+	if err != nil {
+		t.Fatalf("failed to marshal NIPInfo: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	expectedFields := []string{"id", "name", "title", "description", "category", "relatedNIPs", "eventKinds", "specUrl", "hasTest"}
+	for _, field := range expectedFields {
+		if _, exists := m[field]; !exists {
+			t.Errorf("expected field %s to exist in JSON output", field)
+		}
+	}
+}

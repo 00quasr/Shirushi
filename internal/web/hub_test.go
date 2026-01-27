@@ -363,6 +363,135 @@ func TestGetNIPList(t *testing.T) {
 	}
 }
 
+func TestGetNIPList_RelatedNIPs(t *testing.T) {
+	nips := GetNIPList()
+
+	// Build a map for easy lookup
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	// Test NIP-01 has related NIPs
+	nip01, ok := nipMap["nip01"]
+	if !ok {
+		t.Fatal("expected to find NIP-01")
+	}
+	if len(nip01.RelatedNIPs) == 0 {
+		t.Error("expected NIP-01 to have related NIPs")
+	}
+	// Check that related NIPs reference valid NIPs
+	for _, related := range nip01.RelatedNIPs {
+		if _, exists := nipMap[related]; !exists {
+			t.Errorf("NIP-01 references unknown related NIP: %s", related)
+		}
+	}
+
+	// Test NIP-02 has related NIPs
+	nip02, ok := nipMap["nip02"]
+	if !ok {
+		t.Fatal("expected to find NIP-02")
+	}
+	if len(nip02.RelatedNIPs) == 0 {
+		t.Error("expected NIP-02 to have related NIPs")
+	}
+	// NIP-02 should reference NIP-01
+	foundNIP01 := false
+	for _, related := range nip02.RelatedNIPs {
+		if related == "nip01" {
+			foundNIP01 = true
+			break
+		}
+	}
+	if !foundNIP01 {
+		t.Error("expected NIP-02 to reference NIP-01 as related")
+	}
+}
+
+func TestGetNIPList_EventKinds(t *testing.T) {
+	nips := GetNIPList()
+
+	// Build a map for easy lookup
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	// Test NIP-01 has event kinds 0 and 1
+	nip01 := nipMap["nip01"]
+	if len(nip01.EventKinds) == 0 {
+		t.Error("expected NIP-01 to have event kinds")
+	}
+	hasKind0, hasKind1 := false, false
+	for _, kind := range nip01.EventKinds {
+		if kind == 0 {
+			hasKind0 = true
+		}
+		if kind == 1 {
+			hasKind1 = true
+		}
+	}
+	if !hasKind0 {
+		t.Error("expected NIP-01 to include kind 0 (metadata)")
+	}
+	if !hasKind1 {
+		t.Error("expected NIP-01 to include kind 1 (text note)")
+	}
+
+	// Test NIP-02 has event kind 3
+	nip02 := nipMap["nip02"]
+	if len(nip02.EventKinds) == 0 {
+		t.Error("expected NIP-02 to have event kinds")
+	}
+	hasKind3 := false
+	for _, kind := range nip02.EventKinds {
+		if kind == 3 {
+			hasKind3 = true
+			break
+		}
+	}
+	if !hasKind3 {
+		t.Error("expected NIP-02 to include kind 3 (contact list)")
+	}
+
+	// Test NIP-57 has zap event kinds
+	nip57 := nipMap["nip57"]
+	if len(nip57.EventKinds) == 0 {
+		t.Error("expected NIP-57 to have event kinds")
+	}
+	hasKind9734, hasKind9735 := false, false
+	for _, kind := range nip57.EventKinds {
+		if kind == 9734 {
+			hasKind9734 = true
+		}
+		if kind == 9735 {
+			hasKind9735 = true
+		}
+	}
+	if !hasKind9734 {
+		t.Error("expected NIP-57 to include kind 9734 (zap request)")
+	}
+	if !hasKind9735 {
+		t.Error("expected NIP-57 to include kind 9735 (zap receipt)")
+	}
+
+	// Test NIP-19 has no event kinds (it's an encoding standard)
+	nip19 := nipMap["nip19"]
+	if len(nip19.EventKinds) != 0 {
+		t.Error("expected NIP-19 to have no event kinds (it's an encoding standard)")
+	}
+}
+
+func TestGetNIPList_AllNIPsHaveCategory(t *testing.T) {
+	nips := GetNIPList()
+
+	for _, nip := range nips {
+		if nip.Category == "" {
+			t.Errorf("NIP %s is missing category", nip.ID)
+		}
+	}
+}
+
 func TestHub_HandleClientMessage_UnknownType(t *testing.T) {
 	hub := NewHub()
 
