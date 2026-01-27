@@ -271,3 +271,216 @@ func TestZapStatsEmptyRecentZaps(t *testing.T) {
 		t.Error("empty recent_zaps should be omitted")
 	}
 }
+
+func TestTimeSeriesPointJSONSerialization(t *testing.T) {
+	point := TimeSeriesPoint{
+		Timestamp: 1700000000,
+		Value:     42.5,
+	}
+
+	data, err := json.Marshal(point)
+	if err != nil {
+		t.Fatalf("failed to marshal TimeSeriesPoint: %v", err)
+	}
+
+	var decoded TimeSeriesPoint
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal TimeSeriesPoint: %v", err)
+	}
+
+	if decoded.Timestamp != point.Timestamp {
+		t.Errorf("Timestamp mismatch: got %d, want %d", decoded.Timestamp, point.Timestamp)
+	}
+	if decoded.Value != point.Value {
+		t.Errorf("Value mismatch: got %f, want %f", decoded.Value, point.Value)
+	}
+}
+
+func TestRelayHealthJSONSerialization(t *testing.T) {
+	health := RelayHealth{
+		URL:          "wss://relay.example.com",
+		Connected:    true,
+		Latency:      150,
+		EventsPerSec: 25.5,
+		Uptime:       99.5,
+		LastSeen:     1700001000,
+		ErrorCount:   2,
+		LastError:    "temporary disconnect",
+		LatencyHistory: []TimeSeriesPoint{
+			{Timestamp: 1700000000, Value: 120.0},
+			{Timestamp: 1700000060, Value: 150.0},
+		},
+		EventRateHistory: []TimeSeriesPoint{
+			{Timestamp: 1700000000, Value: 20.0},
+			{Timestamp: 1700000060, Value: 25.5},
+		},
+	}
+
+	data, err := json.Marshal(health)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayHealth: %v", err)
+	}
+
+	var decoded RelayHealth
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayHealth: %v", err)
+	}
+
+	if decoded.URL != health.URL {
+		t.Errorf("URL mismatch: got %s, want %s", decoded.URL, health.URL)
+	}
+	if decoded.Connected != health.Connected {
+		t.Errorf("Connected mismatch: got %v, want %v", decoded.Connected, health.Connected)
+	}
+	if decoded.Latency != health.Latency {
+		t.Errorf("Latency mismatch: got %d, want %d", decoded.Latency, health.Latency)
+	}
+	if decoded.EventsPerSec != health.EventsPerSec {
+		t.Errorf("EventsPerSec mismatch: got %f, want %f", decoded.EventsPerSec, health.EventsPerSec)
+	}
+	if decoded.Uptime != health.Uptime {
+		t.Errorf("Uptime mismatch: got %f, want %f", decoded.Uptime, health.Uptime)
+	}
+	if decoded.LastSeen != health.LastSeen {
+		t.Errorf("LastSeen mismatch: got %d, want %d", decoded.LastSeen, health.LastSeen)
+	}
+	if decoded.ErrorCount != health.ErrorCount {
+		t.Errorf("ErrorCount mismatch: got %d, want %d", decoded.ErrorCount, health.ErrorCount)
+	}
+	if decoded.LastError != health.LastError {
+		t.Errorf("LastError mismatch: got %s, want %s", decoded.LastError, health.LastError)
+	}
+	if len(decoded.LatencyHistory) != len(health.LatencyHistory) {
+		t.Fatalf("LatencyHistory length mismatch: got %d, want %d", len(decoded.LatencyHistory), len(health.LatencyHistory))
+	}
+	if decoded.LatencyHistory[1].Value != 150.0 {
+		t.Errorf("LatencyHistory[1].Value mismatch: got %f, want %f", decoded.LatencyHistory[1].Value, 150.0)
+	}
+	if len(decoded.EventRateHistory) != len(health.EventRateHistory) {
+		t.Fatalf("EventRateHistory length mismatch: got %d, want %d", len(decoded.EventRateHistory), len(health.EventRateHistory))
+	}
+}
+
+func TestRelayHealthOmitEmpty(t *testing.T) {
+	health := RelayHealth{
+		URL:       "wss://relay.example.com",
+		Connected: true,
+		Latency:   100,
+	}
+
+	data, err := json.Marshal(health)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayHealth: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := m["latency_history"]; exists {
+		t.Error("empty latency_history should be omitted")
+	}
+	if _, exists := m["event_rate_history"]; exists {
+		t.Error("empty event_rate_history should be omitted")
+	}
+	if _, exists := m["last_error"]; exists {
+		t.Error("empty last_error should be omitted")
+	}
+}
+
+func TestMonitoringDataJSONSerialization(t *testing.T) {
+	monitoring := MonitoringData{
+		Relays: []RelayHealth{
+			{
+				URL:          "wss://relay1.example.com",
+				Connected:    true,
+				Latency:      100,
+				EventsPerSec: 15.0,
+				Uptime:       99.9,
+				LastSeen:     1700001000,
+			},
+			{
+				URL:          "wss://relay2.example.com",
+				Connected:    false,
+				Latency:      0,
+				EventsPerSec: 0,
+				Uptime:       85.0,
+				LastSeen:     1700000500,
+				ErrorCount:   5,
+				LastError:    "connection refused",
+			},
+		},
+		TotalEvents:    5000,
+		EventsPerSec:   15.0,
+		ConnectedCount: 1,
+		TotalCount:     2,
+		Timestamp:      1700001000,
+		EventRateHistory: []TimeSeriesPoint{
+			{Timestamp: 1700000000, Value: 10.0},
+			{Timestamp: 1700000060, Value: 15.0},
+		},
+	}
+
+	data, err := json.Marshal(monitoring)
+	if err != nil {
+		t.Fatalf("failed to marshal MonitoringData: %v", err)
+	}
+
+	var decoded MonitoringData
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal MonitoringData: %v", err)
+	}
+
+	if decoded.TotalEvents != monitoring.TotalEvents {
+		t.Errorf("TotalEvents mismatch: got %d, want %d", decoded.TotalEvents, monitoring.TotalEvents)
+	}
+	if decoded.EventsPerSec != monitoring.EventsPerSec {
+		t.Errorf("EventsPerSec mismatch: got %f, want %f", decoded.EventsPerSec, monitoring.EventsPerSec)
+	}
+	if decoded.ConnectedCount != monitoring.ConnectedCount {
+		t.Errorf("ConnectedCount mismatch: got %d, want %d", decoded.ConnectedCount, monitoring.ConnectedCount)
+	}
+	if decoded.TotalCount != monitoring.TotalCount {
+		t.Errorf("TotalCount mismatch: got %d, want %d", decoded.TotalCount, monitoring.TotalCount)
+	}
+	if decoded.Timestamp != monitoring.Timestamp {
+		t.Errorf("Timestamp mismatch: got %d, want %d", decoded.Timestamp, monitoring.Timestamp)
+	}
+	if len(decoded.Relays) != len(monitoring.Relays) {
+		t.Fatalf("Relays length mismatch: got %d, want %d", len(decoded.Relays), len(monitoring.Relays))
+	}
+	if decoded.Relays[0].URL != "wss://relay1.example.com" {
+		t.Errorf("Relays[0].URL mismatch: got %s, want %s", decoded.Relays[0].URL, "wss://relay1.example.com")
+	}
+	if decoded.Relays[1].LastError != "connection refused" {
+		t.Errorf("Relays[1].LastError mismatch: got %s, want %s", decoded.Relays[1].LastError, "connection refused")
+	}
+	if len(decoded.EventRateHistory) != len(monitoring.EventRateHistory) {
+		t.Fatalf("EventRateHistory length mismatch: got %d, want %d", len(decoded.EventRateHistory), len(monitoring.EventRateHistory))
+	}
+}
+
+func TestMonitoringDataOmitEmpty(t *testing.T) {
+	monitoring := MonitoringData{
+		Relays:         []RelayHealth{},
+		TotalEvents:    0,
+		ConnectedCount: 0,
+		TotalCount:     0,
+		Timestamp:      1700000000,
+	}
+
+	data, err := json.Marshal(monitoring)
+	if err != nil {
+		t.Fatalf("failed to marshal MonitoringData: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := m["event_rate_history"]; exists {
+		t.Error("empty event_rate_history should be omitted")
+	}
+}

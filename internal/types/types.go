@@ -110,3 +110,34 @@ type ZapEvent struct {
 	Content   string `json:"content,omitempty"`
 	CreatedAt int64  `json:"created_at"`
 }
+
+// TimeSeriesPoint represents a single data point in a time series.
+type TimeSeriesPoint struct {
+	Timestamp int64   `json:"timestamp"`
+	Value     float64 `json:"value"`
+}
+
+// RelayHealth represents the health status of a relay over time.
+type RelayHealth struct {
+	URL              string            `json:"url"`
+	Connected        bool              `json:"connected"`
+	Latency          int64             `json:"latency_ms"`
+	LatencyHistory   []TimeSeriesPoint `json:"latency_history,omitempty"`
+	EventsPerSec     float64           `json:"events_per_sec"`
+	EventRateHistory []TimeSeriesPoint `json:"event_rate_history,omitempty"`
+	Uptime           float64           `json:"uptime_percent"`
+	LastSeen         int64             `json:"last_seen"`
+	ErrorCount       int               `json:"error_count"`
+	LastError        string            `json:"last_error,omitempty"`
+}
+
+// MonitoringData represents aggregated monitoring data for all relays.
+type MonitoringData struct {
+	Relays           []RelayHealth     `json:"relays"`
+	TotalEvents      int64             `json:"total_events"`
+	EventsPerSec     float64           `json:"events_per_sec"`
+	EventRateHistory []TimeSeriesPoint `json:"event_rate_history,omitempty"`
+	ConnectedCount   int               `json:"connected_count"`
+	TotalCount       int               `json:"total_count"`
+	Timestamp        int64             `json:"timestamp"`
+}
