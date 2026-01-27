@@ -6807,6 +6807,447 @@
         });
     });
 
+    // ==========================================
+    // Event Modal Tests
+    // ==========================================
+    describe('Event Modal - Opens and Displays JSON', () => {
+        function setupModalTests() {
+            // Ensure modal overlay exists
+            let modalOverlay = document.getElementById('modal-overlay');
+            if (!modalOverlay) {
+                modalOverlay = document.createElement('div');
+                modalOverlay.id = 'modal-overlay';
+                modalOverlay.className = 'modal-overlay hidden';
+                modalOverlay.setAttribute('role', 'dialog');
+                modalOverlay.setAttribute('aria-modal', 'true');
+                modalOverlay.setAttribute('aria-hidden', 'true');
+                modalOverlay.innerHTML = `
+                    <div class="modal" role="document">
+                        <div class="modal-header">
+                            <h2 class="modal-title" id="modal-title"></h2>
+                            <button class="modal-close" aria-label="Close modal" title="Close">&times;</button>
+                        </div>
+                        <div class="modal-body" id="modal-body"></div>
+                        <div class="modal-footer" id="modal-footer"></div>
+                    </div>
+                `;
+                document.body.appendChild(modalOverlay);
+            }
+
+            // Re-initialize modal
+            app.modalOverlay = null;
+            app.setupModal();
+        }
+
+        function cleanupModalTests() {
+            // Close any open modal
+            if (app.modalOverlay && !app.modalOverlay.classList.contains('hidden')) {
+                app.modalOverlay.classList.add('hidden');
+            }
+        }
+
+        it('showEventJson should open modal when event exists', async () => {
+            setupModalTests();
+
+            // Add a test event
+            const testEvent = {
+                id: 'test-event-modal-123',
+                kind: 1,
+                pubkey: 'test-pubkey-abc123',
+                content: 'Hello Nostr!',
+                created_at: 1700000000,
+                tags: [['t', 'test']],
+                relay: 'wss://test.relay'
+            };
+            app.events = [testEvent];
+
+            // Call showEventJson
+            app.showEventJson('test-event-modal-123');
+
+            // Verify modal is opened
+            assertFalse(app.modalOverlay.classList.contains('hidden'), 'Modal should be visible');
+            assertEqual(app.modalOverlay.getAttribute('aria-hidden'), 'false', 'aria-hidden should be false');
+
+            // Clean up
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should have title "Event JSON"', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-event-title-456',
+                kind: 1,
+                pubkey: 'test-pubkey-xyz789',
+                content: 'Test content',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-event-title-456');
+
+            assertEqual(app.modalTitle.textContent, 'Event JSON', 'Modal title should be "Event JSON"');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display event id in JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'unique-event-id-789xyz',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('unique-event-id-789xyz');
+
+            assertTrue(app.modalBody.innerHTML.includes('unique-event-id-789xyz'), 'Modal should display event id');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display event kind in JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-kind-event',
+                kind: 42,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-kind-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('42') || app.modalBody.innerHTML.includes('"kind"'), 'Modal should display event kind');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display event pubkey in JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-pubkey-event',
+                kind: 1,
+                pubkey: 'abc123def456pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-pubkey-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('abc123def456pubkey'), 'Modal should display event pubkey');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display event content in JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-content-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'This is my unique test content!',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-content-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('This is my unique test content!'), 'Modal should display event content');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display event created_at in JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-timestamp-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-timestamp-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('1700000000'), 'Modal should display event created_at timestamp');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display event tags in JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-tags-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [['t', 'nostr'], ['p', 'somepubkey123']]
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-tags-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('nostr'), 'Modal should display tag value "nostr"');
+            assertTrue(app.modalBody.innerHTML.includes('somepubkey123'), 'Modal should display tag value "somepubkey123"');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should have Copy button', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-copy-btn-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-copy-btn-event');
+
+            const copyBtn = app.modalFooter.querySelector('button');
+            assertDefined(copyBtn, 'Copy button should exist');
+            assertTrue(copyBtn.textContent.includes('Copy'), 'Button should contain "Copy" text');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should have Close button', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-close-btn-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-close-btn-event');
+
+            const buttons = app.modalFooter.querySelectorAll('button');
+            let hasCloseButton = false;
+            buttons.forEach(btn => {
+                if (btn.textContent.includes('Close')) {
+                    hasCloseButton = true;
+                }
+            });
+            assertTrue(hasCloseButton, 'Close button should exist');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should use large size', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-size-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-size-event');
+
+            assertTrue(app.modalElement.classList.contains('modal-lg'), 'Modal should have large size class');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal body should contain syntax-highlighted JSON', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-syntax-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-syntax-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('json-highlight'), 'Modal body should contain syntax-highlighted JSON');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+
+        it('event card Raw JSON button should exist after rendering events', () => {
+            const appInstance = window.app || app;
+
+            // Set up mock event data
+            appInstance.events = [
+                {
+                    id: 'raw-json-btn-test-event',
+                    pubkey: 'pub123456789012345678901234567890123456789012345678901234',
+                    kind: 1,
+                    content: 'Test content for raw JSON button',
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: []
+                }
+            ];
+
+            // Render events
+            appInstance.renderEvents();
+
+            // Check for Raw JSON button
+            const eventActions = document.querySelector('.event-actions');
+            assertDefined(eventActions, 'Event actions container should exist');
+
+            const rawJsonBtn = eventActions.querySelector('button:first-child');
+            assertDefined(rawJsonBtn, 'Raw JSON button should exist');
+            assertEqual(rawJsonBtn.textContent, 'Raw JSON', 'Button should have "Raw JSON" text');
+
+            // Clean up
+            appInstance.events = [];
+        });
+
+        it('event card Raw JSON button should call showEventJson with correct event id', () => {
+            const appInstance = window.app || app;
+            const testEventId = 'onclick-test-event-id-xyz';
+
+            // Set up mock event data
+            appInstance.events = [
+                {
+                    id: testEventId,
+                    pubkey: 'pub123456789012345678901234567890123456789012345678901234',
+                    kind: 1,
+                    content: 'Test content',
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: []
+                }
+            ];
+
+            // Render events
+            appInstance.renderEvents();
+
+            // Check Raw JSON button onclick attribute
+            const rawJsonBtn = document.querySelector('.event-actions button:first-child');
+            assertDefined(rawJsonBtn, 'Raw JSON button should exist');
+            assertTrue(
+                rawJsonBtn.getAttribute('onclick').includes('showEventJson'),
+                'Button onclick should call showEventJson'
+            );
+            assertTrue(
+                rawJsonBtn.getAttribute('onclick').includes(testEventId),
+                'Button onclick should pass the correct event id'
+            );
+
+            // Clean up
+            appInstance.events = [];
+        });
+
+        it('showEventJson should not open modal for non-existent event', () => {
+            setupModalTests();
+
+            app.events = [];
+
+            let showModalCalled = false;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function() {
+                showModalCalled = true;
+                return Promise.resolve(null);
+            };
+
+            app.showEventJson('non-existent-event-id');
+
+            assertFalse(showModalCalled, 'showModal should not be called for non-existent event');
+
+            app.showModal = originalShowModal;
+            cleanupModalTests();
+        });
+
+        it('showEventJson modal should display relay info when present', async () => {
+            setupModalTests();
+
+            const testEvent = {
+                id: 'test-relay-event',
+                kind: 1,
+                pubkey: 'test-pubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [],
+                relay: 'wss://my-special-relay.com'
+            };
+            app.events = [testEvent];
+
+            app.showEventJson('test-relay-event');
+
+            assertTrue(app.modalBody.innerHTML.includes('wss://my-special-relay.com'), 'Modal should display relay URL');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            app.events = [];
+            cleanupModalTests();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
