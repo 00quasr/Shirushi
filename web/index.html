@@ -23,6 +23,7 @@
 
     <nav class="tabs">
         <button class="tab active" data-tab="relays">Relays</button>
+        <button class="tab" data-tab="explorer">Explorer</button>
         <button class="tab" data-tab="events">Events</button>
         <button class="tab" data-tab="testing">Testing</button>
         <button class="tab" data-tab="keys">Keys</button>
@@ -48,6 +49,102 @@
                     <button class="btn small" data-preset="fast">Fast</button>
                     <button class="btn small" data-preset="dvms">DVMs</button>
                     <button class="btn small" data-preset="privacy">Privacy</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Explorer Tab -->
+        <section id="explorer-tab" class="tab-content">
+            <div class="panel">
+                <h2>Profile Explorer</h2>
+                <div class="input-group">
+                    <input type="text" id="profile-search" placeholder="npub1... or user@domain.com (NIP-05)">
+                    <button id="explore-profile-btn" class="btn primary">Explore</button>
+                </div>
+                <p class="hint">Enter an npub public key or NIP-05 identifier to explore a Nostr profile</p>
+            </div>
+
+            <div id="profile-card" class="profile-card hidden">
+                <div id="profile-banner" class="profile-banner"></div>
+                <div class="profile-header">
+                    <div id="profile-avatar" class="profile-avatar"></div>
+                    <div class="profile-info">
+                        <div class="profile-name-row">
+                            <span id="profile-display-name" class="profile-display-name"></span>
+                            <span id="profile-nip05-badge" class="nip05-badge hidden">
+                                <span class="nip05-icon">✓</span>
+                                <span id="profile-nip05"></span>
+                            </span>
+                        </div>
+                        <span id="profile-name" class="profile-username"></span>
+                        <span id="profile-pubkey" class="profile-pubkey"></span>
+                    </div>
+                    <div class="profile-actions">
+                        <button class="btn small" data-copy="profile-pubkey">Copy npub</button>
+                    </div>
+                </div>
+                <div class="profile-body">
+                    <p id="profile-about" class="profile-about"></p>
+                    <div class="profile-links">
+                        <a id="profile-website" class="profile-link hidden" target="_blank" rel="noopener noreferrer">
+                            <span class="link-icon">🌐</span>
+                            <span class="link-text"></span>
+                        </a>
+                        <span id="profile-lightning" class="profile-link hidden">
+                            <span class="link-icon">⚡</span>
+                            <span class="link-text"></span>
+                        </span>
+                    </div>
+                    <div class="profile-stats">
+                        <div class="stat">
+                            <span id="profile-follow-count" class="stat-value">0</span>
+                            <span class="stat-label">Following</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="profile-content" class="profile-content hidden">
+                <div class="profile-tabs">
+                    <button class="profile-tab active" data-profile-tab="notes">Notes</button>
+                    <button class="profile-tab" data-profile-tab="following">Following</button>
+                    <button class="profile-tab" data-profile-tab="zaps">Zaps</button>
+                </div>
+
+                <div id="profile-notes-tab" class="profile-tab-content active">
+                    <div id="profile-notes-list" class="profile-notes-list">
+                        <p class="hint">Loading notes...</p>
+                    </div>
+                </div>
+
+                <div id="profile-following-tab" class="profile-tab-content">
+                    <div id="profile-following-list" class="profile-following-list">
+                        <p class="hint">Loading following list...</p>
+                    </div>
+                </div>
+
+                <div id="profile-zaps-tab" class="profile-tab-content">
+                    <div class="zap-stats-summary panel" id="zap-stats-summary">
+                        <div class="zap-stat">
+                            <span id="zap-total-count" class="zap-stat-value">0</span>
+                            <span class="zap-stat-label">Total Zaps</span>
+                        </div>
+                        <div class="zap-stat">
+                            <span id="zap-total-sats" class="zap-stat-value">0</span>
+                            <span class="zap-stat-label">Total Sats</span>
+                        </div>
+                        <div class="zap-stat">
+                            <span id="zap-avg-sats" class="zap-stat-value">0</span>
+                            <span class="zap-stat-label">Avg Sats</span>
+                        </div>
+                        <div class="zap-stat">
+                            <span id="zap-top-zap" class="zap-stat-value">0</span>
+                            <span class="zap-stat-label">Top Zap</span>
+                        </div>
+                    </div>
+                    <div id="profile-zaps-list" class="profile-zaps-list">
+                        <p class="hint">Loading zap history...</p>
+                    </div>
                 </div>
             </div>
         </section>
