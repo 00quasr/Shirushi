@@ -2,7 +2,7 @@
 .env
 
 # Binaries
-shirushi
+/shirushi
 *.exe
 
 # IDE
@@ -20,3 +20,5 @@ coverage.out
 # Build
 dist/
 .playwright-mcp
+CLAUDE.md
+PRD.md
