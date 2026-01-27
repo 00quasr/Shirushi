@@ -5405,3 +5405,425 @@ main {
     width: 14px;
     height: 14px;
 }
+
+/* ==========================================
+   Mobile Navigation - Collapsible Sidebar
+   ========================================== */
+
+/* Mobile menu button (hamburger) - hidden by default */
+.mobile-menu-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-menu-btn:hover,
+.mobile-menu-btn:focus {
+    background: var(--bg-3);
+    outline: none;
+}
+
+.mobile-menu-btn:active {
+    background: var(--bg-4);
+}
+
+.hamburger-line {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-1);
+    border-radius: 1px;
+    transition: transform 0.3s, opacity 0.3s;
+}
+
+/* Hamburger animation to X */
+.mobile-menu-btn.active .hamburger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.mobile-menu-btn.active .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.mobile-menu-btn.active .hamburger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile navigation overlay */
+.mobile-nav-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 0.3s;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+.mobile-nav-overlay.active {
+    opacity: 1;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    /* Show mobile menu button */
+    .mobile-menu-btn {
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    /* Show overlay when active */
+    .mobile-nav-overlay {
+        display: block;
+        pointer-events: none;
+    }
+
+    .mobile-nav-overlay.active {
+        pointer-events: auto;
+    }
+
+    /* Header adjustments for mobile */
+    header {
+        flex-direction: row;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 8px;
+    }
+
+    .logo {
+        flex: 1;
+        gap: 8px;
+    }
+
+    .logo-text {
+        font-size: 18px;
+    }
+
+    .logo-subtitle {
+        display: none;
+    }
+
+    .header-status-group {
+        gap: 8px;
+    }
+
+    .status {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    #connection-text,
+    #extension-status-text {
+        display: none;
+    }
+
+    /* Tabs become a sidebar drawer */
+    .tabs {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        max-width: 80vw;
+        flex-direction: column;
+        gap: 4px;
+        padding: 72px 16px 24px 16px;
+        background: var(--bg-1);
+        border-right: 1px solid var(--border);
+        border-bottom: none;
+        z-index: 999;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tabs.open {
+        transform: translateX(0);
+    }
+
+    /* Tab items as full-width buttons in sidebar */
+    .tab {
+        width: 100%;
+        text-align: left;
+        padding: 14px 16px;
+        font-size: 15px;
+        border-radius: 8px;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+    }
+
+    .tab.active {
+        background: var(--accent);
+        color: var(--text-0);
+    }
+
+    .tab:active {
+        transform: scale(0.98);
+    }
+
+    /* Main content adjustments */
+    main {
+        padding: 16px;
+    }
+
+    /* Input groups stack on mobile */
+    .input-group {
+        flex-direction: column;
+    }
+
+    .input-group input {
+        width: 100%;
+    }
+
+    .input-group .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Touch-friendly buttons */
+    .btn {
+        min-height: 44px;
+        padding: 12px 16px;
+    }
+
+    .btn.small {
+        min-height: 36px;
+        padding: 8px 12px;
+    }
+
+    /* Filters stack vertically */
+    .filters {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .filters input {
+        width: 100%;
+    }
+
+    /* Presets wrap better */
+    .presets {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .presets span {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+
+    /* Panel adjustments */
+    .panel {
+        padding: 16px;
+    }
+
+    /* Event controls stack */
+    .event-controls {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .event-controls label {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Console input stacks */
+    .console-input {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .console-input .prompt {
+        width: 100%;
+    }
+
+    .console-input input {
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Encode options wrap */
+    .encode-options {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Key rows stack */
+    .key-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .key-value {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .key-value input {
+        width: 100%;
+    }
+
+    .key-value .btn {
+        width: auto;
+        align-self: flex-start;
+    }
+
+    /* Publish layout single column */
+    .publish-layout {
+        grid-template-columns: 1fr;
+    }
+
+    /* Tag input row stacks */
+    .tag-input-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .tag-input-row input {
+        width: 100%;
+    }
+
+    /* Signing options take full width */
+    .signing-options {
+        flex-direction: column;
+    }
+
+    .radio-option {
+        padding: 14px;
+        min-height: 64px;
+    }
+
+    /* Publish actions stack */
+    .publish-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .publish-actions .btn {
+        width: 100%;
+    }
+
+    /* Relay checkbox list */
+    .relay-checkbox-list label {
+        padding: 12px 8px;
+        min-height: 44px;
+    }
+
+    /* Test history header */
+    .test-history-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    /* NIP test items */
+    .nip-test-item {
+        padding: 14px;
+        min-height: 56px;
+    }
+
+    /* Test step items */
+    .test-step {
+        padding: 12px;
+    }
+
+    /* Monitoring summary wraps */
+    .monitoring-summary {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .monitoring-stat {
+        min-width: calc(50% - 8px);
+    }
+
+    /* Zap stats summary */
+    .zap-stats-summary {
+        flex-wrap: wrap;
+    }
+
+    .zap-stat {
+        min-width: calc(50% - 8px);
+    }
+
+    /* Profile tabs scroll horizontally */
+    .profile-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 8px;
+    }
+
+    .profile-tab {
+        min-height: 44px;
+        padding: 12px 16px;
+        white-space: nowrap;
+    }
+}
+
+/* Smaller mobile breakpoint */
+@media (max-width: 480px) {
+    header {
+        padding: 10px 12px;
+    }
+
+    .logo-text {
+        font-size: 16px;
+    }
+
+    main {
+        padding: 12px;
+    }
+
+    .panel {
+        padding: 14px;
+        margin-bottom: 12px;
+    }
+
+    .tabs {
+        width: 260px;
+        padding: 64px 12px 20px 12px;
+    }
+
+    .tab {
+        padding: 12px 14px;
+        font-size: 14px;
+    }
+
+    /* Monitoring stats single column on very small screens */
+    .monitoring-stat {
+        min-width: 100%;
+    }
+
+    .zap-stat {
+        min-width: 100%;
+    }
+
+    /* Modal full width */
+    .modal {
+        margin: 0;
+        border-radius: 0;
+        max-height: 100vh;
+    }
+
+    .modal-overlay {
+        padding: 0;
+    }
+}

@@ -76,6 +76,23 @@
 
     <!-- Mock required elements for the app -->
     <div style="display: none;">
+        <!-- Mobile navigation elements -->
+        <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+        <div id="mobile-nav-overlay" class="mobile-nav-overlay"></div>
+        <nav class="tabs" id="main-nav">
+            <button class="tab active" data-tab="relays">Relays</button>
+            <button class="tab" data-tab="explorer">Explorer</button>
+            <button class="tab" data-tab="events">Events</button>
+            <button class="tab" data-tab="publish">Publish</button>
+            <button class="tab" data-tab="testing">Testing</button>
+            <button class="tab" data-tab="keys">Keys</button>
+            <button class="tab" data-tab="console">Console</button>
+            <button class="tab" data-tab="monitoring">Monitoring</button>
+        </nav>
         <span id="connection-status"></span>
         <span id="connection-text"></span>
         <div id="relay-list"></div>

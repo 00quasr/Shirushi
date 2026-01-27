@@ -12,6 +12,11 @@
 </head>
 <body>
     <header>
+        <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
         <div class="logo">
             <span class="logo-text">Shirushi</span>
             <span class="logo-subtitle">Nostr Protocol Explorer</span>
@@ -28,7 +33,8 @@
         </div>
     </header>
 
-    <nav class="tabs">
+    <div id="mobile-nav-overlay" class="mobile-nav-overlay"></div>
+    <nav class="tabs" id="main-nav">
         <button class="tab active" data-tab="relays">Relays</button>
         <button class="tab" data-tab="explorer">Explorer</button>
         <button class="tab" data-tab="events">Events</button>

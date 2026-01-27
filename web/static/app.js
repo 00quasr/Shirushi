@@ -155,8 +155,116 @@ class Shirushi {
             tab.addEventListener('click', () => {
                 const tabName = tab.dataset.tab;
                 this.switchTab(tabName);
+                // Close mobile menu after selecting a tab
+                this.closeMobileMenu();
             });
         });
+
+        // Mobile menu setup
+        this.setupMobileMenu();
+    }
+
+    setupMobileMenu() {
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        const nav = document.getElementById('main-nav');
+        const overlay = document.getElementById('mobile-nav-overlay');
+
+        if (!menuBtn || !nav || !overlay) return;
+
+        // Toggle menu on button click
+        menuBtn.addEventListener('click', () => {
+            this.toggleMobileMenu();
+        });
+
+        // Close menu on overlay click
+        overlay.addEventListener('click', () => {
+            this.closeMobileMenu();
+        });
+
+        // Close menu on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeMobileMenu();
+            }
+        });
+
+        // Close menu on window resize if going to desktop
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                this.closeMobileMenu();
+            }
+        });
+
+        // Handle swipe to close on touch devices
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        nav.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        nav.addEventListener('touchmove', (e) => {
+            if (!nav.classList.contains('open')) return;
+
+            const touchEndX = e.touches[0].clientX;
+            const touchEndY = e.touches[0].clientY;
+            const diffX = touchStartX - touchEndX;
+            const diffY = Math.abs(touchStartY - e.touches[0].clientY);
+
+            // Swipe left to close (at least 50px horizontal, less than 50px vertical)
+            if (diffX > 50 && diffY < 50) {
+                this.closeMobileMenu();
+            }
+        }, { passive: true });
+    }
+
+    toggleMobileMenu() {
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        const nav = document.getElementById('main-nav');
+        const overlay = document.getElementById('mobile-nav-overlay');
+
+        if (!menuBtn || !nav || !overlay) return;
+
+        const isOpen = nav.classList.contains('open');
+
+        if (isOpen) {
+            this.closeMobileMenu();
+        } else {
+            this.openMobileMenu();
+        }
+    }
+
+    openMobileMenu() {
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        const nav = document.getElementById('main-nav');
+        const overlay = document.getElementById('mobile-nav-overlay');
+
+        if (!menuBtn || !nav || !overlay) return;
+
+        menuBtn.classList.add('active');
+        menuBtn.setAttribute('aria-expanded', 'true');
+        nav.classList.add('open');
+        overlay.classList.add('active');
+
+        // Prevent body scroll when menu is open
+        document.body.style.overflow = 'hidden';
+    }
+
+    closeMobileMenu() {
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        const nav = document.getElementById('main-nav');
+        const overlay = document.getElementById('mobile-nav-overlay');
+
+        if (!menuBtn || !nav || !overlay) return;
+
+        menuBtn.classList.remove('active');
+        menuBtn.setAttribute('aria-expanded', 'false');
+        nav.classList.remove('open');
+        overlay.classList.remove('active');
+
+        // Restore body scroll
+        document.body.style.overflow = '';
     }
 
     switchTab(tabName) {
