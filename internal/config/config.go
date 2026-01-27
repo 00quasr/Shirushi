@@ -1,60 +1,34 @@
-// Package config handles loading configuration from .env and agents.yaml
+// Package config handles loading configuration from .env
 package config
 
 import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Config holds all application configuration
 type Config struct {
-	OpenAIKey    string
-	Relays       []string
-	WebAddr      string
-	AgentsConfig string
-	FilterMode   string
-	Agents       []AgentConfig
-	Workflow     WorkflowConfig
+	NakPath       string
+	WebAddr       string
+	DefaultRelays []string
 }
 
-// AgentConfig defines a single agent
-type AgentConfig struct {
-	Name         string `yaml:"name"`
-	Role         string `yaml:"role"`
-	Kind         int    `yaml:"kind"`
-	Description  string `yaml:"description"`
-	SystemPrompt string `yaml:"system_prompt"`
-	PrivateKey   string `yaml:"private_key,omitempty"`
+// RelayPresets defines preset relay groups (all free public relays)
+var RelayPresets = map[string][]string{
+	"popular": {"wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"},
+	"fast":    {"wss://relay.primal.net", "wss://nostr.mom"},
+	"dvms":    {"wss://relay.damus.io", "wss://relay.nostr.band"},
+	"privacy": {"wss://nostr.oxtr.dev"},
 }
 
-// WorkflowConfig defines agent connections
-type WorkflowConfig struct {
-	Default []WorkflowStep `yaml:"default"`
-}
-
-// WorkflowStep defines a single workflow connection
-type WorkflowStep struct {
-	From string `yaml:"from"`
-	To   string `yaml:"to"`
-}
-
-// AgentsFile represents the agents.yaml structure
-type AgentsFile struct {
-	Agents   []AgentConfig  `yaml:"agents"`
-	Workflow WorkflowConfig `yaml:"workflow"`
-}
-
-// Load loads configuration from .env and agents.yaml
+// Load loads configuration from .env
 func Load() (*Config, error) {
 	cfg := &Config{
-		Relays:       []string{"wss://relay.damus.io", "wss://nos.lol"},
-		WebAddr:      ":8080",
-		AgentsConfig: "agents.yaml",
-		FilterMode:   "trusted",
+		WebAddr:       ":8080",
+		DefaultRelays: []string{"wss://relay.damus.io", "wss://nos.lol"},
 	}
 
 	// Load .env file if it exists
@@ -63,32 +37,55 @@ func Load() (*Config, error) {
 	}
 
 	// Read from environment
-	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-		cfg.OpenAIKey = key
-	}
-
-	if relays := os.Getenv("NOSTR_RELAYS"); relays != "" {
-		cfg.Relays = parseRelays(relays)
+	if nakPath := os.Getenv("NAK_PATH"); nakPath != "" {
+		cfg.NakPath = nakPath
+	} else {
+		// Try to find nak in PATH
+		cfg.NakPath = findNak()
 	}
 
 	if addr := os.Getenv("WEB_ADDR"); addr != "" {
 		cfg.WebAddr = addr
 	}
 
-	if agentsCfg := os.Getenv("AGENTS_CONFIG"); agentsCfg != "" {
-		cfg.AgentsConfig = agentsCfg
-	}
-
-	if filterMode := os.Getenv("FILTER_MODE"); filterMode != "" {
-		cfg.FilterMode = filterMode
-	}
-
-	// Load agents configuration
-	if err := loadAgentsConfig(cfg); err != nil {
-		return nil, fmt.Errorf("error loading agents config: %w", err)
+	if relays := os.Getenv("DEFAULT_RELAYS"); relays != "" {
+		cfg.DefaultRelays = parseRelays(relays)
 	}
 
 	return cfg, nil
+}
+
+// findNak attempts to locate the nak binary
+func findNak() string {
+	// Check common locations
+	paths := []string{
+		"/usr/local/bin/nak",
+		"/usr/bin/nak",
+		"/opt/homebrew/bin/nak",
+	}
+
+	// Add home go/bin path
+	if home, err := os.UserHomeDir(); err == nil {
+		paths = append(paths, home+"/go/bin/nak")
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+
+	// Try to find in PATH
+	if path, err := exec.LookPath("nak"); err == nil {
+		return path
+	}
+
+	return ""
+}
+
+// HasNak returns true if nak CLI is available
+func (c *Config) HasNak() bool {
+	return c.NakPath != ""
 }
 
 func loadEnvFile(filename string) error {
@@ -133,29 +130,6 @@ func loadEnvFile(filename string) error {
 	return scanner.Err()
 }
 
-func loadAgentsConfig(cfg *Config) error {
-	data, err := os.ReadFile(cfg.AgentsConfig)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Use default agents if config doesn't exist
-			cfg.Agents = defaultAgents()
-			cfg.Workflow = defaultWorkflow()
-			return nil
-		}
-		return err
-	}
-
-	var agentsFile AgentsFile
-	if err := yaml.Unmarshal(data, &agentsFile); err != nil {
-		return fmt.Errorf("invalid agents.yaml: %w", err)
-	}
-
-	cfg.Agents = agentsFile.Agents
-	cfg.Workflow = agentsFile.Workflow
-
-	return nil
-}
-
 func parseRelays(relaysStr string) []string {
 	var relays []string
 	for _, r := range strings.Split(relaysStr, ",") {
@@ -165,71 +139,4 @@ func parseRelays(relaysStr string) []string {
 		}
 	}
 	return relays
-}
-
-func defaultAgents() []AgentConfig {
-	return []AgentConfig{
-		{
-			Name:        "Shihaisha",
-			Role:        "Coordinator",
-			Kind:        5001,
-			Description: "Task decomposition and routing",
-		},
-		{
-			Name:        "Kenkyusha",
-			Role:        "Researcher",
-			Kind:        5300,
-			Description: "Information gathering",
-		},
-		{
-			Name:        "Sakka",
-			Role:        "Writer",
-			Kind:        5050,
-			Description: "Content generation",
-		},
-		{
-			Name:        "Hihyoka",
-			Role:        "Critic",
-			Kind:        5051,
-			Description: "Quality review",
-		},
-	}
-}
-
-func defaultWorkflow() WorkflowConfig {
-	return WorkflowConfig{
-		Default: []WorkflowStep{
-			{From: "coordinator", To: "researcher"},
-			{From: "researcher", To: "writer"},
-			{From: "writer", To: "critic"},
-			{From: "critic", To: "coordinator"},
-		},
-	}
-}
-
-// GetAgentByKind returns an agent config by its kind number
-func (c *Config) GetAgentByKind(kind int) *AgentConfig {
-	for i := range c.Agents {
-		if c.Agents[i].Kind == kind {
-			return &c.Agents[i]
-		}
-	}
-	return nil
-}
-
-// GetAgentByName returns an agent config by its name (case-insensitive)
-func (c *Config) GetAgentByName(name string) *AgentConfig {
-	name = strings.ToLower(name)
-	for i := range c.Agents {
-		if strings.ToLower(c.Agents[i].Name) == name ||
-			strings.ToLower(c.Agents[i].Role) == name {
-			return &c.Agents[i]
-		}
-	}
-	return nil
-}
-
-// IsMockMode returns true if no OpenAI key is configured
-func (c *Config) IsMockMode() bool {
-	return c.OpenAIKey == ""
 }

@@ -1,158 +1,145 @@
-# 指 Shirushi - Visual AI Agent Swarm over Nostr
+# Shirushi - Nostr Protocol Explorer
 
-A **Go-based AI agent swarm** that coordinates over Nostr using NIP-90 (Data Vending Machine), with a **real-time web visualization** showing agents working together.
+A **web-based Nostr protocol testing and monitoring tool** built in Go. Test NIP implementations, monitor relay connections, and explore the Nostr network through an intuitive dashboard.
 
-## Why This Is Novel
+## Features
 
-- **First Go implementation** of NIP-90 agent framework (only Python/TS exist)
-- **First visual DVM swarm** demonstration
-- Impressive live demo of decentralized AI coordination
-
-## Architecture
-
-### Agent Swarm (4 Agents)
-
-| Agent | Japanese | Role | DVM Kind |
-|-------|----------|------|----------|
-| **Coordinator** | Shihaisha (指揮者) | Task decomposition & routing | 5001 |
-| **Researcher** | Kenkyusha (研究者) | Information gathering | 5300 |
-| **Writer** | Sakka (作家) | Content generation | 5050 |
-| **Critic** | Hihyoka (批評家) | Quality review | 5051 |
-
-### Flow
-
-```
-User Request -> Coordinator -> Researcher -> Writer -> Critic -> Final Result
-                    ^                                      |
-                    +---------- (revision loop) -----------+
-```
-
-All communication happens via Nostr events (NIP-90 job requests/results).
-
-## Tech Stack
-
-- **Backend**: Go + [go-nostr](https://github.com/nbd-wtf/go-nostr)
-- **Frontend**: D3.js force-directed graph + WebSocket
-- **AI**: OpenAI GPT-4 (or mock provider)
-- **Relays**: wss://relay.damus.io, wss://nos.lol
+- **Relay Management** - Connect to multiple relays, monitor latency and health
+- **Event Explorer** - Real-time event stream with filtering by kind and author
+- **NIP Testing** - Interactive test panels for 7 NIPs (01, 02, 05, 19, 44, 57, 90)
+- **Key Management** - Generate keypairs, encode/decode NIP-19 entities
+- **nak Console** - Run nak CLI commands directly from the browser
 
 ## Quick Start
 
 ### Prerequisites
 
 - Go 1.22+
-- OpenAI API key (optional - can use mock provider)
+- [nak CLI](https://github.com/fiatjaf/nak) (optional, auto-detected)
 
-### Install Dependencies
+### Install nak (Recommended)
 
 ```bash
-go mod tidy
+go install github.com/fiatjaf/nak@latest
 ```
 
-### Run with Mock AI (No API Key Required)
+### Run Shirushi
 
 ```bash
-go run ./cmd/shirushi --mock
-```
-
-### Run with OpenAI
-
-```bash
-export OPENAI_API_KEY="your-api-key"
 go run ./cmd/shirushi
 ```
 
-### Run Demo Scenario
+Open http://localhost:8080 in your browser.
 
-```bash
-go run ./cmd/shirushi --mock --demo "Write a technical brief about Bitcoin Layer 2 solutions"
+## Screenshot
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Shirushi - Nostr Protocol Explorer                    Connected│
+├─────────────────────────────────────────────────────────────────┤
+│  [Relays] [Events] [Testing] [Keys] [Console]                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Connected Relays                                                │
+│  ┌─────────────────────────┐  ┌─────────────────────────┐       │
+│  │ wss://relay.damus.io    │  │ wss://nos.lol           │       │
+│  │ ● Connected             │  │ ● Connected             │       │
+│  │ Latency: 45ms           │  │ Latency: 32ms           │       │
+│  └─────────────────────────┘  └─────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Access Dashboard
+## NIP Tests
 
-Open http://localhost:8080 in your browser to see the real-time visualization.
+| NIP | Name | Description |
+|-----|------|-------------|
+| **NIP-01** | Basic Protocol | Create, sign, publish, and verify events |
+| **NIP-02** | Follow List | Fetch and parse contact lists (kind 3) |
+| **NIP-05** | DNS Identity | Verify NIP-05 addresses via DNS lookup |
+| **NIP-19** | Bech32 Encoding | Encode/decode npub, nsec, nevent roundtrips |
+| **NIP-44** | Encrypted Payloads | Test encryption/decryption with keypairs |
+| **NIP-57** | Lightning Zaps | Parse zap receipts and verify LNURL endpoints |
+| **NIP-90** | Data Vending Machines | Discover DVMs, view job requests and results |
 
-## Command Line Options
+## Configuration
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-web` | `:8080` | Web dashboard address |
-| `-mock` | `false` | Use mock AI provider (no API calls) |
-| `-relays` | `wss://relay.damus.io,wss://nos.lol` | Comma-separated relay URLs |
-| `-demo` | `""` | Run demo with specified task |
+Create a `.env` file (optional):
+
+```bash
+# Path to nak CLI (auto-detected if not set)
+NAK_PATH=/path/to/nak
+
+# Web server address
+WEB_ADDR=:8080
+
+# Default relays (comma-separated)
+DEFAULT_RELAYS=wss://relay.damus.io,wss://nos.lol
+```
+
+### Relay Presets
+
+Built-in presets for common relay configurations:
+
+| Preset | Relays |
+|--------|--------|
+| Popular | relay.damus.io, nos.lol, relay.nostr.band |
+| Fast | relay.primal.net, nostr.mom |
+| DVMs | relay.damus.io, relay.nostr.band |
+| Privacy | nostr.oxtr.dev |
 
 ## Project Structure
 
 ```
 shirushi/
-├── cmd/
-│   └── shirushi/main.go        # Main entry point
+├── cmd/shirushi/main.go          # Entry point
 ├── internal/
-│   ├── agent/
-│   │   ├── agent.go            # Base agent struct
-│   │   ├── coordinator.go      # Task orchestration (Shihaisha)
-│   │   ├── researcher.go       # Info gathering (Kenkyusha)
-│   │   ├── writer.go           # Content generation (Sakka)
-│   │   └── critic.go           # Review logic (Hihyoka)
-│   ├── dvm/
-│   │   ├── kinds.go            # NIP-90 kind constants
-│   │   ├── job.go              # Job request/result types
-│   │   └── parser.go           # Event parsing
-│   ├── ai/
-│   │   ├── provider.go         # AI interface
-│   │   └── openai.go           # OpenAI GPT-4 client
-│   └── viz/
-│       ├── server.go           # WebSocket server
-│       └── hub.go              # Client connections
+│   ├── config/config.go          # Configuration & relay presets
+│   ├── nak/                       # nak CLI wrapper
+│   │   ├── nak.go                 # Core wrapper
+│   │   ├── keys.go                # Key generation
+│   │   ├── events.go              # Event operations
+│   │   └── decode.go              # NIP-19 encode/decode
+│   ├── relay/                     # Relay management
+│   │   ├── pool.go                # Connection pool
+│   │   └── monitor.go             # Health monitoring
+│   ├── testing/                   # NIP test framework
+│   │   ├── framework.go           # Test runner
+│   │   └── nip*.go                # Individual NIP tests
+│   ├── types/types.go             # Shared types
+│   └── web/                       # Web server
+│       ├── server.go              # HTTP + WebSocket
+│       ├── hub.go                 # WebSocket hub
+│       └── api.go                 # REST API handlers
 ├── web/
-│   ├── index.html              # Dashboard
+│   ├── index.html                 # Dashboard UI
 │   └── static/
-│       ├── graph.js            # D3.js visualization
-│       └── style.css
-├── go.mod
-└── README.md
+│       ├── app.js                 # Frontend application
+│       └── style.css              # Styling
+└── go.mod
 ```
 
-## NIP-90 Implementation
+## API Endpoints
 
-This project implements the [NIP-90 Data Vending Machine](https://github.com/nostr-protocol/nips/blob/master/90.md) specification:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/status` | Server status and nak availability |
+| GET | `/api/relays` | List connected relays |
+| POST | `/api/relays` | Add a relay |
+| DELETE | `/api/relays?url=...` | Remove a relay |
+| GET | `/api/relays/presets` | Get relay presets |
+| GET | `/api/events` | Query events (kind, author, limit) |
+| GET | `/api/nips` | List available NIP tests |
+| POST | `/api/test/{nip}` | Run a NIP test |
+| POST | `/api/keys/generate` | Generate keypair |
+| POST | `/api/keys/decode` | Decode NIP-19 |
+| POST | `/api/keys/encode` | Encode to NIP-19 |
+| POST | `/api/nak` | Run raw nak command |
 
-- **Job Requests**: Kind 5xxx events with input data
-- **Job Results**: Kind 6xxx events (request kind + 1000)
-- **Job Feedback**: Kind 7000 status updates with progress
+## Tech Stack
 
-### Custom DVM Kinds
-
-| Kind | Type | Purpose |
-|------|------|---------|
-| 5001 | Request | Coordinator job |
-| 5050 | Request | Writer job |
-| 5051 | Request | Critic job |
-| 5300 | Request | Researcher job |
-| 6001 | Result | Coordinator result |
-| 6050 | Result | Writer result |
-| 6051 | Result | Critic result |
-| 6300 | Result | Researcher result |
-| 7000 | Feedback | Status updates |
-
-## Dashboard Features
-
-- **Force-directed graph**: D3.js visualization of agent network
-- **Real-time updates**: WebSocket connection for live events
-- **Event stream**: Shows all Nostr events flowing between agents
-- **Agent status**: Processing indicators with progress percentages
-- **Task submission**: Submit tasks directly from the UI
-
-## Demo Scenario
-
-**Input**: "Write a technical brief about Bitcoin Layer 2 solutions"
-
-**Visible Flow**:
-1. Coordinator receives request, decomposes into sub-tasks
-2. Researcher gathers information (node pulses, progress updates)
-3. Writer generates draft with research context
-4. Critic reviews and suggests improvements
-5. Final result published back to user
+- **Backend**: Go + [go-nostr](https://github.com/nbd-wtf/go-nostr)
+- **CLI**: [nak](https://github.com/fiatjaf/nak) for Nostr operations
+- **Frontend**: Vanilla JS + WebSocket for real-time updates
+- **Styling**: Custom CSS with dark theme
 
 ## License
 

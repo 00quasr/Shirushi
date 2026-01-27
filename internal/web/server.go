@@ -1,14 +1,15 @@
-package viz
+// Package web provides HTTP/WebSocket server for the Shirushi dashboard.
+package web
 
 import (
 	"embed"
+	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/keanuklestil/shirushi/internal/dvm"
 )
 
 const (
@@ -22,21 +23,25 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for demo
+		return true
 	},
 }
 
-// Server serves the visualization dashboard and WebSocket connections.
+// Server serves the dashboard and WebSocket connections.
 type Server struct {
 	hub      *Hub
+	api      *API
 	addr     string
 	staticFS fs.FS
 }
 
-// NewServer creates a new visualization server.
-func NewServer(addr string, staticFS fs.FS) *Server {
+// NewServer creates a new web server.
+func NewServer(addr string, staticFS fs.FS, api *API) *Server {
+	hub := NewHub()
+	api.SetHub(hub)
 	return &Server{
-		hub:      NewHub(),
+		hub:      hub,
+		api:      api,
 		addr:     addr,
 		staticFS: staticFS,
 	}
@@ -48,33 +53,44 @@ func (s *Server) Start() error {
 
 	mux := http.NewServeMux()
 
-	// Serve static files
+	// API routes
+	mux.HandleFunc("/api/status", s.api.HandleStatus)
+	mux.HandleFunc("/api/relays", s.api.HandleRelays)
+	mux.HandleFunc("/api/relays/stats", s.api.HandleRelayStats)
+	mux.HandleFunc("/api/relays/presets", s.api.HandleRelayPresets)
+	mux.HandleFunc("/api/events", s.api.HandleEvents)
+	mux.HandleFunc("/api/events/subscribe", s.api.HandleEventSubscribe)
+	mux.HandleFunc("/api/nips", s.api.HandleNIPs)
+	mux.HandleFunc("/api/test/", s.api.HandleTest)
+	mux.HandleFunc("/api/keys/generate", s.api.HandleKeyGenerate)
+	mux.HandleFunc("/api/keys/decode", s.api.HandleKeyDecode)
+	mux.HandleFunc("/api/keys/encode", s.api.HandleKeyEncode)
+	mux.HandleFunc("/api/nak", s.api.HandleNak)
+
+	// WebSocket
+	mux.HandleFunc("/ws", s.handleWebSocket)
+
+	// Static files
 	if s.staticFS != nil {
 		mux.Handle("/", http.FileServer(http.FS(s.staticFS)))
 	} else {
 		mux.HandleFunc("/", s.handleIndex)
 	}
 
-	// WebSocket endpoint
-	mux.HandleFunc("/ws", s.handleWebSocket)
-
-	// API endpoints
-	mux.HandleFunc("/api/status", s.handleStatus)
-
-	log.Printf("[Viz] Starting dashboard server at http://%s", s.addr)
+	log.Printf("[Web] Starting server at http://%s", s.addr)
 	return http.ListenAndServe(s.addr, mux)
 }
 
-// GetBroadcaster returns a function that broadcasts events to all clients.
-func (s *Server) GetBroadcaster() func(dvm.VizEvent) {
-	return s.hub.BroadcastEvent
+// Hub returns the WebSocket hub for broadcasting
+func (s *Server) Hub() *Hub {
+	return s.hub
 }
 
 // handleWebSocket handles WebSocket connections.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("[Viz] WebSocket upgrade error: %v", err)
+		log.Printf("[Web] WebSocket upgrade error: %v", err)
 		return
 	}
 
@@ -96,13 +112,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(defaultHTML))
 }
 
-// handleStatus returns the current server status.
-func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"ok","clients":` + string(rune(s.hub.ClientCount()+'0')) + `}`))
-}
-
-// readPump pumps messages from the WebSocket connection.
+// readPump pumps messages from the WebSocket connection to the hub.
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
@@ -117,13 +127,15 @@ func (c *Client) readPump() {
 	})
 
 	for {
-		_, _, err := c.conn.ReadMessage()
+		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("[Viz] WebSocket error: %v", err)
+				log.Printf("[Web] WebSocket error: %v", err)
 			}
 			break
 		}
+
+		c.hub.HandleClientMessage(message)
 	}
 }
 
@@ -150,7 +162,6 @@ func (c *Client) writePump() {
 			}
 			w.Write(message)
 
-			// Add queued messages to the current websocket message
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte{'\n'})
@@ -170,18 +181,29 @@ func (c *Client) writePump() {
 	}
 }
 
-// EmbeddedFS is a placeholder for embedded static files.
-// In production, this would use go:embed to include web/static files.
+// writeJSON writes a JSON response
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+// writeError writes an error response
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 var EmbeddedFS embed.FS
 
 const defaultHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Shirushi - Agent Swarm Visualization</title>
+    <title>Shirushi</title>
     <meta charset="UTF-8">
     <script>window.location.href = '/index.html';</script>
 </head>
 <body>
-    <p>Redirecting to dashboard...</p>
+    <p>Redirecting...</p>
 </body>
 </html>`

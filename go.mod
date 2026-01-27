@@ -5,8 +5,6 @@ go 1.22
 require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/nbd-wtf/go-nostr v0.35.0
-	github.com/sashabaranov/go-openai v1.24.1
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
