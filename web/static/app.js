@@ -17,11 +17,13 @@ class Shirushi {
         this.monitoringData = null;
         this.eventRateHistory = [];
         this.healthScoreHistory = {};
+        this.relayLatencyHistory = {};
         this.charts = {
             eventRate: null,
             latency: null,
             healthScore: null
         };
+        this.maxHistoryPoints = 60;
 
         this.init();
     }
@@ -1559,60 +1561,141 @@ class Shirushi {
     }
 
     updateCharts(data) {
-        // Update event rate chart
-        if (this.charts.eventRate) {
-            if (data.event_rate_history && data.event_rate_history.length > 0) {
-                const points = data.event_rate_history.map(p => ({ value: p.value }));
-                this.charts.eventRate.setData(points);
-            } else {
-                this.charts.eventRate.addPoint(data.events_per_sec || 0);
-            }
-        }
+        // Update event rate chart with aggregated event rate
+        this.updateEventRateChart(data);
 
         // Update latency distribution chart
-        if (this.charts.latency && data.relays) {
-            const latencyData = data.relays
-                .filter(r => r.connected && r.latency_ms > 0)
-                .map(r => ({
-                    label: r.url.replace('wss://', ''),
-                    value: r.latency_ms
-                }))
-                .sort((a, b) => a.value - b.value)
-                .slice(0, 10);
-            this.charts.latency.setData(latencyData);
-        }
+        this.updateLatencyChart(data);
 
         // Update health score history chart
-        if (this.charts.healthScore && data.relays) {
-            data.relays.forEach(relay => {
-                if (relay.latency_history && relay.latency_history.length > 0) {
-                    // Use health score if available, or derive from other metrics
-                    const healthPoints = relay.latency_history.map((p, i) => ({
-                        value: relay.health_score || this.calculateHealthScore(relay)
-                    }));
-                    this.charts.healthScore.setSeriesData(relay.url, healthPoints);
-                } else {
-                    this.charts.healthScore.addPoint(relay.url, relay.health_score || 0);
-                }
+        this.updateHealthScoreChart(data);
+    }
+
+    updateEventRateChart(data) {
+        if (!this.charts.eventRate) return;
+
+        // If backend provides event rate history, use it
+        if (data.event_rate_history && data.event_rate_history.length > 0) {
+            const points = data.event_rate_history.map(p => ({
+                value: p.value,
+                timestamp: p.timestamp
+            }));
+            this.charts.eventRate.setData(points);
+        } else {
+            // Otherwise, track history locally
+            const currentRate = data.events_per_sec || 0;
+            this.eventRateHistory.push({
+                value: currentRate,
+                timestamp: Date.now()
             });
+
+            // Trim to max points
+            if (this.eventRateHistory.length > this.maxHistoryPoints) {
+                this.eventRateHistory.shift();
+            }
+
+            this.charts.eventRate.setData(this.eventRateHistory);
         }
+    }
+
+    updateLatencyChart(data) {
+        if (!this.charts.latency || !data.relays) return;
+
+        // Filter connected relays with valid latency
+        const latencyData = data.relays
+            .filter(r => r.connected && r.latency_ms > 0)
+            .map(r => ({
+                label: r.url.replace('wss://', ''),
+                value: r.latency_ms
+            }))
+            .sort((a, b) => a.value - b.value)
+            .slice(0, 10);
+
+        this.charts.latency.setData(latencyData);
+    }
+
+    updateHealthScoreChart(data) {
+        if (!this.charts.healthScore || !data.relays) return;
+
+        const timestamp = Date.now();
+
+        data.relays.forEach(relay => {
+            const relayUrl = relay.url;
+            const healthScore = relay.health_score || this.calculateHealthScore(relay);
+
+            // Initialize history array for this relay if needed
+            if (!this.healthScoreHistory[relayUrl]) {
+                this.healthScoreHistory[relayUrl] = [];
+            }
+
+            // Add current health score to history
+            this.healthScoreHistory[relayUrl].push({
+                value: healthScore,
+                timestamp: timestamp
+            });
+
+            // Trim to max points
+            if (this.healthScoreHistory[relayUrl].length > this.maxHistoryPoints) {
+                this.healthScoreHistory[relayUrl].shift();
+            }
+
+            // Update chart with the accumulated history
+            this.charts.healthScore.setSeriesData(relayUrl, this.healthScoreHistory[relayUrl]);
+        });
+
+        // Clean up history for relays that no longer exist
+        const currentRelayUrls = new Set(data.relays.map(r => r.url));
+        Object.keys(this.healthScoreHistory).forEach(url => {
+            if (!currentRelayUrls.has(url)) {
+                delete this.healthScoreHistory[url];
+                // Also remove from chart series
+                if (this.charts.healthScore.series) {
+                    delete this.charts.healthScore.series[url];
+                }
+            }
+        });
+
+        // Redraw the chart after all series updates
+        this.charts.healthScore.draw();
     }
 
     calculateHealthScore(relay) {
         if (!relay.connected) return 0;
-        let score = 100;
 
-        // Penalize high latency
-        if (relay.latency_ms > 1000) score -= 40;
-        else if (relay.latency_ms > 500) score -= 20;
-        else if (relay.latency_ms > 200) score -= 10;
+        // Weighted health score calculation (matches backend logic)
+        let score = 0;
 
-        // Penalize errors
-        if (relay.error_count > 0) {
-            score -= Math.min(relay.error_count * 5, 30);
+        // Connection status (30%)
+        score += relay.connected ? 30 : 0;
+
+        // Latency score (25%) - <100ms = 25, >500ms = 0, linear scale
+        const latency = relay.latency_ms || 0;
+        if (latency > 0 && latency < 500) {
+            score += 25 * (1 - Math.min(latency, 500) / 500);
+        } else if (latency === 0) {
+            score += 12.5; // Unknown latency gets half points
         }
 
-        return Math.max(0, score);
+        // Uptime percentage (25%)
+        const uptime = relay.uptime_percent || 0;
+        score += 25 * (uptime / 100);
+
+        // Error rate score (20%) - 0 errors = 20, >20 errors = 0
+        const errorCount = relay.error_count || 0;
+        score += 20 * Math.max(0, 1 - errorCount / 20);
+
+        return Math.max(0, Math.min(100, score));
+    }
+
+    // Reset monitoring history when relays change significantly
+    resetMonitoringHistory() {
+        this.eventRateHistory = [];
+        this.healthScoreHistory = {};
+        this.relayLatencyHistory = {};
+
+        if (this.charts.healthScore && this.charts.healthScore.series) {
+            this.charts.healthScore.series = {};
+        }
     }
 }
 

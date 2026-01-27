@@ -1916,6 +1916,9 @@
 
             const instance = Object.create(Shirushi.prototype);
             instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.eventRateHistory = [];
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
             instance.initializeCharts();
 
             const testMonitoringData = {
@@ -1945,6 +1948,9 @@
 
             const instance = Object.create(Shirushi.prototype);
             instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.eventRateHistory = [];
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
             instance.initializeCharts();
 
             // Should not throw with minimal data
@@ -1990,25 +1996,498 @@
 
             const instance = Object.create(Shirushi.prototype);
 
-            // Test connected relay with good latency
-            const goodRelay = { connected: true, latency_ms: 100, error_count: 0 };
+            // Test connected relay with good latency and high uptime
+            const goodRelay = { connected: true, latency_ms: 100, error_count: 0, uptime_percent: 99 };
             const goodScore = instance.calculateHealthScore(goodRelay);
-            assertTrue(goodScore >= 90, 'Good relay should have high score');
+            assertTrue(goodScore >= 70, 'Good relay should have high score');
 
             // Test disconnected relay
             const disconnectedRelay = { connected: false };
             const disconnectedScore = instance.calculateHealthScore(disconnectedRelay);
             assertEqual(disconnectedScore, 0, 'Disconnected relay should have 0 score');
 
-            // Test relay with high latency
-            const slowRelay = { connected: true, latency_ms: 1500, error_count: 0 };
+            // Test relay with high latency (latency > 500ms = 0 points for latency component)
+            // Connected (30) + Latency above 500 (0) + Uptime 99% (24.75) + 0 errors (20) = 74.75
+            const slowRelay = { connected: true, latency_ms: 1500, error_count: 0, uptime_percent: 99 };
             const slowScore = instance.calculateHealthScore(slowRelay);
-            assertTrue(slowScore < 70, 'Slow relay should have lower score');
+            assertTrue(slowScore < goodScore, 'Slow relay should have lower score than good relay');
 
-            // Test relay with errors
-            const errorRelay = { connected: true, latency_ms: 100, error_count: 5 };
+            // Test relay with errors (errors reduce score by 1 point per error up to 20 points)
+            // 5 errors = 15 points for error component (vs 20 for 0 errors)
+            const errorRelay = { connected: true, latency_ms: 100, error_count: 5, uptime_percent: 99 };
             const errorScore = instance.calculateHealthScore(errorRelay);
-            assertTrue(errorScore < 90, 'Relay with errors should have reduced score');
+            assertTrue(errorScore < goodScore, 'Relay with errors should have reduced score compared to good relay');
+        });
+    });
+
+    // Chart Update Logic Tests
+    describe('Chart Update Logic', () => {
+        let container;
+
+        function createChartMockDOM() {
+            const el = document.createElement('div');
+            el.id = 'chart-update-test-container';
+            el.innerHTML = `
+                <div id="monitoring-tab" class="tab-content">
+                    <div id="monitoring-connected">0</div>
+                    <div id="monitoring-total">0</div>
+                    <div id="monitoring-events-sec">0</div>
+                    <div id="monitoring-total-events">0</div>
+                    <div id="relay-health-list"></div>
+                    <div class="chart-container" style="width: 400px; height: 200px;">
+                        <canvas id="event-rate-chart"></canvas>
+                    </div>
+                    <div class="chart-container" style="width: 400px; height: 200px;">
+                        <canvas id="latency-chart"></canvas>
+                    </div>
+                    <div class="chart-container-full" style="width: 800px; height: 300px;">
+                        <canvas id="health-score-chart"></canvas>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(el);
+            return el;
+        }
+
+        it('should have updateEventRateChart method', () => {
+            assertDefined(Shirushi.prototype.updateEventRateChart, 'updateEventRateChart method should exist');
+        });
+
+        it('should have updateLatencyChart method', () => {
+            assertDefined(Shirushi.prototype.updateLatencyChart, 'updateLatencyChart method should exist');
+        });
+
+        it('should have updateHealthScoreChart method', () => {
+            assertDefined(Shirushi.prototype.updateHealthScoreChart, 'updateHealthScoreChart method should exist');
+        });
+
+        it('should have resetMonitoringHistory method', () => {
+            assertDefined(Shirushi.prototype.resetMonitoringHistory, 'resetMonitoringHistory method should exist');
+        });
+
+        it('should have maxHistoryPoints property', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertDefined(instance.maxHistoryPoints, 'maxHistoryPoints should be defined');
+            assertEqual(instance.maxHistoryPoints, 60, 'maxHistoryPoints should be 60');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have healthScoreHistory object', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertDefined(instance.healthScoreHistory, 'healthScoreHistory should be defined');
+            assertEqual(typeof instance.healthScoreHistory, 'object', 'healthScoreHistory should be an object');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have relayLatencyHistory object', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertDefined(instance.relayLatencyHistory, 'relayLatencyHistory should be defined');
+            assertEqual(typeof instance.relayLatencyHistory, 'object', 'relayLatencyHistory should be an object');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should update event rate chart with history from backend', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.eventRateHistory = [];
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            const dataWithHistory = {
+                events_per_sec: 10.5,
+                event_rate_history: [
+                    { value: 5.0, timestamp: 1000 },
+                    { value: 7.5, timestamp: 2000 },
+                    { value: 10.5, timestamp: 3000 }
+                ]
+            };
+
+            instance.updateEventRateChart(dataWithHistory);
+
+            assertEqual(instance.charts.eventRate.data.length, 3, 'Chart should have 3 data points from backend history');
+
+            removeMockDOM(container);
+        });
+
+        it('should update event rate chart with local tracking when no backend history', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.eventRateHistory = [];
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            const dataWithoutHistory = {
+                events_per_sec: 8.5
+            };
+
+            instance.updateEventRateChart(dataWithoutHistory);
+            instance.updateEventRateChart({ events_per_sec: 9.0 });
+            instance.updateEventRateChart({ events_per_sec: 9.5 });
+
+            assertEqual(instance.eventRateHistory.length, 3, 'Local history should have 3 points');
+            assertEqual(instance.eventRateHistory[2].value, 9.5, 'Last point should have latest value');
+
+            removeMockDOM(container);
+        });
+
+        it('should trim event rate history to maxHistoryPoints', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.eventRateHistory = [];
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            // Add more than maxHistoryPoints
+            for (let i = 0; i < 70; i++) {
+                instance.updateEventRateChart({ events_per_sec: i });
+            }
+
+            assertEqual(instance.eventRateHistory.length, 60, 'History should not exceed maxHistoryPoints');
+            assertEqual(instance.eventRateHistory[0].value, 10, 'Oldest points should be removed');
+
+            removeMockDOM(container);
+        });
+
+        it('should update latency chart with connected relays only', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            const data = {
+                relays: [
+                    { url: 'wss://relay1.com', connected: true, latency_ms: 100 },
+                    { url: 'wss://relay2.com', connected: false, latency_ms: 200 },
+                    { url: 'wss://relay3.com', connected: true, latency_ms: 0 },
+                    { url: 'wss://relay4.com', connected: true, latency_ms: 150 }
+                ]
+            };
+
+            instance.updateLatencyChart(data);
+
+            // Should only include connected relays with valid latency > 0
+            assertEqual(instance.charts.latency.data.length, 2, 'Should only show connected relays with valid latency');
+
+            removeMockDOM(container);
+        });
+
+        it('should sort latency chart data by latency value', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            const data = {
+                relays: [
+                    { url: 'wss://slow.com', connected: true, latency_ms: 500 },
+                    { url: 'wss://fast.com', connected: true, latency_ms: 50 },
+                    { url: 'wss://medium.com', connected: true, latency_ms: 200 }
+                ]
+            };
+
+            instance.updateLatencyChart(data);
+
+            assertEqual(instance.charts.latency.data[0].value, 50, 'First entry should have lowest latency');
+            assertEqual(instance.charts.latency.data[2].value, 500, 'Last entry should have highest latency');
+
+            removeMockDOM(container);
+        });
+
+        it('should limit latency chart to 10 relays', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            const relays = [];
+            for (let i = 0; i < 15; i++) {
+                relays.push({ url: `wss://relay${i}.com`, connected: true, latency_ms: 100 + i * 10 });
+            }
+
+            instance.updateLatencyChart({ relays });
+
+            assertEqual(instance.charts.latency.data.length, 10, 'Should limit to 10 relays');
+
+            removeMockDOM(container);
+        });
+
+        it('should track health score history per relay', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            const data1 = {
+                relays: [
+                    { url: 'wss://relay1.com', connected: true, health_score: 90 },
+                    { url: 'wss://relay2.com', connected: true, health_score: 80 }
+                ]
+            };
+
+            instance.updateHealthScoreChart(data1);
+
+            assertDefined(instance.healthScoreHistory['wss://relay1.com'], 'Should track relay1 history');
+            assertDefined(instance.healthScoreHistory['wss://relay2.com'], 'Should track relay2 history');
+            assertEqual(instance.healthScoreHistory['wss://relay1.com'].length, 1, 'relay1 should have 1 point');
+            assertEqual(instance.healthScoreHistory['wss://relay1.com'][0].value, 90, 'relay1 should have correct score');
+
+            removeMockDOM(container);
+        });
+
+        it('should accumulate health score history over multiple updates', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            instance.updateHealthScoreChart({
+                relays: [{ url: 'wss://relay1.com', connected: true, health_score: 90 }]
+            });
+            instance.updateHealthScoreChart({
+                relays: [{ url: 'wss://relay1.com', connected: true, health_score: 85 }]
+            });
+            instance.updateHealthScoreChart({
+                relays: [{ url: 'wss://relay1.com', connected: true, health_score: 92 }]
+            });
+
+            assertEqual(instance.healthScoreHistory['wss://relay1.com'].length, 3, 'Should accumulate 3 points');
+            assertEqual(instance.healthScoreHistory['wss://relay1.com'][2].value, 92, 'Last point should have latest score');
+
+            removeMockDOM(container);
+        });
+
+        it('should trim health score history to maxHistoryPoints', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            // Add more than maxHistoryPoints
+            for (let i = 0; i < 70; i++) {
+                instance.updateHealthScoreChart({
+                    relays: [{ url: 'wss://relay1.com', connected: true, health_score: i }]
+                });
+            }
+
+            assertEqual(instance.healthScoreHistory['wss://relay1.com'].length, 60, 'Should not exceed maxHistoryPoints');
+            assertEqual(instance.healthScoreHistory['wss://relay1.com'][0].value, 10, 'Oldest points should be removed');
+
+            removeMockDOM(container);
+        });
+
+        it('should clean up history for removed relays', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            // Add two relays
+            instance.updateHealthScoreChart({
+                relays: [
+                    { url: 'wss://relay1.com', connected: true, health_score: 90 },
+                    { url: 'wss://relay2.com', connected: true, health_score: 80 }
+                ]
+            });
+
+            assertEqual(Object.keys(instance.healthScoreHistory).length, 2, 'Should have 2 relays');
+
+            // Update with only one relay (simulating relay2 removal)
+            instance.updateHealthScoreChart({
+                relays: [
+                    { url: 'wss://relay1.com', connected: true, health_score: 95 }
+                ]
+            });
+
+            assertEqual(Object.keys(instance.healthScoreHistory).length, 1, 'Should clean up removed relay');
+            assertDefined(instance.healthScoreHistory['wss://relay1.com'], 'relay1 should still exist');
+
+            removeMockDOM(container);
+        });
+
+        it('should use calculateHealthScore when health_score is not provided', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            const data = {
+                relays: [
+                    { url: 'wss://relay1.com', connected: true, latency_ms: 100, uptime_percent: 99, error_count: 0 }
+                ]
+            };
+
+            instance.updateHealthScoreChart(data);
+
+            assertTrue(instance.healthScoreHistory['wss://relay1.com'][0].value > 0, 'Should calculate health score');
+
+            removeMockDOM(container);
+        });
+
+        it('should reset monitoring history correctly', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.charts = { healthScore: { series: { 'wss://test.com': [] } } };
+
+            // Add some history
+            instance.eventRateHistory = [{ value: 1 }, { value: 2 }];
+            instance.healthScoreHistory = { 'wss://test.com': [{ value: 90 }] };
+            instance.relayLatencyHistory = { 'wss://test.com': [{ value: 100 }] };
+
+            instance.resetMonitoringHistory();
+
+            assertEqual(instance.eventRateHistory.length, 0, 'eventRateHistory should be empty');
+            assertEqual(Object.keys(instance.healthScoreHistory).length, 0, 'healthScoreHistory should be empty');
+            assertEqual(Object.keys(instance.relayLatencyHistory).length, 0, 'relayLatencyHistory should be empty');
+            assertEqual(Object.keys(instance.charts.healthScore.series).length, 0, 'chart series should be empty');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should calculate health score with weighted formula', () => {
+            const instance = Object.create(Shirushi.prototype);
+
+            // Test perfect relay
+            const perfectRelay = { connected: true, latency_ms: 50, uptime_percent: 100, error_count: 0 };
+            const perfectScore = instance.calculateHealthScore(perfectRelay);
+            assertTrue(perfectScore >= 90, 'Perfect relay should have score >= 90');
+
+            // Test relay with moderate issues
+            const moderateRelay = { connected: true, latency_ms: 300, uptime_percent: 80, error_count: 5 };
+            const moderateScore = instance.calculateHealthScore(moderateRelay);
+            assertTrue(moderateScore >= 40 && moderateScore < 80, 'Moderate relay should have score between 40-80');
+
+            // Test relay with severe issues
+            const severeRelay = { connected: true, latency_ms: 600, uptime_percent: 50, error_count: 25 };
+            const severeScore = instance.calculateHealthScore(severeRelay);
+            assertTrue(severeScore < 60, 'Severe relay should have score < 60');
+        });
+
+        it('should handle null charts gracefully in updateEventRateChart', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.eventRateHistory = [];
+            instance.maxHistoryPoints = 60;
+
+            let errorThrown = false;
+            try {
+                instance.updateEventRateChart({ events_per_sec: 5 });
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Should not throw with null chart');
+        });
+
+        it('should handle null charts gracefully in updateLatencyChart', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+
+            let errorThrown = false;
+            try {
+                instance.updateLatencyChart({ relays: [{ url: 'wss://test.com', connected: true, latency_ms: 100 }] });
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Should not throw with null chart');
+        });
+
+        it('should handle null charts gracefully in updateHealthScoreChart', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+
+            let errorThrown = false;
+            try {
+                instance.updateHealthScoreChart({ relays: [{ url: 'wss://test.com', connected: true, health_score: 90 }] });
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Should not throw with null chart');
+        });
+
+        it('should handle missing relays in updateLatencyChart', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            let errorThrown = false;
+            try {
+                instance.updateLatencyChart({});
+                instance.updateLatencyChart({ relays: null });
+                instance.updateLatencyChart({ relays: undefined });
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Should handle missing relays gracefully');
+
+            removeMockDOM(container);
+        });
+
+        it('should handle missing relays in updateHealthScoreChart', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.healthScoreHistory = {};
+            instance.maxHistoryPoints = 60;
+            instance.initializeCharts();
+
+            let errorThrown = false;
+            try {
+                instance.updateHealthScoreChart({});
+                instance.updateHealthScoreChart({ relays: null });
+                instance.updateHealthScoreChart({ relays: undefined });
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Should handle missing relays gracefully');
+
+            removeMockDOM(container);
         });
     });
 
