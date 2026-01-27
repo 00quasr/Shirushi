@@ -2547,6 +2547,326 @@
             const css = getCssText();
             assertTrue(css.includes('follow-avatar'), 'CSS should have follow-avatar rules');
         });
+
+        it('should have toast-container rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-container'), 'CSS should have toast-container rules');
+        });
+
+        it('should have toast notification rules loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-success') && css.includes('toast-error'), 'CSS should have toast type rules');
+        });
+
+        it('should have toast animation rules loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-slide-in') && css.includes('toast-slide-out'), 'CSS should have toast animation rules');
+        });
+    });
+
+    // ===================================
+    // Toast Notification Tests
+    // ===================================
+
+    describe('Toast Notifications', () => {
+        let toastContainer;
+
+        // Setup - ensure toast container exists
+        function setupToastTests() {
+            toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast-container';
+                document.body.appendChild(toastContainer);
+            }
+            // Clear any existing toasts
+            toastContainer.innerHTML = '';
+            // Reinitialize app's toast container reference
+            if (app) {
+                app.toastContainer = toastContainer;
+            }
+        }
+
+        it('should have toast container in DOM', () => {
+            setupToastTests();
+            const container = document.getElementById('toast-container');
+            assertDefined(container, 'Toast container should exist in DOM');
+            assertTrue(container.classList.contains('toast-container'), 'Toast container should have correct class');
+        });
+
+        it('should have setupToasts method defined', () => {
+            assertDefined(app.setupToasts, 'setupToasts method should be defined');
+            assertTrue(typeof app.setupToasts === 'function', 'setupToasts should be a function');
+        });
+
+        it('should have showToast method defined', () => {
+            assertDefined(app.showToast, 'showToast method should be defined');
+            assertTrue(typeof app.showToast === 'function', 'showToast should be a function');
+        });
+
+        it('should have toastSuccess convenience method', () => {
+            assertDefined(app.toastSuccess, 'toastSuccess method should be defined');
+            assertTrue(typeof app.toastSuccess === 'function', 'toastSuccess should be a function');
+        });
+
+        it('should have toastError convenience method', () => {
+            assertDefined(app.toastError, 'toastError method should be defined');
+            assertTrue(typeof app.toastError === 'function', 'toastError should be a function');
+        });
+
+        it('should have toastWarning convenience method', () => {
+            assertDefined(app.toastWarning, 'toastWarning method should be defined');
+            assertTrue(typeof app.toastWarning === 'function', 'toastWarning should be a function');
+        });
+
+        it('should have toastInfo convenience method', () => {
+            assertDefined(app.toastInfo, 'toastInfo method should be defined');
+            assertTrue(typeof app.toastInfo === 'function', 'toastInfo should be a function');
+        });
+
+        it('should have dismissToast method defined', () => {
+            assertDefined(app.dismissToast, 'dismissToast method should be defined');
+            assertTrue(typeof app.dismissToast === 'function', 'dismissToast should be a function');
+        });
+
+        it('should have clearAllToasts method defined', () => {
+            assertDefined(app.clearAllToasts, 'clearAllToasts method should be defined');
+            assertTrue(typeof app.clearAllToasts === 'function', 'clearAllToasts should be a function');
+        });
+
+        it('should create a success toast with correct classes', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'success', title: 'Test', message: 'Success message', duration: 0 });
+            assertDefined(toast, 'Toast element should be created');
+            assertTrue(toast.classList.contains('toast'), 'Toast should have toast class');
+            assertTrue(toast.classList.contains('toast-success'), 'Toast should have toast-success class');
+            app.dismissToast(toast);
+        });
+
+        it('should create an error toast with correct classes', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'error', title: 'Test', message: 'Error message', duration: 0 });
+            assertTrue(toast.classList.contains('toast-error'), 'Toast should have toast-error class');
+            app.dismissToast(toast);
+        });
+
+        it('should create a warning toast with correct classes', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'warning', title: 'Test', message: 'Warning message', duration: 0 });
+            assertTrue(toast.classList.contains('toast-warning'), 'Toast should have toast-warning class');
+            app.dismissToast(toast);
+        });
+
+        it('should create an info toast with correct classes', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Info message', duration: 0 });
+            assertTrue(toast.classList.contains('toast-info'), 'Toast should have toast-info class');
+            app.dismissToast(toast);
+        });
+
+        it('should display toast title correctly', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test Title', message: 'Message', duration: 0 });
+            const titleEl = toast.querySelector('.toast-title');
+            assertDefined(titleEl, 'Toast should have title element');
+            assertEqual(titleEl.textContent, 'Test Title', 'Toast title should match');
+            app.dismissToast(toast);
+        });
+
+        it('should display toast message correctly', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Title', message: 'Test Message', duration: 0 });
+            const messageEl = toast.querySelector('.toast-message');
+            assertDefined(messageEl, 'Toast should have message element');
+            assertEqual(messageEl.textContent, 'Test Message', 'Toast message should match');
+            app.dismissToast(toast);
+        });
+
+        it('should escape HTML in title and message', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: '<script>alert(1)</script>', message: '<b>bold</b>', duration: 0 });
+            const titleEl = toast.querySelector('.toast-title');
+            const messageEl = toast.querySelector('.toast-message');
+            assertTrue(!titleEl.innerHTML.includes('<script>'), 'Title should escape script tags');
+            assertTrue(!messageEl.innerHTML.includes('<b>'), 'Message should escape HTML tags');
+            app.dismissToast(toast);
+        });
+
+        it('should have close button', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Message', duration: 0 });
+            const closeBtn = toast.querySelector('.toast-close');
+            assertDefined(closeBtn, 'Toast should have close button');
+            app.dismissToast(toast);
+        });
+
+        it('should dismiss toast when close button clicked', async () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Message', duration: 0 });
+            const closeBtn = toast.querySelector('.toast-close');
+            closeBtn.click();
+            assertTrue(toast.classList.contains('toast-hiding'), 'Toast should have hiding class after close click');
+            // Wait for animation to complete
+            await new Promise(resolve => setTimeout(resolve, 250));
+        });
+
+        it('should add toast to container', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Message', duration: 0 });
+            assertEqual(toast.parentElement, toastContainer, 'Toast should be added to container');
+            app.dismissToast(toast);
+        });
+
+        it('should limit number of toasts', () => {
+            setupToastTests();
+            // Create more than maxToasts
+            for (let i = 0; i < 7; i++) {
+                app.showToast({ type: 'info', title: `Toast ${i}`, message: 'Message', duration: 0 });
+            }
+            const toasts = toastContainer.querySelectorAll('.toast:not(.toast-hiding)');
+            assertTrue(toasts.length <= app.maxToasts, 'Should not exceed max toasts');
+            app.clearAllToasts();
+        });
+
+        it('should have progress bar when duration > 0', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Message', duration: 5000, showProgress: true });
+            const progressBar = toast.querySelector('.toast-progress');
+            assertDefined(progressBar, 'Toast should have progress bar');
+            app.dismissToast(toast);
+        });
+
+        it('should not have progress bar when showProgress is false', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Message', duration: 5000, showProgress: false });
+            const progressBar = toast.querySelector('.toast-progress');
+            assertTrue(progressBar === null, 'Toast should not have progress bar');
+            app.dismissToast(toast);
+        });
+
+        it('should not have progress bar when duration is 0', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', message: 'Message', duration: 0, showProgress: true });
+            const progressBar = toast.querySelector('.toast-progress');
+            assertTrue(progressBar === null, 'Toast should not have progress bar when duration is 0');
+            app.dismissToast(toast);
+        });
+
+        it('should have correct icon for success toast', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'success', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertEqual(icon.textContent, '✓', 'Success toast should have checkmark icon');
+            app.dismissToast(toast);
+        });
+
+        it('should have correct icon for error toast', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'error', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertEqual(icon.textContent, '✗', 'Error toast should have X icon');
+            app.dismissToast(toast);
+        });
+
+        it('should have correct icon for warning toast', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'warning', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertEqual(icon.textContent, '⚠', 'Warning toast should have warning icon');
+            app.dismissToast(toast);
+        });
+
+        it('should have correct icon for info toast', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertEqual(icon.textContent, 'ℹ', 'Info toast should have info icon');
+            app.dismissToast(toast);
+        });
+
+        it('should have aria role for accessibility', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', duration: 0 });
+            assertEqual(toast.getAttribute('role'), 'alert', 'Toast should have role="alert"');
+            app.dismissToast(toast);
+        });
+
+        it('should clear all toasts', () => {
+            setupToastTests();
+            app.showToast({ type: 'info', title: 'Test 1', duration: 0 });
+            app.showToast({ type: 'info', title: 'Test 2', duration: 0 });
+            app.showToast({ type: 'info', title: 'Test 3', duration: 0 });
+            app.clearAllToasts();
+            const toasts = toastContainer.querySelectorAll('.toast:not(.toast-hiding)');
+            assertEqual(toasts.length, 0, 'All toasts should be dismissed');
+        });
+
+        it('should auto-dismiss after duration', async () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', duration: 100 });
+            // Wait for auto-dismiss
+            await new Promise(resolve => setTimeout(resolve, 150));
+            assertTrue(toast.classList.contains('toast-hiding'), 'Toast should be hiding after duration');
+            // Wait for animation to complete
+            await new Promise(resolve => setTimeout(resolve, 250));
+        });
+
+        it('toastSuccess should create success type toast', () => {
+            setupToastTests();
+            const toast = app.toastSuccess('Success Title', 'Success message');
+            assertTrue(toast.classList.contains('toast-success'), 'toastSuccess should create success type');
+            app.dismissToast(toast);
+        });
+
+        it('toastError should create error type toast', () => {
+            setupToastTests();
+            const toast = app.toastError('Error Title', 'Error message');
+            assertTrue(toast.classList.contains('toast-error'), 'toastError should create error type');
+            app.dismissToast(toast);
+        });
+
+        it('toastWarning should create warning type toast', () => {
+            setupToastTests();
+            const toast = app.toastWarning('Warning Title', 'Warning message');
+            assertTrue(toast.classList.contains('toast-warning'), 'toastWarning should create warning type');
+            app.dismissToast(toast);
+        });
+
+        it('toastInfo should create info type toast', () => {
+            setupToastTests();
+            const toast = app.toastInfo('Info Title', 'Info message');
+            assertTrue(toast.classList.contains('toast-info'), 'toastInfo should create info type');
+            app.dismissToast(toast);
+        });
+
+        it('should handle toast without title', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', message: 'Only message', duration: 0 });
+            const titleEl = toast.querySelector('.toast-title');
+            assertTrue(titleEl === null, 'Toast without title should not have title element');
+            const messageEl = toast.querySelector('.toast-message');
+            assertDefined(messageEl, 'Toast should still have message element');
+            app.dismissToast(toast);
+        });
+
+        it('should handle toast without message', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Only title', duration: 0 });
+            const messageEl = toast.querySelector('.toast-message');
+            assertTrue(messageEl === null, 'Toast without message should not have message element');
+            const titleEl = toast.querySelector('.toast-title');
+            assertDefined(titleEl, 'Toast should still have title element');
+            app.dismissToast(toast);
+        });
+
+        it('should handle getToastIcon for all types', () => {
+            assertEqual(app.getToastIcon('success'), '✓', 'Success icon');
+            assertEqual(app.getToastIcon('error'), '✗', 'Error icon');
+            assertEqual(app.getToastIcon('warning'), '⚠', 'Warning icon');
+            assertEqual(app.getToastIcon('info'), 'ℹ', 'Info icon');
+            assertEqual(app.getToastIcon('unknown'), 'ℹ', 'Unknown type should default to info icon');
+        });
     });
 
     // Export test runner for browser and Node.js

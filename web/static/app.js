@@ -25,10 +25,16 @@ class Shirushi {
         };
         this.maxHistoryPoints = 60;
 
+        // Toast notification state
+        this.toastContainer = null;
+        this.toastQueue = [];
+        this.maxToasts = 5;
+
         this.init();
     }
 
     init() {
+        this.setupToasts();
         this.setupWebSocket();
         this.setupTabs();
         this.setupRelays();
@@ -1696,6 +1702,131 @@ class Shirushi {
         if (this.charts.healthScore && this.charts.healthScore.series) {
             this.charts.healthScore.series = {};
         }
+    }
+
+    // Toast Notifications
+    setupToasts() {
+        this.toastContainer = document.getElementById('toast-container');
+    }
+
+    /**
+     * Show a toast notification
+     * @param {Object} options - Toast options
+     * @param {string} options.type - Toast type: 'success', 'error', 'warning', 'info'
+     * @param {string} options.title - Toast title
+     * @param {string} options.message - Toast message
+     * @param {number} options.duration - Duration in ms (default: 5000, 0 = no auto-dismiss)
+     * @param {boolean} options.showProgress - Show progress bar (default: true)
+     * @returns {HTMLElement} The toast element
+     */
+    showToast({ type = 'info', title = '', message = '', duration = 5000, showProgress = true }) {
+        if (!this.toastContainer) {
+            this.toastContainer = document.getElementById('toast-container');
+        }
+
+        // Limit number of toasts
+        const existingToasts = this.toastContainer.querySelectorAll('.toast:not(.toast-hiding)');
+        if (existingToasts.length >= this.maxToasts) {
+            this.dismissToast(existingToasts[0]);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'polite');
+
+        const icon = this.getToastIcon(type);
+
+        toast.innerHTML = `
+            <span class="toast-icon">${icon}</span>
+            <div class="toast-content">
+                ${title ? `<div class="toast-title">${this.escapeHtml(title)}</div>` : ''}
+                ${message ? `<div class="toast-message">${this.escapeHtml(message)}</div>` : ''}
+            </div>
+            <button class="toast-close" aria-label="Close notification">&times;</button>
+            ${showProgress && duration > 0 ? '<div class="toast-progress"></div>' : ''}
+        `;
+
+        // Add close button handler
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => this.dismissToast(toast));
+
+        // Add to container
+        this.toastContainer.appendChild(toast);
+
+        // Set up auto-dismiss with progress bar
+        if (duration > 0) {
+            const progressBar = toast.querySelector('.toast-progress');
+            if (progressBar) {
+                progressBar.style.width = '100%';
+                progressBar.style.transitionDuration = `${duration}ms`;
+                // Trigger reflow to start animation
+                progressBar.offsetHeight;
+                progressBar.style.width = '0%';
+            }
+
+            toast.dismissTimeout = setTimeout(() => {
+                this.dismissToast(toast);
+            }, duration);
+        }
+
+        return toast;
+    }
+
+    getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return '✓';
+            case 'error':
+                return '✗';
+            case 'warning':
+                return '⚠';
+            case 'info':
+            default:
+                return 'ℹ';
+        }
+    }
+
+    dismissToast(toast) {
+        if (!toast || toast.classList.contains('toast-hiding')) return;
+
+        // Clear timeout if exists
+        if (toast.dismissTimeout) {
+            clearTimeout(toast.dismissTimeout);
+        }
+
+        // Add hiding class for animation
+        toast.classList.add('toast-hiding');
+
+        // Remove after animation
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.parentElement.removeChild(toast);
+            }
+        }, 200);
+    }
+
+    // Convenience methods for common toast types
+    toastSuccess(title, message, duration = 5000) {
+        return this.showToast({ type: 'success', title, message, duration });
+    }
+
+    toastError(title, message, duration = 7000) {
+        return this.showToast({ type: 'error', title, message, duration });
+    }
+
+    toastWarning(title, message, duration = 6000) {
+        return this.showToast({ type: 'warning', title, message, duration });
+    }
+
+    toastInfo(title, message, duration = 5000) {
+        return this.showToast({ type: 'info', title, message, duration });
+    }
+
+    clearAllToasts() {
+        if (!this.toastContainer) return;
+        const toasts = this.toastContainer.querySelectorAll('.toast');
+        toasts.forEach(toast => this.dismissToast(toast));
     }
 }
 
