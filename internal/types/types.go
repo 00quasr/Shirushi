@@ -126,6 +126,7 @@ type RelayHealth struct {
 	EventsPerSec     float64           `json:"events_per_sec"`
 	EventRateHistory []TimeSeriesPoint `json:"event_rate_history,omitempty"`
 	Uptime           float64           `json:"uptime_percent"`
+	HealthScore      float64           `json:"health_score"`
 	LastSeen         int64             `json:"last_seen"`
 	ErrorCount       int               `json:"error_count"`
 	LastError        string            `json:"last_error,omitempty"`

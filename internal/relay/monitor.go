@@ -321,6 +321,9 @@ func (m *Monitor) GetRelayHealth(url string) *types.RelayHealth {
 		uptime = float64(metrics.SuccessCount) / float64(metrics.CheckCount) * 100
 	}
 
+	// Calculate health score
+	healthScore := m.CalculateHealthScore(metrics, connected)
+
 	return &types.RelayHealth{
 		URL:              url,
 		Connected:        connected,
@@ -329,6 +332,7 @@ func (m *Monitor) GetRelayHealth(url string) *types.RelayHealth {
 		EventsPerSec:     metrics.EventsPerSec,
 		EventRateHistory: metrics.EventHistory.GetAll(),
 		Uptime:           uptime,
+		HealthScore:      healthScore,
 		LastSeen:         metrics.LastCheck.Unix(),
 		ErrorCount:       metrics.ErrorCount,
 		LastError:        metrics.LastError,
@@ -360,6 +364,9 @@ func (m *Monitor) GetMonitoringData() *types.MonitoringData {
 			uptime = float64(metrics.SuccessCount) / float64(metrics.CheckCount) * 100
 		}
 
+		// Calculate health score
+		healthScore := m.CalculateHealthScore(metrics, connected)
+
 		relays = append(relays, types.RelayHealth{
 			URL:              url,
 			Connected:        connected,
@@ -368,6 +375,7 @@ func (m *Monitor) GetMonitoringData() *types.MonitoringData {
 			EventsPerSec:     metrics.EventsPerSec,
 			EventRateHistory: metrics.EventHistory.GetAll(),
 			Uptime:           uptime,
+			HealthScore:      healthScore,
 			LastSeen:         metrics.LastCheck.Unix(),
 			ErrorCount:       metrics.ErrorCount,
 			LastError:        metrics.LastError,
@@ -397,4 +405,85 @@ func (m *Monitor) GetRelayLatency(url string) int64 {
 		return metrics.Latency
 	}
 	return -1
+}
+
+// CalculateHealthScore computes a health score (0-100) for a relay based on
+// connection status, latency, uptime, and error rate.
+//
+// The score is calculated as a weighted average of:
+//   - Connection status (30%): 100 if connected, 0 if not
+//   - Latency score (25%): Based on latency in ms, lower is better
+//   - Uptime percentage (25%): Direct percentage from check history
+//   - Error rate score (20%): Based on recent error count, fewer is better
+func (m *Monitor) CalculateHealthScore(metrics *relayMetrics, connected bool) float64 {
+	// Connection status: 30% weight
+	var connectionScore float64
+	if connected {
+		connectionScore = 100.0
+	}
+
+	// Latency score: 25% weight
+	// < 100ms = 100, 100-500ms = linear scale 100->50, 500-2000ms = linear 50->0, >2000ms = 0
+	latencyScore := calculateLatencyScore(metrics.Latency)
+
+	// Uptime score: 25% weight (direct percentage)
+	var uptimeScore float64
+	if metrics.CheckCount > 0 {
+		uptimeScore = float64(metrics.SuccessCount) / float64(metrics.CheckCount) * 100
+	}
+
+	// Error rate score: 20% weight
+	// 0 errors = 100, 1-5 errors = linear 100->50, 6-20 errors = linear 50->0, >20 = 0
+	errorScore := calculateErrorScore(metrics.ErrorCount)
+
+	// Weighted average
+	score := (connectionScore * 0.30) +
+		(latencyScore * 0.25) +
+		(uptimeScore * 0.25) +
+		(errorScore * 0.20)
+
+	// Clamp to 0-100 range
+	if score < 0 {
+		score = 0
+	}
+	if score > 100 {
+		score = 100
+	}
+
+	return score
+}
+
+// calculateLatencyScore converts latency to a score (0-100).
+func calculateLatencyScore(latencyMs int64) float64 {
+	if latencyMs <= 0 {
+		return 0 // No data or error
+	}
+	if latencyMs < 100 {
+		return 100.0
+	}
+	if latencyMs <= 500 {
+		// Linear scale from 100 to 50 for 100-500ms
+		return 100.0 - (float64(latencyMs-100)/400.0)*50.0
+	}
+	if latencyMs <= 2000 {
+		// Linear scale from 50 to 0 for 500-2000ms
+		return 50.0 - (float64(latencyMs-500)/1500.0)*50.0
+	}
+	return 0
+}
+
+// calculateErrorScore converts error count to a score (0-100).
+func calculateErrorScore(errorCount int) float64 {
+	if errorCount <= 0 {
+		return 100.0
+	}
+	if errorCount <= 5 {
+		// Linear scale from 100 to 50 for 1-5 errors
+		return 100.0 - (float64(errorCount)/5.0)*50.0
+	}
+	if errorCount <= 20 {
+		// Linear scale from 50 to 0 for 6-20 errors
+		return 50.0 - (float64(errorCount-5)/15.0)*50.0
+	}
+	return 0
 }

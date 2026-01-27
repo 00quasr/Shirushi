@@ -547,3 +547,213 @@ func TestMonitorGetMonitoringData(t *testing.T) {
 		t.Error("expected non-zero timestamp")
 	}
 }
+
+func TestCalculateLatencyScore(t *testing.T) {
+	tests := []struct {
+		name     string
+		latency  int64
+		expected float64
+	}{
+		{"zero latency", 0, 0},
+		{"negative latency", -1, 0},
+		{"very fast (50ms)", 50, 100.0},
+		{"fast (100ms)", 100, 100.0},
+		{"medium (300ms)", 300, 75.0},
+		{"slow (500ms)", 500, 50.0},
+		{"very slow (1250ms)", 1250, 25.0},
+		{"timeout (2000ms)", 2000, 0.0},
+		{"beyond timeout (3000ms)", 3000, 0.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := calculateLatencyScore(tt.latency)
+			if score != tt.expected {
+				t.Errorf("calculateLatencyScore(%d) = %f, want %f", tt.latency, score, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCalculateErrorScore(t *testing.T) {
+	tests := []struct {
+		name       string
+		errorCount int
+		expected   float64
+	}{
+		{"no errors", 0, 100.0},
+		{"negative errors", -1, 100.0},
+		{"1 error", 1, 90.0},
+		{"5 errors", 5, 50.0},
+		{"10 errors", 10, 33.333333333333336},
+		{"20 errors", 20, 0.0},
+		{"many errors", 50, 0.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := calculateErrorScore(tt.errorCount)
+			if score != tt.expected {
+				t.Errorf("calculateErrorScore(%d) = %f, want %f", tt.errorCount, score, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCalculateHealthScore(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+	m := NewMonitor(pool)
+
+	tests := []struct {
+		name       string
+		metrics    *relayMetrics
+		connected  bool
+		minScore   float64
+		maxScore   float64
+	}{
+		{
+			name: "perfect health - connected, fast, no errors",
+			metrics: &relayMetrics{
+				Latency:      50,
+				CheckCount:   100,
+				SuccessCount: 100,
+				ErrorCount:   0,
+			},
+			connected: true,
+			minScore:  99.0,
+			maxScore:  100.0,
+		},
+		{
+			name: "good health - connected, moderate latency",
+			metrics: &relayMetrics{
+				Latency:      200,
+				CheckCount:   100,
+				SuccessCount: 95,
+				ErrorCount:   2,
+			},
+			connected: true,
+			minScore:  75.0,
+			maxScore:  95.0,
+		},
+		{
+			name: "poor health - disconnected, high latency, errors",
+			metrics: &relayMetrics{
+				Latency:      1500,
+				CheckCount:   100,
+				SuccessCount: 50,
+				ErrorCount:   15,
+			},
+			connected: false,
+			minScore:  10.0,
+			maxScore:  40.0,
+		},
+		{
+			name: "zero health - disconnected, timeout, many errors",
+			metrics: &relayMetrics{
+				Latency:      3000,
+				CheckCount:   100,
+				SuccessCount: 0,
+				ErrorCount:   50,
+			},
+			connected: false,
+			minScore:  0.0,
+			maxScore:  5.0,
+		},
+		{
+			name: "no checks yet - new relay (connected, no latency data, no uptime data, no errors)",
+			metrics: &relayMetrics{
+				Latency:      0,
+				CheckCount:   0,
+				SuccessCount: 0,
+				ErrorCount:   0,
+			},
+			connected: true,
+			minScore:  50.0, // 30% connection + 0% latency + 0% uptime + 20% no errors = 50%
+			maxScore:  50.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := m.CalculateHealthScore(tt.metrics, tt.connected)
+			if score < tt.minScore || score > tt.maxScore {
+				t.Errorf("CalculateHealthScore() = %f, want between %f and %f", score, tt.minScore, tt.maxScore)
+			}
+		})
+	}
+}
+
+func TestGetRelayHealthIncludesHealthScore(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+	m := NewMonitor(pool)
+
+	// Add relay to pool
+	pool.mu.Lock()
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+	}
+	pool.mu.Unlock()
+
+	// Add metrics
+	m.mu.Lock()
+	metrics := m.newRelayMetrics("wss://test.relay.com")
+	metrics.Latency = 50
+	metrics.CheckCount = 100
+	metrics.SuccessCount = 100
+	metrics.ErrorCount = 0
+	m.stats["wss://test.relay.com"] = metrics
+	m.mu.Unlock()
+
+	health := m.GetRelayHealth("wss://test.relay.com")
+	if health == nil {
+		t.Fatal("expected health data")
+	}
+
+	// Should have a high health score (connected, fast, no errors, 100% uptime)
+	if health.HealthScore < 95.0 {
+		t.Errorf("expected high health score (>=95), got %f", health.HealthScore)
+	}
+}
+
+func TestGetMonitoringDataIncludesHealthScore(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+	m := NewMonitor(pool)
+
+	// Add relay to pool
+	pool.mu.Lock()
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+	}
+	pool.mu.Unlock()
+
+	// Add metrics
+	m.mu.Lock()
+	metrics := m.newRelayMetrics("wss://test.relay.com")
+	metrics.Latency = 50
+	metrics.CheckCount = 100
+	metrics.SuccessCount = 100
+	metrics.ErrorCount = 0
+	m.stats["wss://test.relay.com"] = metrics
+	m.mu.Unlock()
+
+	data := m.GetMonitoringData()
+	if data == nil {
+		t.Fatal("expected monitoring data")
+	}
+	if len(data.Relays) != 1 {
+		t.Fatalf("expected 1 relay, got %d", len(data.Relays))
+	}
+
+	// Should have a high health score
+	if data.Relays[0].HealthScore < 95.0 {
+		t.Errorf("expected high health score (>=95), got %f", data.Relays[0].HealthScore)
+	}
+}
