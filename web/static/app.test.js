@@ -2562,6 +2562,52 @@
             const css = getCssText();
             assertTrue(css.includes('toast-slide-in') && css.includes('toast-slide-out'), 'CSS should have toast animation rules');
         });
+
+        it('should have toast-fade animation rules loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-fade-in') && css.includes('toast-fade-out'), 'CSS should have toast-fade animation rules');
+        });
+
+        it('should have toast-slide-up animation rules loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-slide-up') && css.includes('toast-slide-down'), 'CSS should have toast-slide-up/down animation rules');
+        });
+
+        it('should have toast-bounce-in animation rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-bounce-in'), 'CSS should have toast-bounce-in animation rule');
+        });
+
+        it('should have toast-shake animation rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-shake'), 'CSS should have toast-shake animation rule');
+        });
+
+        it('should have toast-progress-shrink animation rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-progress-shrink'), 'CSS should have toast-progress-shrink animation rule');
+        });
+
+        it('should have toast-icon-pop animation rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-icon-pop'), 'CSS should have toast-icon-pop animation rule');
+        });
+
+        it('should have toast-pulse animation rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-pulse'), 'CSS should have toast-pulse animation rule');
+        });
+
+        it('should have toast animation variant classes loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast.toast-fade'), 'CSS should have toast-fade variant class');
+            assertTrue(css.includes('.toast.toast-bounce'), 'CSS should have toast-bounce variant class');
+        });
+
+        it('should have toast-persistent animation rules loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('toast-persistent'), 'CSS should have toast-persistent animation rules');
+        });
     });
 
     // ===================================
