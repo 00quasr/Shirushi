@@ -5126,6 +5126,246 @@
         });
     });
 
+    describe('Button Disabled States CSS', () => {
+        // Helper to get all CSS text
+        function getCssText() {
+            let cssText = '';
+            for (let i = 0; i < document.styleSheets.length; i++) {
+                try {
+                    const sheet = document.styleSheets[i];
+                    for (let j = 0; j < sheet.cssRules.length; j++) {
+                        cssText += sheet.cssRules[j].cssText + '\n';
+                    }
+                } catch (e) {
+                    // Some stylesheets may not be accessible
+                }
+            }
+            return cssText;
+        }
+
+        it('btn:disabled should have reduced opacity', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button class="btn" disabled>Test</button>';
+            document.body.appendChild(container);
+
+            const btn = container.querySelector('button');
+            const styles = window.getComputedStyle(btn);
+
+            // Check opacity is reduced (0.5 or thereabouts)
+            const opacity = parseFloat(styles.opacity);
+            assertTrue(opacity <= 0.6, 'Disabled button should have reduced opacity');
+
+            document.body.removeChild(container);
+        });
+
+        it('btn:disabled should have cursor not-allowed', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button class="btn" disabled>Test</button>';
+            document.body.appendChild(container);
+
+            const btn = container.querySelector('button');
+            const styles = window.getComputedStyle(btn);
+
+            assertEqual(styles.cursor, 'not-allowed', 'Disabled button should have cursor: not-allowed');
+
+            document.body.removeChild(container);
+        });
+
+        it('btn:disabled should have pointer-events none', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button class="btn" disabled>Test</button>';
+            document.body.appendChild(container);
+
+            const btn = container.querySelector('button');
+            const styles = window.getComputedStyle(btn);
+
+            assertEqual(styles.pointerEvents, 'none', 'Disabled button should have pointer-events: none');
+
+            document.body.removeChild(container);
+        });
+
+        it('btn.primary:disabled should maintain accent background color', () => {
+            const css = getCssText();
+            assertTrue(
+                css.includes('.btn.primary:disabled') || css.includes('.btn.primary[disabled]'),
+                'CSS should define .btn.primary:disabled styles'
+            );
+        });
+    });
+
+    describe('Button Disabled States During Operations', () => {
+        it('setButtonLoading should disable button during operation', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-disabled-btn" class="btn">Submit</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const btn = document.getElementById('test-disabled-btn');
+
+            // Initially enabled
+            assertFalse(btn.disabled, 'Button should start enabled');
+
+            // Set to loading
+            mockApp.setButtonLoading(btn, true, 'Submitting...');
+
+            assertTrue(btn.disabled, 'Button should be disabled during loading');
+            assertEqual(btn.textContent, 'Submitting...', 'Button text should change during loading');
+
+            document.body.removeChild(container);
+        });
+
+        it('setButtonLoading should preserve original disabled state when restoring', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-preserve-btn" class="btn" disabled>Already Disabled</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const btn = document.getElementById('test-preserve-btn');
+
+            // Button starts disabled
+            assertTrue(btn.disabled, 'Button should start disabled');
+
+            // Set to loading
+            mockApp.setButtonLoading(btn, true, 'Loading...');
+            assertTrue(btn.disabled, 'Button should still be disabled');
+
+            // Restore - should remain disabled since it was originally disabled
+            mockApp.setButtonLoading(btn, false);
+            assertTrue(btn.disabled, 'Button should remain disabled after restore');
+
+            document.body.removeChild(container);
+        });
+
+        it('setButtonLoading should restore enabled state for originally enabled button', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-restore-btn" class="btn">Enabled</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const btn = document.getElementById('test-restore-btn');
+
+            // Button starts enabled
+            assertFalse(btn.disabled, 'Button should start enabled');
+
+            // Set to loading
+            mockApp.setButtonLoading(btn, true, 'Loading...');
+            assertTrue(btn.disabled, 'Button should be disabled during loading');
+
+            // Restore - should be enabled again
+            mockApp.setButtonLoading(btn, false);
+            assertFalse(btn.disabled, 'Button should be enabled after restore');
+
+            document.body.removeChild(container);
+        });
+
+        it('withLoading should disable button during async operation', async () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-async-btn" class="btn">Async</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.toastError = () => {}; // Mock toast
+
+            const btn = document.getElementById('test-async-btn');
+            let wasDisabledDuringOperation = false;
+
+            // Run withLoading with a simple operation
+            await mockApp.withLoading('test-operation', async () => {
+                wasDisabledDuringOperation = btn.disabled;
+                // Simulate async delay
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }, {
+                button: btn,
+                buttonText: 'Working...'
+            });
+
+            assertTrue(wasDisabledDuringOperation, 'Button should be disabled during async operation');
+            assertFalse(btn.disabled, 'Button should be enabled after operation completes');
+
+            document.body.removeChild(container);
+        });
+
+        it('withLoading should restore button state even on error', async () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-error-btn" class="btn">Error Test</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.toastError = () => {}; // Mock toast
+
+            const btn = document.getElementById('test-error-btn');
+
+            // Run withLoading that throws an error
+            try {
+                await mockApp.withLoading('test-error-operation', async () => {
+                    throw new Error('Test error');
+                }, {
+                    button: btn,
+                    buttonText: 'Working...',
+                    showErrorToast: false
+                });
+            } catch (e) {
+                // Expected error
+            }
+
+            // Button should be restored despite the error
+            assertFalse(btn.disabled, 'Button should be enabled after error');
+            assertFalse(btn.classList.contains('btn-loading'), 'Button should not have loading class after error');
+            assertEqual(btn.textContent, 'Error Test', 'Button text should be restored after error');
+
+            document.body.removeChild(container);
+        });
+
+        it('multiple buttons can have independent loading states', () => {
+            const container = document.createElement('div');
+            container.innerHTML = `
+                <button id="btn-a" class="btn">Button A</button>
+                <button id="btn-b" class="btn">Button B</button>
+            `;
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const btnA = document.getElementById('btn-a');
+            const btnB = document.getElementById('btn-b');
+
+            // Set A to loading
+            mockApp.setButtonLoading(btnA, true, 'Loading A...');
+
+            assertTrue(btnA.disabled, 'Button A should be disabled');
+            assertFalse(btnB.disabled, 'Button B should still be enabled');
+
+            // Set B to loading too
+            mockApp.setButtonLoading(btnB, true, 'Loading B...');
+
+            assertTrue(btnA.disabled, 'Button A should still be disabled');
+            assertTrue(btnB.disabled, 'Button B should now be disabled');
+
+            // Restore A
+            mockApp.setButtonLoading(btnA, false);
+
+            assertFalse(btnA.disabled, 'Button A should be restored');
+            assertTrue(btnB.disabled, 'Button B should still be disabled');
+
+            document.body.removeChild(container);
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

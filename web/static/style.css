@@ -191,6 +191,21 @@ main {
     font-size: 12px;
 }
 
+/* Disabled Button States */
+.btn:disabled,
+.btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.btn.primary:disabled,
+.btn.primary[disabled] {
+    background: var(--accent);
+    border-color: var(--accent);
+    opacity: 0.5;
+}
+
 /* Copy Button */
 .btn.copy-btn {
     display: inline-flex;

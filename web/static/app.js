@@ -148,7 +148,7 @@ class Shirushi {
 
         document.querySelectorAll('[data-preset]').forEach(btn => {
             btn.addEventListener('click', () => {
-                this.loadPreset(btn.dataset.preset);
+                this.loadPreset(btn.dataset.preset, btn);
             });
         });
     }
@@ -251,8 +251,8 @@ class Shirushi {
         });
     }
 
-    async loadPreset(presetName) {
-        try {
+    async loadPreset(presetName, buttonElement) {
+        await this.withLoading(`load-preset-${presetName}`, async () => {
             const response = await fetch('/api/relays/presets');
             const presets = await response.json();
             const relays = presets[presetName] || [];
@@ -260,9 +260,11 @@ class Shirushi {
             for (const url of relays) {
                 await this.addRelay(url);
             }
-        } catch (error) {
-            console.error('Failed to load preset:', error);
-        }
+        }, {
+            button: buttonElement,
+            buttonText: 'Loading...',
+            showErrorToast: true
+        });
     }
 
     updateRelayStatus(status) {
@@ -298,6 +300,7 @@ class Shirushi {
         const input = document.getElementById('profile-search').value.trim();
         if (!input) return;
 
+        const exploreBtn = document.getElementById('explore-profile-btn');
         const profileCard = document.getElementById('profile-card');
         const profileContent = document.getElementById('profile-content');
         const profileSkeleton = document.getElementById('profile-card-skeleton');
@@ -307,7 +310,7 @@ class Shirushi {
         profileSkeleton.classList.remove('hidden');
         profileContent.classList.add('hidden');
 
-        try {
+        await this.withLoading('explore-profile', async () => {
             const response = await fetch(`/api/profile/${encodeURIComponent(input)}`);
             if (!response.ok) {
                 const error = await response.json();
@@ -325,11 +328,15 @@ class Shirushi {
 
             // Load profile notes by default
             this.loadProfileNotes(profile.pubkey);
-        } catch (error) {
+        }, {
+            button: exploreBtn,
+            buttonText: 'Searching...',
+            showErrorToast: false
+        }).catch(error => {
             profileSkeleton.classList.add('hidden');
             profileCard.classList.remove('hidden');
             profileCard.innerHTML = `<p class="error">${this.escapeHtml(error.message)}</p>`;
-        }
+        });
     }
 
     renderProfile(profile) {
@@ -1208,7 +1215,7 @@ class Shirushi {
 
         document.querySelectorAll('[data-encode]').forEach(btn => {
             btn.addEventListener('click', () => {
-                this.encodeNip19(btn.dataset.encode);
+                this.encodeNip19(btn.dataset.encode, btn);
             });
         });
     }
@@ -1240,7 +1247,10 @@ class Shirushi {
         const input = document.getElementById('nip19-input').value.trim();
         if (!input) return;
 
-        try {
+        const decodeBtn = document.getElementById('decode-btn');
+        const container = document.getElementById('nip19-result');
+
+        await this.withLoading('decode-nip19', async () => {
             const response = await fetch('/api/keys/decode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1248,7 +1258,6 @@ class Shirushi {
             });
             const result = await response.json();
 
-            const container = document.getElementById('nip19-result');
             container.classList.remove('hidden');
 
             if (result.error) {
@@ -1261,16 +1270,20 @@ class Shirushi {
                     ${result.author ? `<p><strong>Author:</strong> ${result.author}</p>` : ''}
                 `;
             }
-        } catch (error) {
-            this.toastError('Decode Failed', error.message);
-        }
+        }, {
+            button: decodeBtn,
+            buttonText: 'Decoding...',
+            showErrorToast: true
+        });
     }
 
-    async encodeNip19(type) {
+    async encodeNip19(type, buttonElement) {
         const input = document.getElementById('nip19-input').value.trim();
         if (!input) return;
 
-        try {
+        const container = document.getElementById('nip19-result');
+
+        await this.withLoading(`encode-nip19-${type}`, async () => {
             const response = await fetch('/api/keys/encode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1278,7 +1291,6 @@ class Shirushi {
             });
             const result = await response.json();
 
-            const container = document.getElementById('nip19-result');
             container.classList.remove('hidden');
 
             if (result.error) {
@@ -1290,9 +1302,11 @@ class Shirushi {
                     <button class="btn small" onclick="navigator.clipboard.writeText('${result.encoded}')">Copy</button>
                 `;
             }
-        } catch (error) {
-            this.toastError('Encode Failed', error.message);
-        }
+        }, {
+            button: buttonElement,
+            buttonText: 'Encoding...',
+            showErrorToast: true
+        });
     }
 
     // Console Tab
