@@ -1183,6 +1183,43 @@ class Shirushi {
         `;
     }
 
+    // NIP-07 Extension Detection
+    /**
+     * Detect NIP-07 compatible browser extensions (Alby, nos2x, etc.)
+     * @returns {Promise<{available: boolean, pubkey: string|null, name: string|null}>}
+     */
+    async detectExtension() {
+        const result = {
+            available: false,
+            pubkey: null,
+            name: null
+        };
+
+        // Check if window.nostr exists (NIP-07 interface)
+        if (typeof window !== 'undefined' && window.nostr) {
+            result.available = true;
+
+            // Try to get the extension name if available
+            if (window.nostr._name) {
+                result.name = window.nostr._name;
+            } else if (window.nostr.name) {
+                result.name = window.nostr.name;
+            }
+
+            // Try to get the public key (requires user permission)
+            try {
+                if (typeof window.nostr.getPublicKey === 'function') {
+                    result.pubkey = await window.nostr.getPublicKey();
+                }
+            } catch (error) {
+                // User denied permission or extension error
+                console.warn('NIP-07: Could not get public key:', error.message);
+            }
+        }
+
+        return result;
+    }
+
     // Keys Tab
     setupKeys() {
         document.getElementById('generate-key-btn').addEventListener('click', () => {

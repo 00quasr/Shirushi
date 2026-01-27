@@ -5366,6 +5366,142 @@
         });
     });
 
+    // NIP-07 Extension Detection Tests
+    describe('detectExtension (NIP-07)', () => {
+        let originalNostr;
+
+        function setupMockNostr(options = {}) {
+            originalNostr = window.nostr;
+            window.nostr = {
+                ...options
+            };
+        }
+
+        function restoreNostr() {
+            if (originalNostr !== undefined) {
+                window.nostr = originalNostr;
+            } else {
+                delete window.nostr;
+            }
+        }
+
+        it('returns available: false when window.nostr is not present', async () => {
+            const savedNostr = window.nostr;
+            delete window.nostr;
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, false, 'available should be false');
+            assertEqual(result.pubkey, null, 'pubkey should be null');
+            assertEqual(result.name, null, 'name should be null');
+
+            if (savedNostr !== undefined) {
+                window.nostr = savedNostr;
+            }
+        });
+
+        it('returns available: true when window.nostr exists', async () => {
+            setupMockNostr({});
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, true, 'available should be true');
+            assertEqual(result.pubkey, null, 'pubkey should be null when getPublicKey is not available');
+
+            restoreNostr();
+        });
+
+        it('detects extension name from _name property', async () => {
+            setupMockNostr({
+                _name: 'Alby'
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, true, 'available should be true');
+            assertEqual(result.name, 'Alby', 'name should be Alby');
+
+            restoreNostr();
+        });
+
+        it('detects extension name from name property', async () => {
+            setupMockNostr({
+                name: 'nos2x'
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, true, 'available should be true');
+            assertEqual(result.name, 'nos2x', 'name should be nos2x');
+
+            restoreNostr();
+        });
+
+        it('prefers _name over name property', async () => {
+            setupMockNostr({
+                _name: 'Alby',
+                name: 'nos2x'
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.name, 'Alby', '_name should take precedence over name');
+
+            restoreNostr();
+        });
+
+        it('retrieves public key when getPublicKey is available', async () => {
+            const testPubkey = '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+            setupMockNostr({
+                getPublicKey: async () => testPubkey
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, true, 'available should be true');
+            assertEqual(result.pubkey, testPubkey, 'pubkey should match test pubkey');
+
+            restoreNostr();
+        });
+
+        it('handles getPublicKey rejection gracefully', async () => {
+            setupMockNostr({
+                getPublicKey: async () => { throw new Error('User denied'); }
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, true, 'available should be true even when permission denied');
+            assertEqual(result.pubkey, null, 'pubkey should be null when permission denied');
+
+            restoreNostr();
+        });
+
+        it('returns complete extension info with all properties', async () => {
+            const testPubkey = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+            setupMockNostr({
+                _name: 'TestExtension',
+                getPublicKey: async () => testPubkey
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.detectExtension();
+
+            assertEqual(result.available, true, 'available should be true');
+            assertEqual(result.name, 'TestExtension', 'name should be TestExtension');
+            assertEqual(result.pubkey, testPubkey, 'pubkey should match');
+
+            restoreNostr();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
