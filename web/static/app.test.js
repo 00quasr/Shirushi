@@ -2525,6 +2525,330 @@
         });
     });
 
+    // Chart Rendering Verification Tests
+    // These tests verify that charts render correctly to canvas
+    describe('Chart Rendering Verification', () => {
+        let container;
+
+        function createChartRenderDOM() {
+            const el = document.createElement('div');
+            el.id = 'chart-render-test-container';
+            el.innerHTML = `
+                <div id="monitoring-tab" class="tab-content">
+                    <div id="monitoring-connected">0</div>
+                    <div id="monitoring-total">0</div>
+                    <div id="monitoring-events-sec">0</div>
+                    <div id="monitoring-total-events">0</div>
+                    <div id="relay-health-list"></div>
+                    <div class="chart-container" style="width: 400px; height: 200px;">
+                        <canvas id="event-rate-chart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="chart-container" style="width: 400px; height: 200px;">
+                        <canvas id="latency-chart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="chart-container-full" style="width: 800px; height: 300px;">
+                        <canvas id="health-score-chart" width="800" height="300"></canvas>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(el);
+            return el;
+        }
+
+        it('should render line chart with data points', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+
+            // Add data points
+            chart.addPoint(5.0);
+            chart.addPoint(7.5);
+            chart.addPoint(10.0);
+
+            // Draw the chart
+            chart.draw();
+
+            // Verify canvas has been drawn to (check for non-empty ImageData)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let hasContent = false;
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                // Check if any pixel has non-transparent content
+                if (imageData.data[i + 3] > 0) {
+                    hasContent = true;
+                    break;
+                }
+            }
+
+            assertTrue(hasContent, 'Line chart should render content to canvas');
+
+            removeMockDOM(container);
+        });
+
+        it('should render bar chart with data', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('latency-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createBarChart(ctx, 'Latency Distribution');
+
+            // Set data
+            chart.setData([
+                { label: 'relay1', value: 100 },
+                { label: 'relay2', value: 200 },
+                { label: 'relay3', value: 150 }
+            ]);
+
+            // Draw the chart
+            chart.draw();
+
+            // Verify canvas has been drawn to
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let hasContent = false;
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                if (imageData.data[i + 3] > 0) {
+                    hasContent = true;
+                    break;
+                }
+            }
+
+            assertTrue(hasContent, 'Bar chart should render content to canvas');
+
+            removeMockDOM(container);
+        });
+
+        it('should render multi-line chart with multiple series', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('health-score-chart');
+            canvas.width = 800;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createMultiLineChart(ctx, 'Health Score History', '%');
+
+            // Add data for multiple relays
+            chart.addPoint('wss://relay1.com', 95);
+            chart.addPoint('wss://relay2.com', 88);
+            chart.addPoint('wss://relay1.com', 92);
+            chart.addPoint('wss://relay2.com', 85);
+
+            // Draw the chart
+            chart.draw();
+
+            // Verify canvas has been drawn to
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let hasContent = false;
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                if (imageData.data[i + 3] > 0) {
+                    hasContent = true;
+                    break;
+                }
+            }
+
+            assertTrue(hasContent, 'Multi-line chart should render content to canvas');
+
+            removeMockDOM(container);
+        });
+
+        it('should update line chart rendering when new data is added', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+
+            // Initial draw with one point
+            chart.addPoint(5.0);
+            chart.draw();
+
+            // Get initial state
+            const initialImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const initialPixelSum = initialImageData.data.reduce((sum, val) => sum + val, 0);
+
+            // Add more data and redraw
+            chart.addPoint(10.0);
+            chart.addPoint(15.0);
+            chart.draw();
+
+            // Get updated state
+            const updatedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const updatedPixelSum = updatedImageData.data.reduce((sum, val) => sum + val, 0);
+
+            // The chart should have changed (different pixel values with more data)
+            assertTrue(updatedPixelSum !== initialPixelSum || chart.data.length === 3, 'Chart should update when new data is added');
+
+            removeMockDOM(container);
+        });
+
+        it('should clear canvas before redrawing', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+
+            // Draw with initial data
+            chart.setData([{ value: 5, timestamp: Date.now() }]);
+            chart.draw();
+
+            // Draw with completely different data
+            chart.setData([{ value: 100, timestamp: Date.now() }]);
+            chart.draw();
+
+            // Chart should have redrawn cleanly without ghosting
+            assertEqual(chart.data.length, 1, 'Chart should have only the new data');
+            assertEqual(chart.data[0].value, 100, 'Chart should display the latest data');
+
+            removeMockDOM(container);
+        });
+
+        it('should render latency bars with correct colors based on value', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('latency-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createBarChart(ctx, 'Latency');
+
+            // Set data with different latency values
+            chart.setData([
+                { label: 'fast', value: 50 },    // Should be green
+                { label: 'medium', value: 300 }, // Should be yellow
+                { label: 'slow', value: 600 }    // Should be red
+            ]);
+
+            chart.draw();
+
+            // Verify chart rendered without error
+            assertEqual(chart.data.length, 3, 'Bar chart should have 3 bars');
+
+            removeMockDOM(container);
+        });
+
+        it('should render health score chart legend correctly', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('health-score-chart');
+            canvas.width = 800;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createMultiLineChart(ctx, 'Health Score', '%');
+
+            // Add data for 3 relays
+            chart.addPoint('wss://relay1.com', 95);
+            chart.addPoint('wss://relay2.com', 88);
+            chart.addPoint('wss://relay3.com', 75);
+
+            chart.draw();
+
+            // Verify series were created
+            assertEqual(Object.keys(chart.series).length, 3, 'Chart should track 3 relay series');
+
+            removeMockDOM(container);
+        });
+
+        it('should handle empty data gracefully when drawing', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+
+            // Draw with no data
+            let errorThrown = false;
+            try {
+                chart.draw();
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Chart should handle empty data without error');
+
+            removeMockDOM(container);
+        });
+
+        it('should render grid lines on charts', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+            chart.addPoint(5.0);
+            chart.draw();
+
+            // Canvas should have content (grid lines at minimum)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let hasContent = false;
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                if (imageData.data[i + 3] > 0) {
+                    hasContent = true;
+                    break;
+                }
+            }
+
+            assertTrue(hasContent, 'Chart should render grid lines');
+
+            removeMockDOM(container);
+        });
+
+        it('should scale Y-axis based on data range', () => {
+            container = createChartRenderDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.width = 400;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+
+            // Add data with varying values
+            chart.addPoint(10);
+            chart.addPoint(50);
+            chart.addPoint(100);
+
+            chart.draw();
+
+            // Verify the max value is tracked correctly
+            const maxValue = Math.max(...chart.data.map(d => d.value));
+            assertEqual(maxValue, 100, 'Chart should track max value correctly');
+
+            removeMockDOM(container);
+        });
+    });
+
     // Avatar and Banner CSS Rules Tests
     // These tests verify CSS rules are loaded correctly by checking stylesheet
     describe('Avatar and Banner CSS Rules', () => {

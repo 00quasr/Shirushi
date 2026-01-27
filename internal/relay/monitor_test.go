@@ -607,11 +607,11 @@ func TestCalculateHealthScore(t *testing.T) {
 	m := NewMonitor(pool)
 
 	tests := []struct {
-		name       string
-		metrics    *relayMetrics
-		connected  bool
-		minScore   float64
-		maxScore   float64
+		name      string
+		metrics   *relayMetrics
+		connected bool
+		minScore  float64
+		maxScore  float64
 	}{
 		{
 			name: "perfect health - connected, fast, no errors",
