@@ -3446,6 +3446,123 @@
             app.toastContainer = container;
         }
 
+        it('should never call native window.alert - verify toasts used for copy success', () => {
+            setupToastTests();
+            let nativeAlertCalled = false;
+            const originalAlert = window.alert;
+            window.alert = function() {
+                nativeAlertCalled = true;
+            };
+
+            // Trigger a copy action by calling toastSuccess directly (simulating copyToClipboard success)
+            app.toastSuccess('Copied', 'Copied to clipboard');
+
+            // Verify native alert was never called
+            assertFalse(nativeAlertCalled, 'Native window.alert should never be called');
+
+            // Verify toast was created instead
+            const toasts = document.querySelectorAll('#toast-container .toast');
+            assertTrue(toasts.length > 0, 'Toast should be created instead of native alert');
+
+            window.alert = originalAlert;
+            app.clearAllToasts();
+        });
+
+        it('should never call native window.alert - verify toasts used for errors', () => {
+            setupToastTests();
+            let nativeAlertCalled = false;
+            const originalAlert = window.alert;
+            window.alert = function() {
+                nativeAlertCalled = true;
+            };
+
+            // Trigger an error toast
+            app.toastError('Error', 'Something went wrong');
+
+            // Verify native alert was never called
+            assertFalse(nativeAlertCalled, 'Native window.alert should never be called for errors');
+
+            // Verify error toast was created
+            const errorToasts = document.querySelectorAll('#toast-container .toast-error');
+            assertTrue(errorToasts.length > 0, 'Error toast should be created instead of native alert');
+
+            window.alert = originalAlert;
+            app.clearAllToasts();
+        });
+
+        it('should never call native window.alert - verify toasts used for warnings', () => {
+            setupToastTests();
+            let nativeAlertCalled = false;
+            const originalAlert = window.alert;
+            window.alert = function() {
+                nativeAlertCalled = true;
+            };
+
+            // Trigger a warning toast
+            app.toastWarning('Warning', 'Please check your input');
+
+            // Verify native alert was never called
+            assertFalse(nativeAlertCalled, 'Native window.alert should never be called for warnings');
+
+            // Verify warning toast was created
+            const warningToasts = document.querySelectorAll('#toast-container .toast-warning');
+            assertTrue(warningToasts.length > 0, 'Warning toast should be created instead of native alert');
+
+            window.alert = originalAlert;
+            app.clearAllToasts();
+        });
+
+        it('should use toastError for validation errors instead of window.alert', () => {
+            setupToastTests();
+            let nativeAlertCalled = false;
+            const originalAlert = window.alert;
+            window.alert = function() {
+                nativeAlertCalled = true;
+            };
+
+            // Simulate validation error by calling toastError
+            app.toastError('Missing Private Key', 'Please enter your nsec private key');
+
+            assertFalse(nativeAlertCalled, 'Native window.alert should not be called for validation errors');
+
+            const toasts = document.querySelectorAll('#toast-container .toast-error');
+            assertTrue(toasts.length > 0, 'Validation error should show as toast');
+
+            const titleEl = toasts[0].querySelector('.toast-title');
+            assertEqual(titleEl.textContent, 'Missing Private Key', 'Toast should show correct error title');
+
+            window.alert = originalAlert;
+            app.clearAllToasts();
+        });
+
+        it('app.alert method should use modal dialog not native window.alert', async () => {
+            setupToastTests();
+            let nativeAlertCalled = false;
+            const originalAlert = window.alert;
+            window.alert = function() {
+                nativeAlertCalled = true;
+            };
+
+            // Start the app.alert which should use modal
+            const alertPromise = app.alert('Notice', 'This is an important message');
+
+            // Give time for modal to render
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            assertFalse(nativeAlertCalled, 'Native window.alert should never be called by app.alert');
+
+            // Verify modal is shown instead
+            const modalOverlay = document.getElementById('modal-overlay');
+            if (modalOverlay) {
+                assertFalse(modalOverlay.classList.contains('hidden'), 'Modal should be visible');
+                // Close the modal to clean up
+                app.closeModal(true);
+            }
+
+            await alertPromise;
+            window.alert = originalAlert;
+        });
+
         it('showEventJson should call showModal with syntax-highlighted JSON', () => {
             setupToastTests();
             // Add a test event to the events array
