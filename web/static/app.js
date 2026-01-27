@@ -35,6 +35,7 @@ class Shirushi {
 
     init() {
         this.setupToasts();
+        this.setupModal();
         this.setupWebSocket();
         this.setupTabs();
         this.setupRelays();
@@ -1827,6 +1828,246 @@ class Shirushi {
         if (!this.toastContainer) return;
         const toasts = this.toastContainer.querySelectorAll('.toast');
         toasts.forEach(toast => this.dismissToast(toast));
+    }
+
+    // Modal System
+    setupModal() {
+        this.modalOverlay = document.getElementById('modal-overlay');
+        this.modalTitle = document.getElementById('modal-title');
+        this.modalBody = document.getElementById('modal-body');
+        this.modalFooter = document.getElementById('modal-footer');
+        this.modalCloseBtn = this.modalOverlay.querySelector('.modal-close');
+        this.modalElement = this.modalOverlay.querySelector('.modal');
+        this.modalResolve = null;
+        this.previousActiveElement = null;
+
+        // Close on overlay click
+        this.modalOverlay.addEventListener('click', (e) => {
+            if (e.target === this.modalOverlay) {
+                this.closeModal();
+            }
+        });
+
+        // Close on close button click
+        this.modalCloseBtn.addEventListener('click', () => {
+            this.closeModal();
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !this.modalOverlay.classList.contains('hidden')) {
+                this.closeModal();
+            }
+        });
+    }
+
+    /**
+     * Show a modal dialog
+     * @param {Object} options - Modal options
+     * @param {string} options.title - Modal title
+     * @param {string} options.body - Modal body content (HTML)
+     * @param {Array} options.buttons - Array of button configs [{text, type, value}]
+     * @param {string} options.size - Modal size: 'sm', 'md', 'lg', 'xl', 'full'
+     * @param {string} options.type - Modal type: 'default', 'danger', 'warning', 'success'
+     * @param {boolean} options.closeOnOverlay - Close when clicking overlay (default: true)
+     * @returns {Promise} Resolves with button value when modal is closed
+     */
+    showModal({
+        title = '',
+        body = '',
+        buttons = [{ text: 'Close', type: 'default', value: null }],
+        size = 'md',
+        type = 'default',
+        closeOnOverlay = true
+    } = {}) {
+        if (!this.modalOverlay) {
+            this.setupModal();
+        }
+
+        // Store current focus
+        this.previousActiveElement = document.activeElement;
+
+        // Set modal content
+        this.modalTitle.textContent = title;
+        this.modalBody.innerHTML = body;
+
+        // Set modal size
+        this.modalElement.className = 'modal';
+        if (size !== 'md') {
+            this.modalElement.classList.add(`modal-${size}`);
+        }
+        if (type !== 'default') {
+            this.modalElement.classList.add(`modal-${type}`);
+        }
+
+        // Render buttons
+        this.modalFooter.innerHTML = buttons.map((btn, index) => {
+            const btnClass = btn.type === 'primary' ? 'btn primary' :
+                            btn.type === 'danger' ? 'btn primary' :
+                            'btn';
+            const style = btn.type === 'danger' ? 'style="background: var(--error); border-color: var(--error);"' : '';
+            return `<button class="${btnClass}" ${style} data-modal-value="${index}">${this.escapeHtml(btn.text)}</button>`;
+        }).join('');
+
+        // Set up button handlers
+        this.modalFooter.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.modalValue);
+                const value = buttons[index].value !== undefined ? buttons[index].value : buttons[index].text;
+                this.closeModal(value);
+            });
+        });
+
+        // Store closeOnOverlay setting
+        this.modalCloseOnOverlay = closeOnOverlay;
+
+        // Update overlay click handler
+        this.modalOverlay.onclick = (e) => {
+            if (e.target === this.modalOverlay && this.modalCloseOnOverlay) {
+                this.closeModal();
+            }
+        };
+
+        // Show modal
+        this.modalOverlay.classList.remove('hidden');
+        this.modalOverlay.classList.remove('modal-hiding');
+        this.modalOverlay.setAttribute('aria-hidden', 'false');
+
+        // Focus first button or close button
+        const firstButton = this.modalFooter.querySelector('button') || this.modalCloseBtn;
+        setTimeout(() => firstButton.focus(), 50);
+
+        // Return promise that resolves when modal closes
+        return new Promise(resolve => {
+            this.modalResolve = resolve;
+        });
+    }
+
+    closeModal(value = null) {
+        if (!this.modalOverlay || this.modalOverlay.classList.contains('hidden')) return;
+
+        // Add hiding animation
+        this.modalOverlay.classList.add('modal-hiding');
+
+        // Remove after animation
+        setTimeout(() => {
+            this.modalOverlay.classList.add('hidden');
+            this.modalOverlay.classList.remove('modal-hiding');
+            this.modalOverlay.setAttribute('aria-hidden', 'true');
+
+            // Clear content
+            this.modalBody.innerHTML = '';
+            this.modalFooter.innerHTML = '';
+
+            // Restore focus
+            if (this.previousActiveElement) {
+                this.previousActiveElement.focus();
+            }
+
+            // Resolve promise
+            if (this.modalResolve) {
+                this.modalResolve(value);
+                this.modalResolve = null;
+            }
+        }, 150);
+    }
+
+    /**
+     * Show a confirmation dialog
+     * @param {string} title - Confirmation title
+     * @param {string} message - Confirmation message
+     * @param {Object} options - Additional options
+     * @returns {Promise<boolean>} Resolves true if confirmed, false otherwise
+     */
+    async confirm(title, message, options = {}) {
+        const result = await this.showModal({
+            title: title || 'Confirm',
+            body: `<p>${this.escapeHtml(message)}</p>`,
+            buttons: [
+                { text: options.cancelText || 'Cancel', type: 'default', value: false },
+                { text: options.confirmText || 'Confirm', type: options.danger ? 'danger' : 'primary', value: true }
+            ],
+            type: options.danger ? 'danger' : 'default',
+            ...options
+        });
+        return result === true;
+    }
+
+    /**
+     * Show an alert dialog
+     * @param {string} title - Alert title
+     * @param {string} message - Alert message
+     * @param {Object} options - Additional options
+     * @returns {Promise} Resolves when dismissed
+     */
+    async alert(title, message, options = {}) {
+        await this.showModal({
+            title: title || 'Alert',
+            body: `<p>${this.escapeHtml(message)}</p>`,
+            buttons: [
+                { text: options.buttonText || 'OK', type: 'primary', value: true }
+            ],
+            ...options
+        });
+    }
+
+    /**
+     * Show a prompt dialog
+     * @param {string} title - Prompt title
+     * @param {string} message - Prompt message
+     * @param {Object} options - Additional options
+     * @returns {Promise<string|null>} Resolves with input value or null if cancelled
+     */
+    async prompt(title, message, options = {}) {
+        const inputId = 'modal-prompt-input-' + Date.now();
+        let inputValue = options.defaultValue || '';
+
+        // Create promise that handles getting the input value before modal closes
+        return new Promise((resolve) => {
+            this.showModal({
+                title: title || 'Input',
+                body: `
+                    <p>${this.escapeHtml(message)}</p>
+                    <div class="form-group">
+                        <input type="${options.type || 'text'}"
+                               id="${inputId}"
+                               class="modal-input"
+                               value="${this.escapeHtml(options.defaultValue || '')}"
+                               placeholder="${this.escapeHtml(options.placeholder || '')}">
+                    </div>
+                `,
+                buttons: [
+                    { text: options.cancelText || 'Cancel', type: 'default', value: 'cancel' },
+                    { text: options.confirmText || 'OK', type: 'primary', value: 'confirm' }
+                ],
+                ...options
+            }).then((result) => {
+                // This runs after modal resolves but before content is cleared
+                // But actually content IS cleared - we need to capture earlier
+                resolve(result === 'confirm' ? inputValue : null);
+            });
+
+            // Set up listener to capture input value on button click (before modal closes)
+            setTimeout(() => {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    // Update inputValue whenever input changes
+                    input.addEventListener('input', (e) => {
+                        inputValue = e.target.value;
+                    });
+                    // Set initial value
+                    inputValue = input.value;
+
+                    // Also capture on confirm button click
+                    const confirmBtn = this.modalFooter.querySelector('button[data-modal-value="1"]');
+                    if (confirmBtn) {
+                        confirmBtn.addEventListener('click', () => {
+                            inputValue = input.value;
+                        }, { capture: true });
+                    }
+                }
+            }, 0);
+        });
     }
 }
 

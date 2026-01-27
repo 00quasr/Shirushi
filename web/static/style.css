@@ -2352,6 +2352,312 @@ main {
     background: var(--accent);
 }
 
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: modal-overlay-fade-in 0.2s ease-out;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal-overlay.modal-hiding {
+    animation: modal-overlay-fade-out 0.15s ease-in forwards;
+}
+
+@keyframes modal-overlay-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modal-overlay-fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+.modal {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    animation: modal-slide-in 0.25s ease-out;
+}
+
+.modal-overlay.modal-hiding .modal {
+    animation: modal-slide-out 0.15s ease-in forwards;
+}
+
+@keyframes modal-slide-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes modal-slide-out {
+    from {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+}
+
+/* Modal Size Variants */
+.modal.modal-sm {
+    max-width: 360px;
+}
+
+.modal.modal-md {
+    max-width: 480px;
+}
+
+.modal.modal-lg {
+    max-width: 640px;
+}
+
+.modal.modal-xl {
+    max-width: 800px;
+}
+
+.modal.modal-full {
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 40px);
+}
+
+/* Modal Header */
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-0);
+    margin: 0;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-2);
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.modal-close:hover {
+    background: var(--bg-3);
+    color: var(--text-0);
+}
+
+.modal-close:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Modal Body */
+.modal-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    color: var(--text-1);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.modal-body:empty {
+    display: none;
+}
+
+.modal-body p {
+    margin-bottom: 12px;
+}
+
+.modal-body p:last-child {
+    margin-bottom: 0;
+}
+
+/* Modal Footer */
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.modal-footer:empty {
+    display: none;
+}
+
+/* Modal Type Variants */
+.modal.modal-danger .modal-header {
+    border-bottom-color: var(--error);
+}
+
+.modal.modal-danger .modal-title {
+    color: var(--error);
+}
+
+.modal.modal-warning .modal-header {
+    border-bottom-color: var(--warning);
+}
+
+.modal.modal-warning .modal-title {
+    color: var(--warning);
+}
+
+.modal.modal-success .modal-header {
+    border-bottom-color: var(--success);
+}
+
+.modal.modal-success .modal-title {
+    color: var(--success);
+}
+
+/* Modal Content Utilities */
+.modal-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    font-size: 24px;
+}
+
+.modal-icon.icon-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--error);
+}
+
+.modal-icon.icon-warning {
+    background: rgba(234, 179, 8, 0.15);
+    color: var(--warning);
+}
+
+.modal-icon.icon-success {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--success);
+}
+
+.modal-icon.icon-info {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent);
+}
+
+.modal-text-center {
+    text-align: center;
+}
+
+.modal-text-muted {
+    color: var(--text-2);
+    font-size: 13px;
+}
+
+/* Modal Form Styles */
+.modal-body .form-group {
+    margin-bottom: 16px;
+}
+
+.modal-body .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.modal-body .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+    margin-bottom: 6px;
+}
+
+.modal-body .form-group input[type="text"],
+.modal-body .form-group input[type="password"],
+.modal-body .form-group input[type="email"],
+.modal-body .form-group input[type="number"],
+.modal-body .form-group textarea,
+.modal-body .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 14px;
+    transition: border-color 0.15s;
+}
+
+.modal-body .form-group input:focus,
+.modal-body .form-group textarea:focus,
+.modal-body .form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.modal-body .form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.modal-body .form-group .form-hint {
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 4px;
+}
+
+.modal-body .form-group .form-error {
+    font-size: 12px;
+    color: var(--error);
+    margin-top: 4px;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .toast-container {
@@ -2528,5 +2834,33 @@ main {
 
     .health-card-metrics {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Modal Responsive */
+    .modal-overlay {
+        padding: 12px;
+    }
+
+    .modal {
+        max-width: 100%;
+        max-height: calc(100vh - 24px);
+    }
+
+    .modal-header {
+        padding: 14px 16px;
+    }
+
+    .modal-body {
+        padding: 16px;
+    }
+
+    .modal-footer {
+        padding: 14px 16px;
+        flex-wrap: wrap;
+    }
+
+    .modal-footer .btn {
+        flex: 1;
+        min-width: 100px;
     }
 }

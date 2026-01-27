@@ -3273,6 +3273,423 @@
         });
     });
 
+    // Modal System Tests
+    describe('Modal System', () => {
+        function setupModalTests() {
+            // Ensure modal overlay exists
+            let modalOverlay = document.getElementById('modal-overlay');
+            if (!modalOverlay) {
+                modalOverlay = document.createElement('div');
+                modalOverlay.id = 'modal-overlay';
+                modalOverlay.className = 'modal-overlay hidden';
+                modalOverlay.setAttribute('role', 'dialog');
+                modalOverlay.setAttribute('aria-modal', 'true');
+                modalOverlay.setAttribute('aria-hidden', 'true');
+                modalOverlay.innerHTML = `
+                    <div class="modal" role="document">
+                        <div class="modal-header">
+                            <h2 class="modal-title" id="modal-title"></h2>
+                            <button class="modal-close" aria-label="Close modal" title="Close">&times;</button>
+                        </div>
+                        <div class="modal-body" id="modal-body"></div>
+                        <div class="modal-footer" id="modal-footer"></div>
+                    </div>
+                `;
+                document.body.appendChild(modalOverlay);
+            }
+
+            // Re-initialize modal
+            app.modalOverlay = null;
+            app.setupModal();
+        }
+
+        function cleanupModalTests() {
+            // Close any open modal
+            if (app.modalOverlay && !app.modalOverlay.classList.contains('hidden')) {
+                app.modalOverlay.classList.add('hidden');
+            }
+        }
+
+        it('setupModal should initialize modal elements', () => {
+            setupModalTests();
+
+            assertDefined(app.modalOverlay, 'modalOverlay should be defined');
+            assertDefined(app.modalTitle, 'modalTitle should be defined');
+            assertDefined(app.modalBody, 'modalBody should be defined');
+            assertDefined(app.modalFooter, 'modalFooter should be defined');
+            assertDefined(app.modalCloseBtn, 'modalCloseBtn should be defined');
+            assertDefined(app.modalElement, 'modalElement should be defined');
+
+            cleanupModalTests();
+        });
+
+        it('showModal should display modal with correct content', async () => {
+            setupModalTests();
+
+            const modalPromise = app.showModal({
+                title: 'Test Modal',
+                body: '<p>Test content</p>',
+                buttons: [{ text: 'OK', type: 'primary', value: true }]
+            });
+
+            // Modal should be visible
+            assertFalse(app.modalOverlay.classList.contains('hidden'), 'Modal should not be hidden');
+            assertEqual(app.modalOverlay.getAttribute('aria-hidden'), 'false', 'aria-hidden should be false');
+
+            // Content should be correct
+            assertEqual(app.modalTitle.textContent, 'Test Modal', 'Title should be set');
+            assertTrue(app.modalBody.innerHTML.includes('Test content'), 'Body should contain content');
+            assertTrue(app.modalFooter.innerHTML.includes('OK'), 'Footer should contain button');
+
+            // Close the modal
+            app.closeModal(true);
+
+            // Wait for promise to resolve
+            const result = await modalPromise;
+            assertEqual(result, true, 'Modal should resolve with button value');
+
+            cleanupModalTests();
+        });
+
+        it('showModal should apply correct size class', async () => {
+            setupModalTests();
+
+            app.showModal({
+                title: 'Large Modal',
+                body: 'Large content',
+                size: 'lg'
+            });
+
+            assertTrue(app.modalElement.classList.contains('modal-lg'), 'Modal should have modal-lg class');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            cleanupModalTests();
+        });
+
+        it('showModal should apply correct type class', async () => {
+            setupModalTests();
+
+            app.showModal({
+                title: 'Danger Modal',
+                body: 'Warning content',
+                type: 'danger'
+            });
+
+            assertTrue(app.modalElement.classList.contains('modal-danger'), 'Modal should have modal-danger class');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            cleanupModalTests();
+        });
+
+        it('closeModal should hide modal and resolve promise', async () => {
+            setupModalTests();
+
+            const modalPromise = app.showModal({
+                title: 'Test',
+                body: 'Content'
+            });
+
+            assertFalse(app.modalOverlay.classList.contains('hidden'), 'Modal should be visible initially');
+
+            app.closeModal('test-value');
+
+            // Wait for animation
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            assertTrue(app.modalOverlay.classList.contains('hidden'), 'Modal should be hidden after close');
+
+            const result = await modalPromise;
+            assertEqual(result, 'test-value', 'Promise should resolve with close value');
+
+            cleanupModalTests();
+        });
+
+        it('closeModal should clear modal content', async () => {
+            setupModalTests();
+
+            app.showModal({
+                title: 'Test',
+                body: '<p>Some content</p>',
+                buttons: [{ text: 'OK' }]
+            });
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            assertEqual(app.modalBody.innerHTML, '', 'Modal body should be cleared');
+            assertEqual(app.modalFooter.innerHTML, '', 'Modal footer should be cleared');
+
+            cleanupModalTests();
+        });
+
+        it('confirm should return true when confirmed', async () => {
+            setupModalTests();
+
+            // Start the confirm dialog
+            const confirmPromise = app.confirm('Delete?', 'Are you sure?');
+
+            // Find and click the confirm button
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const confirmBtn = app.modalFooter.querySelector('button[data-modal-value="1"]');
+            assertDefined(confirmBtn, 'Confirm button should exist');
+            confirmBtn.click();
+
+            const result = await confirmPromise;
+            assertTrue(result, 'confirm should return true when confirmed');
+
+            cleanupModalTests();
+        });
+
+        it('confirm should return false when cancelled', async () => {
+            setupModalTests();
+
+            // Start the confirm dialog
+            const confirmPromise = app.confirm('Delete?', 'Are you sure?');
+
+            // Find and click the cancel button
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const cancelBtn = app.modalFooter.querySelector('button[data-modal-value="0"]');
+            assertDefined(cancelBtn, 'Cancel button should exist');
+            cancelBtn.click();
+
+            const result = await confirmPromise;
+            assertFalse(result, 'confirm should return false when cancelled');
+
+            cleanupModalTests();
+        });
+
+        it('alert should display message and resolve when dismissed', async () => {
+            setupModalTests();
+
+            // Start the alert dialog
+            const alertPromise = app.alert('Notice', 'This is an alert');
+
+            // Verify content
+            await new Promise(resolve => setTimeout(resolve, 50));
+            assertTrue(app.modalBody.innerHTML.includes('This is an alert'), 'Alert should show message');
+
+            // Click OK button
+            const okBtn = app.modalFooter.querySelector('button');
+            assertDefined(okBtn, 'OK button should exist');
+            okBtn.click();
+
+            await alertPromise;
+            // If we get here, the promise resolved successfully
+
+            cleanupModalTests();
+        });
+
+        it('prompt should return input value when confirmed', async () => {
+            setupModalTests();
+
+            // Start the prompt dialog
+            const promptPromise = app.prompt('Name', 'Enter your name:', { defaultValue: 'Test' });
+
+            // Wait for modal to render
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Check input has default value
+            const input = app.modalBody.querySelector('input');
+            assertDefined(input, 'Input should exist');
+            assertEqual(input.value, 'Test', 'Input should have default value');
+
+            // Change input value
+            input.value = 'New Value';
+
+            // Click confirm button
+            const confirmBtn = app.modalFooter.querySelector('button[data-modal-value="1"]');
+            confirmBtn.click();
+
+            const result = await promptPromise;
+            assertEqual(result, 'New Value', 'Prompt should return input value');
+
+            cleanupModalTests();
+        });
+
+        it('prompt should return null when cancelled', async () => {
+            setupModalTests();
+
+            // Start the prompt dialog
+            const promptPromise = app.prompt('Name', 'Enter your name:');
+
+            // Wait for modal to render
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Click cancel button
+            const cancelBtn = app.modalFooter.querySelector('button[data-modal-value="0"]');
+            cancelBtn.click();
+
+            const result = await promptPromise;
+            assertEqual(result, null, 'Prompt should return null when cancelled');
+
+            cleanupModalTests();
+        });
+
+        it('modal close button should close modal', async () => {
+            setupModalTests();
+
+            const modalPromise = app.showModal({
+                title: 'Test',
+                body: 'Content'
+            });
+
+            // Click close button
+            app.modalCloseBtn.click();
+
+            // Wait for animation
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            assertTrue(app.modalOverlay.classList.contains('hidden'), 'Modal should be hidden after close button click');
+
+            const result = await modalPromise;
+            assertEqual(result, null, 'Promise should resolve with null');
+
+            cleanupModalTests();
+        });
+
+        it('modal should have proper accessibility attributes', () => {
+            setupModalTests();
+
+            assertEqual(app.modalOverlay.getAttribute('role'), 'dialog', 'Overlay should have role=dialog');
+            assertEqual(app.modalOverlay.getAttribute('aria-modal'), 'true', 'Overlay should have aria-modal=true');
+            assertEqual(app.modalElement.getAttribute('role'), 'document', 'Modal should have role=document');
+            assertEqual(app.modalCloseBtn.getAttribute('aria-label'), 'Close modal', 'Close button should have aria-label');
+
+            cleanupModalTests();
+        });
+
+        it('modal buttons should render correctly', async () => {
+            setupModalTests();
+
+            app.showModal({
+                title: 'Multi-button Modal',
+                body: 'Content',
+                buttons: [
+                    { text: 'Cancel', type: 'default', value: 'cancel' },
+                    { text: 'Delete', type: 'danger', value: 'delete' },
+                    { text: 'Save', type: 'primary', value: 'save' }
+                ]
+            });
+
+            const buttons = app.modalFooter.querySelectorAll('button');
+            assertEqual(buttons.length, 3, 'Should have 3 buttons');
+
+            assertEqual(buttons[0].textContent, 'Cancel', 'First button should be Cancel');
+            assertEqual(buttons[1].textContent, 'Delete', 'Second button should be Delete');
+            assertEqual(buttons[2].textContent, 'Save', 'Third button should be Save');
+
+            app.closeModal();
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            cleanupModalTests();
+        });
+    });
+
+    // Modal CSS Tests
+    describe('Modal CSS', () => {
+        it('modal-overlay should have correct styles when hidden', () => {
+            const modalOverlay = document.getElementById('modal-overlay');
+            if (modalOverlay) {
+                const computedStyle = window.getComputedStyle(modalOverlay);
+                if (modalOverlay.classList.contains('hidden')) {
+                    assertEqual(computedStyle.display, 'none', 'Hidden modal overlay should have display: none');
+                }
+            }
+        });
+
+        it('modal CSS classes should be defined in stylesheet', () => {
+            // Check for modal-related rules in stylesheets
+            const styleSheets = document.styleSheets;
+            let hasModalOverlay = false;
+            let hasModal = false;
+            let hasModalHeader = false;
+            let hasModalBody = false;
+            let hasModalFooter = false;
+
+            for (const sheet of styleSheets) {
+                try {
+                    const rules = sheet.cssRules || sheet.rules;
+                    if (!rules) continue;
+
+                    for (const rule of rules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.modal-overlay')) hasModalOverlay = true;
+                        if (selector === '.modal' || selector.includes('.modal ') || selector.includes('.modal.')) hasModal = true;
+                        if (selector.includes('.modal-header')) hasModalHeader = true;
+                        if (selector.includes('.modal-body')) hasModalBody = true;
+                        if (selector.includes('.modal-footer')) hasModalFooter = true;
+                    }
+                } catch (e) {
+                    // CORS may block access to some stylesheets
+                }
+            }
+
+            assertTrue(hasModalOverlay, 'Should have .modal-overlay CSS rule');
+            assertTrue(hasModal, 'Should have .modal CSS rule');
+            assertTrue(hasModalHeader, 'Should have .modal-header CSS rule');
+            assertTrue(hasModalBody, 'Should have .modal-body CSS rule');
+            assertTrue(hasModalFooter, 'Should have .modal-footer CSS rule');
+        });
+
+        it('modal size variants should be defined', () => {
+            const styleSheets = document.styleSheets;
+            let hasSm = false;
+            let hasLg = false;
+            let hasXl = false;
+
+            for (const sheet of styleSheets) {
+                try {
+                    const rules = sheet.cssRules || sheet.rules;
+                    if (!rules) continue;
+
+                    for (const rule of rules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.modal-sm')) hasSm = true;
+                        if (selector.includes('.modal-lg')) hasLg = true;
+                        if (selector.includes('.modal-xl')) hasXl = true;
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+            }
+
+            assertTrue(hasSm, 'Should have .modal-sm CSS rule');
+            assertTrue(hasLg, 'Should have .modal-lg CSS rule');
+            assertTrue(hasXl, 'Should have .modal-xl CSS rule');
+        });
+
+        it('modal type variants should be defined', () => {
+            const styleSheets = document.styleSheets;
+            let hasDanger = false;
+            let hasWarning = false;
+            let hasSuccess = false;
+
+            for (const sheet of styleSheets) {
+                try {
+                    const rules = sheet.cssRules || sheet.rules;
+                    if (!rules) continue;
+
+                    for (const rule of rules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.modal-danger') || selector.includes('.modal.modal-danger')) hasDanger = true;
+                        if (selector.includes('.modal-warning') || selector.includes('.modal.modal-warning')) hasWarning = true;
+                        if (selector.includes('.modal-success') || selector.includes('.modal.modal-success')) hasSuccess = true;
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+            }
+
+            assertTrue(hasDanger, 'Should have .modal-danger CSS rule');
+            assertTrue(hasWarning, 'Should have .modal-warning CSS rule');
+            assertTrue(hasSuccess, 'Should have .modal-success CSS rule');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
