@@ -322,3 +322,102 @@ func (a *API) HandleNak(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, map[string]string{"output": output})
 }
+
+// HandleProfileLookup looks up a Nostr profile by pubkey or NIP-19 identifier.
+func (a *API) HandleProfileLookup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Get pubkey from query parameter
+	pubkey := r.URL.Query().Get("pubkey")
+	if pubkey == "" {
+		writeError(w, http.StatusBadRequest, "pubkey query parameter is required")
+		return
+	}
+
+	// If input starts with "npub" or "nprofile", decode it first
+	if strings.HasPrefix(pubkey, "npub") || strings.HasPrefix(pubkey, "nprofile") {
+		if a.nak == nil {
+			writeError(w, http.StatusServiceUnavailable, "nak CLI not available for NIP-19 decoding")
+			return
+		}
+		decoded, err := a.nak.Decode(pubkey)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid NIP-19 identifier: "+err.Error())
+			return
+		}
+		// Extract hex pubkey from decoded result
+		if decoded.Pubkey != "" {
+			pubkey = decoded.Pubkey
+		} else if decoded.Hex != "" {
+			pubkey = decoded.Hex
+		} else {
+			writeError(w, http.StatusBadRequest, "could not extract pubkey from NIP-19 identifier")
+			return
+		}
+	}
+
+	// Validate pubkey format (should be 64 hex characters)
+	if len(pubkey) != 64 {
+		writeError(w, http.StatusBadRequest, "pubkey must be a 64-character hex string")
+		return
+	}
+	for _, c := range pubkey {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			writeError(w, http.StatusBadRequest, "pubkey must be a valid hex string")
+			return
+		}
+	}
+
+	// Query kind 0 (profile metadata) events for this pubkey
+	events, err := a.relayPool.QueryEvents("0", pubkey, "1")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to query profile: "+err.Error())
+		return
+	}
+
+	if len(events) == 0 {
+		writeError(w, http.StatusNotFound, "profile not found")
+		return
+	}
+
+	// Parse profile metadata from event content
+	event := events[0]
+	profile := types.Profile{
+		PubKey:    pubkey,
+		CreatedAt: event.CreatedAt,
+	}
+
+	// Parse JSON content
+	var metadata map[string]interface{}
+	if err := json.Unmarshal([]byte(event.Content), &metadata); err == nil {
+		if name, ok := metadata["name"].(string); ok {
+			profile.Name = name
+		}
+		if displayName, ok := metadata["display_name"].(string); ok {
+			profile.DisplayName = displayName
+		}
+		if about, ok := metadata["about"].(string); ok {
+			profile.About = about
+		}
+		if picture, ok := metadata["picture"].(string); ok {
+			profile.Picture = picture
+		}
+		if banner, ok := metadata["banner"].(string); ok {
+			profile.Banner = banner
+		}
+		if website, ok := metadata["website"].(string); ok {
+			profile.Website = website
+		}
+		if nip05, ok := metadata["nip05"].(string); ok {
+			profile.NIP05 = nip05
+		}
+		if lud16, ok := metadata["lud16"].(string); ok {
+			profile.LUD16 = lud16
+		}
+	}
+
+	writeJSON(w, profile)
+}

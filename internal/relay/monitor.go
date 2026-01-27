@@ -22,7 +22,7 @@ type Monitor struct {
 // relayMetrics holds metrics for a single relay.
 type relayMetrics struct {
 	URL          string
-	Latency      int64   // milliseconds
+	Latency      int64 // milliseconds
 	EventCount   int64
 	EventsPerSec float64
 	LastCheck    time.Time
