@@ -151,6 +151,14 @@ func (h *Hub) BroadcastTestResult(result types.TestResult) {
 	})
 }
 
+// BroadcastMonitoringUpdate sends monitoring data to all clients.
+func (h *Hub) BroadcastMonitoringUpdate(data types.MonitoringData) {
+	h.Broadcast(Message{
+		Type: "monitoring_update",
+		Data: data,
+	})
+}
+
 // ClientCount returns the number of connected clients.
 func (h *Hub) ClientCount() int {
 	h.mu.RLock()
