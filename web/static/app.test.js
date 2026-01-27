@@ -3865,6 +3865,256 @@
         });
     });
 
+    describe('Copy to Clipboard Functionality', () => {
+        // Mock clipboard API
+        let clipboardWriteText = null;
+        let mockClipboardSuccess = true;
+
+        function mockClipboard() {
+            clipboardWriteText = null;
+            mockClipboardSuccess = true;
+            const originalClipboard = navigator.clipboard;
+
+            Object.defineProperty(navigator, 'clipboard', {
+                value: {
+                    writeText: (text) => {
+                        clipboardWriteText = text;
+                        if (mockClipboardSuccess) {
+                            return Promise.resolve();
+                        } else {
+                            return Promise.reject(new Error('Clipboard access denied'));
+                        }
+                    }
+                },
+                configurable: true
+            });
+
+            return originalClipboard;
+        }
+
+        function restoreClipboard(originalClipboard) {
+            if (originalClipboard) {
+                Object.defineProperty(navigator, 'clipboard', {
+                    value: originalClipboard,
+                    configurable: true
+                });
+            }
+        }
+
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('copyToClipboard method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance, 'App should be defined');
+            assertDefined(appInstance.copyToClipboard, 'copyToClipboard method should exist');
+            assertEqual(typeof appInstance.copyToClipboard, 'function', 'copyToClipboard should be a function');
+        });
+
+        it('createCopyButton method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance, 'App should be defined');
+            assertDefined(appInstance.createCopyButton, 'createCopyButton method should exist');
+            assertEqual(typeof appInstance.createCopyButton, 'function', 'createCopyButton should be a function');
+        });
+
+        it('copyToClipboard should copy text successfully', async () => {
+            const appInstance = getApp();
+            const originalClipboard = mockClipboard();
+            try {
+                const testText = 'test-copy-text-12345';
+                const result = await appInstance.copyToClipboard(testText);
+
+                assertTrue(result, 'copyToClipboard should return true on success');
+                assertEqual(clipboardWriteText, testText, 'Text should be written to clipboard');
+            } finally {
+                restoreClipboard(originalClipboard);
+            }
+        });
+
+        it('copyToClipboard should handle failure gracefully', async () => {
+            const appInstance = getApp();
+            const originalClipboard = mockClipboard();
+            mockClipboardSuccess = false;
+            try {
+                const testText = 'test-copy-text-fail';
+                const result = await appInstance.copyToClipboard(testText);
+
+                assertFalse(result, 'copyToClipboard should return false on failure');
+            } finally {
+                restoreClipboard(originalClipboard);
+            }
+        });
+
+        it('copyToClipboard should update button text on success', async () => {
+            const appInstance = getApp();
+            const originalClipboard = mockClipboard();
+            try {
+                const testButton = document.createElement('button');
+                testButton.textContent = 'Copy';
+
+                await appInstance.copyToClipboard('test-text', testButton, 'Copy');
+
+                assertEqual(testButton.textContent, 'Copied!', 'Button text should change to Copied!');
+                assertTrue(testButton.classList.contains('copy-success'), 'Button should have copy-success class');
+            } finally {
+                restoreClipboard(originalClipboard);
+            }
+        });
+
+        it('createCopyButton should return a button element', () => {
+            const appInstance = getApp();
+            const btn = appInstance.createCopyButton('test-text', 'Copy URL');
+
+            assertDefined(btn, 'Button should be defined');
+            assertEqual(btn.tagName, 'BUTTON', 'Should return a button element');
+            assertTrue(btn.classList.contains('btn'), 'Should have btn class');
+            assertTrue(btn.classList.contains('small'), 'Should have small class');
+            assertTrue(btn.classList.contains('copy-btn'), 'Should have copy-btn class');
+            assertEqual(btn.textContent, 'Copy URL', 'Button text should match label');
+        });
+
+        it('createCopyButton should copy text when clicked', async () => {
+            const appInstance = getApp();
+            const originalClipboard = mockClipboard();
+            try {
+                const testText = 'copy-button-test-text';
+                const btn = appInstance.createCopyButton(testText, 'Copy');
+
+                // Simulate click
+                btn.click();
+
+                // Wait for async clipboard operation
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                assertEqual(clipboardWriteText, testText, 'Button click should copy text to clipboard');
+            } finally {
+                restoreClipboard(originalClipboard);
+            }
+        });
+    });
+
+    describe('Copy Button CSS', () => {
+        it('copy-btn CSS class should be defined', () => {
+            let hasCopyBtn = false;
+            let hasCopyBtnHover = false;
+            let hasCopySuccess = false;
+
+            for (const sheet of document.styleSheets) {
+                try {
+                    for (const rule of sheet.cssRules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.copy-btn')) hasCopyBtn = true;
+                        if (selector.includes('.copy-btn:hover')) hasCopyBtnHover = true;
+                        if (selector.includes('.copy-success')) hasCopySuccess = true;
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+            }
+
+            assertTrue(hasCopyBtn, 'Should have .copy-btn CSS rule');
+            assertTrue(hasCopySuccess, 'Should have .copy-success CSS rule');
+        });
+
+        it('copy-inline CSS class should be defined', () => {
+            let hasCopyInline = false;
+
+            for (const sheet of document.styleSheets) {
+                try {
+                    for (const rule of sheet.cssRules) {
+                        const selector = rule.selectorText || '';
+                        if (selector.includes('.copy-inline')) hasCopyInline = true;
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+            }
+
+            assertTrue(hasCopyInline, 'Should have .copy-inline CSS rule');
+        });
+    });
+
+    describe('Relay Card Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('relay cards should have copy URL buttons after rendering', async () => {
+            const appInstance = getApp();
+
+            // Set up mock relay data
+            appInstance.relays = [
+                { url: 'wss://relay.test.com', connected: true, latency_ms: 50, events_per_sec: 1.5 }
+            ];
+
+            // Render relays
+            appInstance.renderRelays();
+
+            // Check for copy button
+            const copyBtn = document.querySelector('[data-copy-relay]');
+            assertDefined(copyBtn, 'Copy relay URL button should exist');
+            assertEqual(copyBtn.dataset.copyRelay, 'wss://relay.test.com', 'Button should have relay URL in data attribute');
+        });
+    });
+
+    describe('Event Card Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('event cards should have copy buttons for ID and author', async () => {
+            const appInstance = getApp();
+
+            // Set up mock event data
+            appInstance.events = [
+                {
+                    id: 'abc123def456789012345678901234567890123456789012345678901234',
+                    pubkey: 'pub123456789012345678901234567890123456789012345678901234',
+                    kind: 1,
+                    content: 'Test content',
+                    created_at: Math.floor(Date.now() / 1000)
+                }
+            ];
+
+            // Render events
+            appInstance.renderEvents();
+
+            // Check for copy event ID button
+            const copyIdBtn = document.querySelector('[data-copy-event-id]');
+            assertDefined(copyIdBtn, 'Copy event ID button should exist');
+
+            // Check for copy author button
+            const copyAuthorBtn = document.querySelector('[data-copy-author]');
+            assertDefined(copyAuthorBtn, 'Copy author pubkey button should exist');
+        });
+    });
+
+    describe('Console Output Copy Button', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('copy output button should exist in console tab', () => {
+            const copyBtn = document.getElementById('copy-nak-output');
+            assertDefined(copyBtn, 'Copy nak output button should exist');
+            assertTrue(copyBtn.disabled, 'Copy button should be disabled initially');
+        });
+
+        it('copyNakOutput method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.copyNakOutput, 'copyNakOutput method should exist');
+            assertEqual(typeof appInstance.copyNakOutput, 'function', 'copyNakOutput should be a function');
+        });
+
+        it('updateNakCopyButton method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.updateNakCopyButton, 'updateNakCopyButton method should exist');
+            assertEqual(typeof appInstance.updateNakCopyButton, 'function', 'updateNakCopyButton should be a function');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

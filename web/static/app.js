@@ -173,7 +173,7 @@ class Shirushi {
         container.innerHTML = this.relays.map(relay => `
             <div class="relay-card ${relay.connected ? 'connected' : 'disconnected'}">
                 <div class="relay-header">
-                    <span class="relay-url">${relay.url}</span>
+                    <span class="relay-url">${this.escapeHtml(relay.url)}</span>
                     <span class="relay-status ${relay.connected ? 'connected' : 'error'}">
                         ${relay.connected ? 'Connected' : 'Disconnected'}
                     </span>
@@ -182,12 +182,22 @@ class Shirushi {
                     <span>Latency: ${relay.latency_ms > 0 ? relay.latency_ms + 'ms' : 'N/A'}</span>
                     <span>Events: ${(relay.events_per_sec || 0).toFixed(1)}/sec</span>
                 </div>
-                ${relay.error ? `<div class="relay-error">${relay.error}</div>` : ''}
+                ${relay.error ? `<div class="relay-error">${this.escapeHtml(relay.error)}</div>` : ''}
                 <div class="relay-actions">
-                    <button class="btn small" onclick="app.removeRelay('${relay.url}')">Remove</button>
+                    <button class="btn small copy-btn" data-copy-relay="${this.escapeHtml(relay.url)}">Copy URL</button>
+                    <button class="btn small" onclick="app.removeRelay('${this.escapeHtml(relay.url)}')">Remove</button>
                 </div>
             </div>
         `).join('');
+
+        // Attach copy handlers to relay URL buttons
+        container.querySelectorAll('[data-copy-relay]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const url = btn.dataset.copyRelay;
+                this.copyToClipboard(url, btn, 'Copy URL');
+            });
+        });
     }
 
     async addRelay(url) {
@@ -668,15 +678,37 @@ class Shirushi {
                     <span class="event-kind">kind:${event.kind}</span>
                     <span class="event-time">${this.formatTime(event.created_at)}</span>
                 </div>
-                <div class="event-id">ID: ${event.id.substring(0, 16)}...</div>
-                <div class="event-author">Author: ${event.pubkey.substring(0, 16)}...</div>
+                <div class="event-id">
+                    ID: ${event.id.substring(0, 16)}...
+                    <button class="btn small copy-btn" data-copy-event-id="${event.id}" title="Copy full event ID">Copy</button>
+                </div>
+                <div class="event-author">
+                    Author: ${event.pubkey.substring(0, 16)}...
+                    <button class="btn small copy-btn" data-copy-author="${event.pubkey}" title="Copy author pubkey">Copy</button>
+                </div>
                 <div class="event-content">${this.escapeHtml(event.content.substring(0, 200))}${event.content.length > 200 ? '...' : ''}</div>
-                ${event.relay ? `<div class="event-relay">via ${event.relay}</div>` : ''}
+                ${event.relay ? `<div class="event-relay">via ${this.escapeHtml(event.relay)}</div>` : ''}
                 <div class="event-actions">
                     <button class="btn small" onclick="app.showEventJson('${event.id}')">Raw JSON</button>
                 </div>
             </div>
         `).join('');
+
+        // Attach copy handlers for event IDs
+        container.querySelectorAll('[data-copy-event-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.copyEventId, btn, 'Copy');
+            });
+        });
+
+        // Attach copy handlers for author pubkeys
+        container.querySelectorAll('[data-copy-author]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.copyAuthor, btn, 'Copy');
+            });
+        });
     }
 
     formatTime(timestamp) {
@@ -688,6 +720,54 @@ class Shirushi {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Copy text to clipboard with visual feedback
+     * @param {string} text - The text to copy
+     * @param {HTMLElement} [button] - Optional button element for visual feedback
+     * @param {string} [originalText='Copy'] - Original button text to restore
+     * @returns {Promise<boolean>} - True if copy succeeded
+     */
+    async copyToClipboard(text, button = null, originalText = 'Copy') {
+        try {
+            await navigator.clipboard.writeText(text);
+
+            if (button) {
+                const prevText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copy-success');
+                setTimeout(() => {
+                    button.textContent = originalText || prevText;
+                    button.classList.remove('copy-success');
+                }, 1500);
+            }
+
+            this.toastSuccess('Copied', 'Copied to clipboard');
+            return true;
+        } catch (error) {
+            console.error('Failed to copy:', error);
+            this.toastError('Copy Failed', 'Could not copy to clipboard');
+            return false;
+        }
+    }
+
+    /**
+     * Create a copy button element
+     * @param {string} text - The text to copy when clicked
+     * @param {string} [label='Copy'] - Button label
+     * @returns {HTMLButtonElement}
+     */
+    createCopyButton(text, label = 'Copy') {
+        const btn = document.createElement('button');
+        btn.className = 'btn small copy-btn';
+        btn.textContent = label;
+        btn.title = 'Copy to clipboard';
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.copyToClipboard(text, btn, label);
+        });
+        return btn;
     }
 
     /**
@@ -1063,6 +1143,9 @@ class Shirushi {
         const output = document.getElementById('nak-output');
         output.textContent = 'Running...';
 
+        // Store last output for copy functionality
+        this.lastNakOutput = null;
+
         try {
             const args = command.split(' ').filter(s => s);
             const response = await fetch('/api/nak', {
@@ -1074,8 +1157,10 @@ class Shirushi {
 
             if (result.error) {
                 output.textContent = `Error: ${result.error}`;
+                this.lastNakOutput = `Error: ${result.error}`;
             } else {
                 const outputText = result.output || '(no output)';
+                this.lastNakOutput = outputText;
                 // Apply syntax highlighting if output looks like JSON
                 if (this.isJsonString(outputText)) {
                     output.innerHTML = this.syntaxHighlightJson(outputText);
@@ -1083,11 +1168,30 @@ class Shirushi {
                     output.textContent = outputText;
                 }
             }
+
+            // Update copy button state
+            this.updateNakCopyButton();
         } catch (error) {
             output.textContent = `Error: ${error.message}`;
+            this.lastNakOutput = `Error: ${error.message}`;
+            this.updateNakCopyButton();
         }
 
         input.value = '';
+    }
+
+    updateNakCopyButton() {
+        const copyBtn = document.getElementById('copy-nak-output');
+        if (copyBtn) {
+            copyBtn.disabled = !this.lastNakOutput;
+        }
+    }
+
+    copyNakOutput() {
+        if (this.lastNakOutput) {
+            const copyBtn = document.getElementById('copy-nak-output');
+            this.copyToClipboard(this.lastNakOutput, copyBtn, 'Copy Output');
+        }
     }
 
     navigateHistory(direction) {

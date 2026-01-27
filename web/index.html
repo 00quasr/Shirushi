@@ -246,7 +246,10 @@
                 </div>
             </div>
             <div class="panel console-output">
-                <h3>Output</h3>
+                <div class="console-output-header">
+                    <h3>Output</h3>
+                    <button id="copy-nak-output" class="btn small copy-btn" onclick="app.copyNakOutput()" disabled>Copy Output</button>
+                </div>
                 <pre id="nak-output"></pre>
             </div>
             <div class="panel">
