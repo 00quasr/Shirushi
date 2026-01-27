@@ -272,6 +272,11 @@ func (p *Pool) Subscribe(kinds []int, authors []string, callback func(types.Even
 	return subID
 }
 
+// MonitoringData returns aggregated monitoring data for all relays.
+func (p *Pool) MonitoringData() *types.MonitoringData {
+	return p.monitor.GetMonitoringData()
+}
+
 // Close closes all relay connections.
 func (p *Pool) Close() {
 	p.cancel()

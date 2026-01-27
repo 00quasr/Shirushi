@@ -85,8 +85,9 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
-	events []types.Event
-	err    error
+	events         []types.Event
+	err            error
+	monitoringData *types.MonitoringData
 }
 
 func (m *mockRelayPool) Add(url string) error               { return nil }
@@ -99,6 +100,9 @@ func (m *mockRelayPool) Subscribe(kinds []int, authors []string, callback func(t
 }
 func (m *mockRelayPool) QueryEvents(kindStr, author, limitStr string) ([]types.Event, error) {
 	return m.events, m.err
+}
+func (m *mockRelayPool) MonitoringData() *types.MonitoringData {
+	return m.monitoringData
 }
 
 func TestHandleProfileLookup_Success(t *testing.T) {
@@ -677,5 +681,202 @@ func TestHandleProfile_UppercaseHex(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
+
+// Tests for HandleMonitoringHistory endpoint
+
+func TestHandleMonitoringHistory_Success(t *testing.T) {
+	pool := &mockRelayPool{
+		monitoringData: &types.MonitoringData{
+			Relays: []types.RelayHealth{
+				{
+					URL:          "wss://relay.example.com",
+					Connected:    true,
+					Latency:      150,
+					EventsPerSec: 2.5,
+					Uptime:       99.5,
+					HealthScore:  85.0,
+					LastSeen:     1700000000,
+					ErrorCount:   0,
+					LatencyHistory: []types.TimeSeriesPoint{
+						{Timestamp: 1699999900, Value: 140},
+						{Timestamp: 1700000000, Value: 150},
+					},
+					EventRateHistory: []types.TimeSeriesPoint{
+						{Timestamp: 1699999900, Value: 2.0},
+						{Timestamp: 1700000000, Value: 2.5},
+					},
+				},
+				{
+					URL:          "wss://relay2.example.com",
+					Connected:    false,
+					Latency:      0,
+					EventsPerSec: 0,
+					Uptime:       50.0,
+					HealthScore:  25.0,
+					LastSeen:     1699990000,
+					ErrorCount:   5,
+					LastError:    "connection timeout",
+				},
+			},
+			TotalEvents:    1000,
+			EventsPerSec:   2.5,
+			ConnectedCount: 1,
+			TotalCount:     2,
+			Timestamp:      1700000000,
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var data types.MonitoringData
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(data.Relays) != 2 {
+		t.Errorf("expected 2 relays, got %d", len(data.Relays))
+	}
+
+	if data.TotalEvents != 1000 {
+		t.Errorf("expected total_events 1000, got %d", data.TotalEvents)
+	}
+
+	if data.EventsPerSec != 2.5 {
+		t.Errorf("expected events_per_sec 2.5, got %f", data.EventsPerSec)
+	}
+
+	if data.ConnectedCount != 1 {
+		t.Errorf("expected connected_count 1, got %d", data.ConnectedCount)
+	}
+
+	if data.TotalCount != 2 {
+		t.Errorf("expected total_count 2, got %d", data.TotalCount)
+	}
+
+	// Check first relay details
+	relay1 := data.Relays[0]
+	if relay1.URL != "wss://relay.example.com" {
+		t.Errorf("expected relay URL 'wss://relay.example.com', got '%s'", relay1.URL)
+	}
+	if !relay1.Connected {
+		t.Error("expected relay1 to be connected")
+	}
+	if relay1.Latency != 150 {
+		t.Errorf("expected latency 150, got %d", relay1.Latency)
+	}
+	if relay1.HealthScore != 85.0 {
+		t.Errorf("expected health_score 85.0, got %f", relay1.HealthScore)
+	}
+	if len(relay1.LatencyHistory) != 2 {
+		t.Errorf("expected 2 latency history points, got %d", len(relay1.LatencyHistory))
+	}
+	if len(relay1.EventRateHistory) != 2 {
+		t.Errorf("expected 2 event rate history points, got %d", len(relay1.EventRateHistory))
+	}
+
+	// Check second relay (disconnected)
+	relay2 := data.Relays[1]
+	if relay2.Connected {
+		t.Error("expected relay2 to be disconnected")
+	}
+	if relay2.ErrorCount != 5 {
+		t.Errorf("expected error_count 5, got %d", relay2.ErrorCount)
+	}
+	if relay2.LastError != "connection timeout" {
+		t.Errorf("expected last_error 'connection timeout', got '%s'", relay2.LastError)
+	}
+}
+
+func TestHandleMonitoringHistory_EmptyRelays(t *testing.T) {
+	pool := &mockRelayPool{
+		monitoringData: &types.MonitoringData{
+			Relays:         []types.RelayHealth{},
+			TotalEvents:    0,
+			EventsPerSec:   0,
+			ConnectedCount: 0,
+			TotalCount:     0,
+			Timestamp:      1700000000,
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var data types.MonitoringData
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(data.Relays) != 0 {
+		t.Errorf("expected 0 relays, got %d", len(data.Relays))
+	}
+
+	if data.TotalCount != 0 {
+		t.Errorf("expected total_count 0, got %d", data.TotalCount)
+	}
+}
+
+func TestHandleMonitoringHistory_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/monitoring/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHistory(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "method not allowed" {
+		t.Errorf("expected error 'method not allowed', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleMonitoringHistory_NilData(t *testing.T) {
+	pool := &mockRelayPool{
+		monitoringData: nil,
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	// Should return null JSON when data is nil
+	body := w.Body.String()
+	if body != "null\n" {
+		t.Errorf("expected 'null\\n', got '%s'", body)
 	}
 }

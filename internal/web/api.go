@@ -24,6 +24,7 @@ type RelayPool interface {
 	Count() int
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
 	Subscribe(kinds []int, authors []string, callback func(types.Event)) string
+	MonitoringData() *types.MonitoringData
 }
 
 // TestRunner defines the interface for running NIP tests
@@ -117,6 +118,16 @@ func (a *API) HandleRelayStats(w http.ResponseWriter, r *http.Request) {
 	}
 	stats := a.relayPool.Stats()
 	writeJSON(w, stats)
+}
+
+// HandleMonitoringHistory returns historical monitoring data for all relays.
+func (a *API) HandleMonitoringHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	data := a.relayPool.MonitoringData()
+	writeJSON(w, data)
 }
 
 // HandleRelayPresets returns available relay presets.
