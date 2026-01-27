@@ -55,3 +55,58 @@ type NIPInfo struct {
 	SpecURL     string `json:"specUrl"`
 	HasTest     bool   `json:"hasTest"`
 }
+
+// Profile represents a Nostr user profile (NIP-01 kind 0 metadata).
+type Profile struct {
+	PubKey       string `json:"pubkey"`
+	Name         string `json:"name,omitempty"`
+	DisplayName  string `json:"display_name,omitempty"`
+	About        string `json:"about,omitempty"`
+	Picture      string `json:"picture,omitempty"`
+	Banner       string `json:"banner,omitempty"`
+	Website      string `json:"website,omitempty"`
+	NIP05        string `json:"nip05,omitempty"`
+	NIP05Valid   bool   `json:"nip05_valid,omitempty"`
+	LUD16        string `json:"lud16,omitempty"`
+	CreatedAt    int64  `json:"created_at,omitempty"`
+	LastUpdated  int64  `json:"last_updated,omitempty"`
+	FollowCount  int    `json:"follow_count,omitempty"`
+	FollowerHint int    `json:"follower_hint,omitempty"`
+}
+
+// FollowListEntry represents a single entry in a follow list.
+type FollowListEntry struct {
+	PubKey  string   `json:"pubkey"`
+	Relay   string   `json:"relay,omitempty"`
+	Petname string   `json:"petname,omitempty"`
+	Profile *Profile `json:"profile,omitempty"`
+}
+
+// FollowList represents a Nostr contact list (NIP-02 kind 3).
+type FollowList struct {
+	PubKey    string            `json:"pubkey"`
+	Follows   []FollowListEntry `json:"follows"`
+	CreatedAt int64             `json:"created_at"`
+	EventID   string            `json:"event_id,omitempty"`
+}
+
+// ZapStats represents aggregated zap statistics for a user (NIP-57).
+type ZapStats struct {
+	PubKey      string     `json:"pubkey"`
+	TotalZaps   int        `json:"total_zaps"`
+	TotalSats   int64      `json:"total_sats"`
+	AvgSats     int64      `json:"avg_sats"`
+	TopZap      int64      `json:"top_zap"`
+	RecentZaps  []ZapEvent `json:"recent_zaps,omitempty"`
+	LastUpdated int64      `json:"last_updated,omitempty"`
+}
+
+// ZapEvent represents a single zap receipt.
+type ZapEvent struct {
+	EventID   string `json:"event_id"`
+	Sender    string `json:"sender"`
+	Receiver  string `json:"receiver"`
+	Amount    int64  `json:"amount"`
+	Content   string `json:"content,omitempty"`
+	CreatedAt int64  `json:"created_at"`
+}
