@@ -130,6 +130,48 @@ func (a *API) HandleMonitoringHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, data)
 }
 
+// HandleMonitoringHealth returns current health summary for all relays.
+// Unlike /history, this excludes time-series data for a lighter response.
+func (a *API) HandleMonitoringHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	data := a.relayPool.MonitoringData()
+	if data == nil {
+		writeJSON(w, nil)
+		return
+	}
+
+	// Build a lightweight health summary without history data
+	relayHealthSummaries := make([]types.RelayHealthSummary, len(data.Relays))
+	for i, relay := range data.Relays {
+		relayHealthSummaries[i] = types.RelayHealthSummary{
+			URL:          relay.URL,
+			Connected:    relay.Connected,
+			Latency:      relay.Latency,
+			EventsPerSec: relay.EventsPerSec,
+			Uptime:       relay.Uptime,
+			HealthScore:  relay.HealthScore,
+			LastSeen:     relay.LastSeen,
+			ErrorCount:   relay.ErrorCount,
+			LastError:    relay.LastError,
+		}
+	}
+
+	summary := types.HealthSummary{
+		Relays:         relayHealthSummaries,
+		TotalEvents:    data.TotalEvents,
+		EventsPerSec:   data.EventsPerSec,
+		ConnectedCount: data.ConnectedCount,
+		TotalCount:     data.TotalCount,
+		Timestamp:      data.Timestamp,
+	}
+
+	writeJSON(w, summary)
+}
+
 // HandleRelayPresets returns available relay presets.
 func (a *API) HandleRelayPresets(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

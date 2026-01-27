@@ -880,3 +880,279 @@ func TestHandleMonitoringHistory_NilData(t *testing.T) {
 		t.Errorf("expected 'null\\n', got '%s'", body)
 	}
 }
+
+// Tests for HandleMonitoringHealth endpoint
+
+func TestHandleMonitoringHealth_Success(t *testing.T) {
+	pool := &mockRelayPool{
+		monitoringData: &types.MonitoringData{
+			Relays: []types.RelayHealth{
+				{
+					URL:          "wss://relay.example.com",
+					Connected:    true,
+					Latency:      150,
+					EventsPerSec: 2.5,
+					Uptime:       99.5,
+					HealthScore:  85.0,
+					LastSeen:     1700000000,
+					ErrorCount:   0,
+					LatencyHistory: []types.TimeSeriesPoint{
+						{Timestamp: 1699999900, Value: 140},
+						{Timestamp: 1700000000, Value: 150},
+					},
+					EventRateHistory: []types.TimeSeriesPoint{
+						{Timestamp: 1699999900, Value: 2.0},
+						{Timestamp: 1700000000, Value: 2.5},
+					},
+				},
+				{
+					URL:          "wss://relay2.example.com",
+					Connected:    false,
+					Latency:      0,
+					EventsPerSec: 0,
+					Uptime:       50.0,
+					HealthScore:  25.0,
+					LastSeen:     1699990000,
+					ErrorCount:   5,
+					LastError:    "connection timeout",
+				},
+			},
+			TotalEvents:    1000,
+			EventsPerSec:   2.5,
+			ConnectedCount: 1,
+			TotalCount:     2,
+			Timestamp:      1700000000,
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/health", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHealth(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var data types.HealthSummary
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(data.Relays) != 2 {
+		t.Errorf("expected 2 relays, got %d", len(data.Relays))
+	}
+
+	if data.TotalEvents != 1000 {
+		t.Errorf("expected total_events 1000, got %d", data.TotalEvents)
+	}
+
+	if data.EventsPerSec != 2.5 {
+		t.Errorf("expected events_per_sec 2.5, got %f", data.EventsPerSec)
+	}
+
+	if data.ConnectedCount != 1 {
+		t.Errorf("expected connected_count 1, got %d", data.ConnectedCount)
+	}
+
+	if data.TotalCount != 2 {
+		t.Errorf("expected total_count 2, got %d", data.TotalCount)
+	}
+
+	// Check first relay details
+	relay1 := data.Relays[0]
+	if relay1.URL != "wss://relay.example.com" {
+		t.Errorf("expected relay URL 'wss://relay.example.com', got '%s'", relay1.URL)
+	}
+	if !relay1.Connected {
+		t.Error("expected relay1 to be connected")
+	}
+	if relay1.Latency != 150 {
+		t.Errorf("expected latency 150, got %d", relay1.Latency)
+	}
+	if relay1.HealthScore != 85.0 {
+		t.Errorf("expected health_score 85.0, got %f", relay1.HealthScore)
+	}
+	if relay1.Uptime != 99.5 {
+		t.Errorf("expected uptime 99.5, got %f", relay1.Uptime)
+	}
+
+	// Check second relay (disconnected)
+	relay2 := data.Relays[1]
+	if relay2.Connected {
+		t.Error("expected relay2 to be disconnected")
+	}
+	if relay2.ErrorCount != 5 {
+		t.Errorf("expected error_count 5, got %d", relay2.ErrorCount)
+	}
+	if relay2.LastError != "connection timeout" {
+		t.Errorf("expected last_error 'connection timeout', got '%s'", relay2.LastError)
+	}
+}
+
+func TestHandleMonitoringHealth_EmptyRelays(t *testing.T) {
+	pool := &mockRelayPool{
+		monitoringData: &types.MonitoringData{
+			Relays:         []types.RelayHealth{},
+			TotalEvents:    0,
+			EventsPerSec:   0,
+			ConnectedCount: 0,
+			TotalCount:     0,
+			Timestamp:      1700000000,
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/health", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHealth(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var data types.HealthSummary
+	if err := json.NewDecoder(w.Body).Decode(&data); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(data.Relays) != 0 {
+		t.Errorf("expected 0 relays, got %d", len(data.Relays))
+	}
+
+	if data.TotalCount != 0 {
+		t.Errorf("expected total_count 0, got %d", data.TotalCount)
+	}
+}
+
+func TestHandleMonitoringHealth_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/monitoring/health", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHealth(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "method not allowed" {
+		t.Errorf("expected error 'method not allowed', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleMonitoringHealth_NilData(t *testing.T) {
+	pool := &mockRelayPool{
+		monitoringData: nil,
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/health", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHealth(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	// Should return null JSON when data is nil
+	body := w.Body.String()
+	if body != "null\n" {
+		t.Errorf("expected 'null\\n', got '%s'", body)
+	}
+}
+
+func TestHandleMonitoringHealth_ExcludesHistoryData(t *testing.T) {
+	// This test verifies that the health endpoint returns a response
+	// that doesn't include the heavy time-series history data
+	pool := &mockRelayPool{
+		monitoringData: &types.MonitoringData{
+			Relays: []types.RelayHealth{
+				{
+					URL:          "wss://relay.example.com",
+					Connected:    true,
+					Latency:      150,
+					EventsPerSec: 2.5,
+					Uptime:       99.5,
+					HealthScore:  85.0,
+					LastSeen:     1700000000,
+					ErrorCount:   0,
+					// These should NOT appear in the health response
+					LatencyHistory: []types.TimeSeriesPoint{
+						{Timestamp: 1699999900, Value: 140},
+						{Timestamp: 1700000000, Value: 150},
+					},
+					EventRateHistory: []types.TimeSeriesPoint{
+						{Timestamp: 1699999900, Value: 2.0},
+						{Timestamp: 1700000000, Value: 2.5},
+					},
+				},
+			},
+			TotalEvents:    1000,
+			EventsPerSec:   2.5,
+			ConnectedCount: 1,
+			TotalCount:     1,
+			Timestamp:      1700000000,
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/monitoring/health", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleMonitoringHealth(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	// Parse the raw JSON to verify no history fields exist
+	var rawData map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&rawData); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	relays, ok := rawData["relays"].([]interface{})
+	if !ok {
+		t.Fatal("expected relays to be an array")
+	}
+
+	if len(relays) != 1 {
+		t.Fatalf("expected 1 relay, got %d", len(relays))
+	}
+
+	relay := relays[0].(map[string]interface{})
+
+	// Verify history fields are NOT present
+	if _, exists := relay["latency_history"]; exists {
+		t.Error("health endpoint should NOT include latency_history")
+	}
+	if _, exists := relay["event_rate_history"]; exists {
+		t.Error("health endpoint should NOT include event_rate_history")
+	}
+
+	// Verify essential fields ARE present
+	if _, exists := relay["url"]; !exists {
+		t.Error("health endpoint should include url")
+	}
+	if _, exists := relay["connected"]; !exists {
+		t.Error("health endpoint should include connected")
+	}
+	if _, exists := relay["health_score"]; !exists {
+		t.Error("health endpoint should include health_score")
+	}
+}

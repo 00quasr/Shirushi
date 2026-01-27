@@ -142,3 +142,27 @@ type MonitoringData struct {
 	TotalCount       int               `json:"total_count"`
 	Timestamp        int64             `json:"timestamp"`
 }
+
+// RelayHealthSummary represents a lightweight health summary for a relay
+// without time-series history data.
+type RelayHealthSummary struct {
+	URL          string  `json:"url"`
+	Connected    bool    `json:"connected"`
+	Latency      int64   `json:"latency_ms"`
+	EventsPerSec float64 `json:"events_per_sec"`
+	Uptime       float64 `json:"uptime_percent"`
+	HealthScore  float64 `json:"health_score"`
+	LastSeen     int64   `json:"last_seen"`
+	ErrorCount   int     `json:"error_count"`
+	LastError    string  `json:"last_error,omitempty"`
+}
+
+// HealthSummary represents a lightweight health summary for all relays.
+type HealthSummary struct {
+	Relays         []RelayHealthSummary `json:"relays"`
+	TotalEvents    int64                `json:"total_events"`
+	EventsPerSec   float64              `json:"events_per_sec"`
+	ConnectedCount int                  `json:"connected_count"`
+	TotalCount     int                  `json:"total_count"`
+	Timestamp      int64                `json:"timestamp"`
+}
