@@ -2173,3 +2173,357 @@ func TestRelayStatus_WithoutSupportedNIPs(t *testing.T) {
 		t.Errorf("expected nil relay_info, got %+v", relays[0].RelayInfo)
 	}
 }
+
+// Tests for Test History endpoints
+
+func TestHandleTestHistory_GetEmpty(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/test/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var history []types.TestHistoryEntry
+	if err := json.NewDecoder(w.Body).Decode(&history); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(history) != 0 {
+		t.Errorf("expected empty history, got %d entries", len(history))
+	}
+}
+
+func TestHandleTestHistory_GetWithEntries(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add some entries manually
+	api.testHistory = []types.TestHistoryEntry{
+		{
+			ID:        "test-1",
+			Timestamp: 1700000000,
+			Result: types.TestResult{
+				NIPID:   "nip01",
+				Success: true,
+				Message: "All tests passed",
+				Steps: []types.TestStep{
+					{Name: "Step 1", Success: true, Output: "OK"},
+				},
+			},
+		},
+		{
+			ID:        "test-2",
+			Timestamp: 1700000100,
+			Result: types.TestResult{
+				NIPID:   "nip05",
+				Success: false,
+				Message: "Verification failed",
+				Steps: []types.TestStep{
+					{Name: "Step 1", Success: false, Error: "DNS lookup failed"},
+				},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/test/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var history []types.TestHistoryEntry
+	if err := json.NewDecoder(w.Body).Decode(&history); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(history) != 2 {
+		t.Errorf("expected 2 entries, got %d", len(history))
+	}
+
+	if history[0].ID != "test-1" {
+		t.Errorf("expected ID 'test-1', got '%s'", history[0].ID)
+	}
+	if history[0].Result.NIPID != "nip01" {
+		t.Errorf("expected nip_id 'nip01', got '%s'", history[0].Result.NIPID)
+	}
+	if !history[0].Result.Success {
+		t.Error("expected first entry to be successful")
+	}
+	if history[1].Result.Success {
+		t.Error("expected second entry to be failed")
+	}
+}
+
+func TestHandleTestHistory_Delete(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add some entries
+	api.testHistory = []types.TestHistoryEntry{
+		{ID: "test-1", Timestamp: 1700000000, Result: types.TestResult{NIPID: "nip01", Success: true}},
+		{ID: "test-2", Timestamp: 1700000100, Result: types.TestResult{NIPID: "nip05", Success: false}},
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/test/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["status"] != "cleared" {
+		t.Errorf("expected status 'cleared', got '%s'", resp["status"])
+	}
+
+	// Verify history is now empty
+	if len(api.testHistory) != 0 {
+		t.Errorf("expected empty history after delete, got %d entries", len(api.testHistory))
+	}
+}
+
+func TestHandleTestHistory_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/test/history", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistory(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleTestHistoryEntry_GetSuccess(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	api.testHistory = []types.TestHistoryEntry{
+		{ID: "test-1", Timestamp: 1700000000, Result: types.TestResult{NIPID: "nip01", Success: true, Message: "OK"}},
+		{ID: "test-2", Timestamp: 1700000100, Result: types.TestResult{NIPID: "nip05", Success: false, Message: "Failed"}},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/test/history/test-1", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistoryEntry(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var entry types.TestHistoryEntry
+	if err := json.NewDecoder(w.Body).Decode(&entry); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if entry.ID != "test-1" {
+		t.Errorf("expected ID 'test-1', got '%s'", entry.ID)
+	}
+	if entry.Result.NIPID != "nip01" {
+		t.Errorf("expected nip_id 'nip01', got '%s'", entry.Result.NIPID)
+	}
+}
+
+func TestHandleTestHistoryEntry_GetNotFound(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	api.testHistory = []types.TestHistoryEntry{
+		{ID: "test-1", Timestamp: 1700000000, Result: types.TestResult{NIPID: "nip01", Success: true}},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/test/history/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistoryEntry(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "entry not found" {
+		t.Errorf("expected error 'entry not found', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleTestHistoryEntry_DeleteSuccess(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	api.testHistory = []types.TestHistoryEntry{
+		{ID: "test-1", Timestamp: 1700000000, Result: types.TestResult{NIPID: "nip01", Success: true}},
+		{ID: "test-2", Timestamp: 1700000100, Result: types.TestResult{NIPID: "nip05", Success: false}},
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/test/history/test-1", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistoryEntry(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["status"] != "deleted" {
+		t.Errorf("expected status 'deleted', got '%s'", resp["status"])
+	}
+	if resp["id"] != "test-1" {
+		t.Errorf("expected id 'test-1', got '%s'", resp["id"])
+	}
+
+	// Verify only one entry remains
+	if len(api.testHistory) != 1 {
+		t.Errorf("expected 1 entry after delete, got %d", len(api.testHistory))
+	}
+	if api.testHistory[0].ID != "test-2" {
+		t.Errorf("expected remaining entry to be 'test-2', got '%s'", api.testHistory[0].ID)
+	}
+}
+
+func TestHandleTestHistoryEntry_DeleteNotFound(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	api.testHistory = []types.TestHistoryEntry{
+		{ID: "test-1", Timestamp: 1700000000, Result: types.TestResult{NIPID: "nip01", Success: true}},
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/test/history/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistoryEntry(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+}
+
+func TestHandleTestHistoryEntry_MissingID(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/test/history/", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistoryEntry(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "entry ID required" {
+		t.Errorf("expected error 'entry ID required', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleTestHistoryEntry_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/test/history/test-1", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTestHistoryEntry(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestAddTestHistory_AddsEntry(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	result := types.TestResult{
+		NIPID:   "nip01",
+		Success: true,
+		Message: "All tests passed",
+		Steps:   []types.TestStep{{Name: "Step 1", Success: true}},
+	}
+
+	entry := api.addTestHistory(result)
+
+	if entry.ID == "" {
+		t.Error("expected entry ID to be set")
+	}
+	if entry.Timestamp == 0 {
+		t.Error("expected entry timestamp to be set")
+	}
+	if entry.Result.NIPID != "nip01" {
+		t.Errorf("expected nip_id 'nip01', got '%s'", entry.Result.NIPID)
+	}
+	if len(api.testHistory) != 1 {
+		t.Errorf("expected 1 entry in history, got %d", len(api.testHistory))
+	}
+}
+
+func TestAddTestHistory_PrependsNewEntries(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	result1 := types.TestResult{NIPID: "nip01", Success: true}
+	result2 := types.TestResult{NIPID: "nip05", Success: false}
+
+	api.addTestHistory(result1)
+	entry2 := api.addTestHistory(result2)
+
+	if len(api.testHistory) != 2 {
+		t.Errorf("expected 2 entries in history, got %d", len(api.testHistory))
+	}
+
+	// Newest should be first
+	if api.testHistory[0].ID != entry2.ID {
+		t.Error("expected newest entry to be first")
+	}
+	if api.testHistory[0].Result.NIPID != "nip05" {
+		t.Errorf("expected first entry to be nip05, got '%s'", api.testHistory[0].Result.NIPID)
+	}
+}
+
+func TestAddTestHistory_LimitsTo100Entries(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add 105 entries
+	for i := 0; i < 105; i++ {
+		result := types.TestResult{NIPID: "nip01", Success: true, Message: "Test"}
+		api.addTestHistory(result)
+	}
+
+	if len(api.testHistory) != 100 {
+		t.Errorf("expected history to be limited to 100, got %d", len(api.testHistory))
+	}
+}

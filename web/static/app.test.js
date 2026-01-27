@@ -8047,6 +8047,299 @@
         });
     });
 
+    // ========================================
+    // Test History Tests
+    // ========================================
+
+    describe('Test History', function() {
+        it('should store test history in testHistory array', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            // Initialize empty test history
+            appInstance.testHistory = [];
+
+            // Add a test entry
+            const entry = {
+                id: '123456-nip01',
+                timestamp: Math.floor(Date.now() / 1000),
+                result: {
+                    nip_id: 'nip01',
+                    success: true,
+                    message: 'All tests passed',
+                    steps: [
+                        { name: 'Step 1', success: true, output: 'Done' }
+                    ]
+                }
+            };
+
+            appInstance.addToTestHistory(entry);
+
+            assertEqual(appInstance.testHistory.length, 1, 'Test history should have 1 entry');
+            assertEqual(appInstance.testHistory[0].id, entry.id, 'Entry ID should match');
+        });
+
+        it('should prepend new entries to history (newest first)', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            appInstance.testHistory = [];
+
+            const entry1 = {
+                id: '111-nip01',
+                timestamp: 1000,
+                result: { nip_id: 'nip01', success: true, message: 'First', steps: [] }
+            };
+            const entry2 = {
+                id: '222-nip05',
+                timestamp: 2000,
+                result: { nip_id: 'nip05', success: false, message: 'Second', steps: [] }
+            };
+
+            appInstance.addToTestHistory(entry1);
+            appInstance.addToTestHistory(entry2);
+
+            assertEqual(appInstance.testHistory.length, 2, 'Test history should have 2 entries');
+            assertEqual(appInstance.testHistory[0].id, '222-nip05', 'Newest entry should be first');
+            assertEqual(appInstance.testHistory[1].id, '111-nip01', 'Older entry should be second');
+        });
+
+        it('should limit history to 100 entries', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            appInstance.testHistory = [];
+
+            // Add 105 entries
+            for (let i = 0; i < 105; i++) {
+                appInstance.addToTestHistory({
+                    id: `entry-${i}`,
+                    timestamp: i,
+                    result: { nip_id: 'nip01', success: true, message: `Entry ${i}`, steps: [] }
+                });
+            }
+
+            assertEqual(appInstance.testHistory.length, 100, 'Test history should be limited to 100 entries');
+            assertEqual(appInstance.testHistory[0].id, 'entry-104', 'Most recent entry should be first');
+        });
+
+        it('should not duplicate entries with same ID', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            appInstance.testHistory = [];
+
+            const entry = {
+                id: 'same-id',
+                timestamp: 1000,
+                result: { nip_id: 'nip01', success: true, message: 'Test', steps: [] }
+            };
+
+            appInstance.addToTestHistory(entry);
+            appInstance.addToTestHistory({ ...entry, timestamp: 2000 });
+
+            assertEqual(appInstance.testHistory.length, 1, 'Should not have duplicate entries');
+            assertEqual(appInstance.testHistory[0].timestamp, 2000, 'Should update to newer timestamp');
+        });
+
+        it('should format history time correctly', function() {
+            const appInstance = window.app || new Shirushi();
+
+            const now = new Date();
+
+            // Just now (less than 1 minute)
+            const justNow = new Date(now - 30000);
+            assertEqual(appInstance.formatHistoryTime(justNow), 'Just now', 'Should show "Just now" for recent');
+
+            // Minutes ago
+            const fiveMinsAgo = new Date(now - 5 * 60000);
+            assertEqual(appInstance.formatHistoryTime(fiveMinsAgo), '5m ago', 'Should show minutes ago');
+
+            // Hours ago
+            const twoHoursAgo = new Date(now - 2 * 3600000);
+            assertEqual(appInstance.formatHistoryTime(twoHoursAgo), '2h ago', 'Should show hours ago');
+        });
+
+        it('should handle showTestResult with history entry format', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            // Create mock DOM elements
+            const container = document.createElement('div');
+            container.id = 'test-container';
+            container.innerHTML = `
+                <div id="test-results"></div>
+                <div id="test-history-list"></div>
+            `;
+            document.body.appendChild(container);
+
+            appInstance.testHistory = [];
+            appInstance.nips = [{ id: 'nip01', name: 'NIP-01' }];
+
+            // Response from API with history entry
+            const response = {
+                id: 'test-123',
+                timestamp: Math.floor(Date.now() / 1000),
+                result: {
+                    nip_id: 'nip01',
+                    success: true,
+                    message: 'All tests passed',
+                    steps: [
+                        { name: 'Test Step', success: true, output: 'OK' }
+                    ]
+                }
+            };
+
+            appInstance.showTestResult(response);
+
+            // Check test result is displayed
+            const resultsContainer = document.getElementById('test-results');
+            assertTrue(resultsContainer.innerHTML.includes('PASSED'), 'Should display test result');
+
+            // Check history was updated
+            assertEqual(appInstance.testHistory.length, 1, 'Should add to history');
+            assertEqual(appInstance.testHistory[0].id, 'test-123', 'Should have correct ID');
+
+            // Cleanup
+            document.body.removeChild(container);
+        });
+
+        it('should render test history list correctly', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            // Create mock DOM
+            const container = document.createElement('div');
+            container.id = 'test-container';
+            container.innerHTML = `<div id="test-history-list"></div>`;
+            document.body.appendChild(container);
+
+            appInstance.nips = [
+                { id: 'nip01', name: 'NIP-01' },
+                { id: 'nip05', name: 'NIP-05' }
+            ];
+
+            appInstance.testHistory = [
+                {
+                    id: 'entry-1',
+                    timestamp: Math.floor(Date.now() / 1000) - 60,
+                    result: { nip_id: 'nip01', success: true, message: 'All passed', steps: [] }
+                },
+                {
+                    id: 'entry-2',
+                    timestamp: Math.floor(Date.now() / 1000) - 3600,
+                    result: { nip_id: 'nip05', success: false, message: 'Failed', steps: [] }
+                }
+            ];
+
+            appInstance.renderTestHistory();
+
+            const historyContainer = document.getElementById('test-history-list');
+            const entries = historyContainer.querySelectorAll('.history-entry');
+
+            assertEqual(entries.length, 2, 'Should render 2 history entries');
+            assertTrue(entries[0].classList.contains('success'), 'First entry should have success class');
+            assertTrue(entries[1].classList.contains('failure'), 'Second entry should have failure class');
+            assertTrue(historyContainer.innerHTML.includes('NIP-01'), 'Should show NIP name');
+            assertTrue(historyContainer.innerHTML.includes('NIP-05'), 'Should show NIP name');
+
+            // Cleanup
+            document.body.removeChild(container);
+        });
+
+        it('should show empty message when no history', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            const container = document.createElement('div');
+            container.id = 'test-container';
+            container.innerHTML = `<div id="test-history-list"></div>`;
+            document.body.appendChild(container);
+
+            appInstance.testHistory = [];
+            appInstance.renderTestHistory();
+
+            const historyContainer = document.getElementById('test-history-list');
+            assertTrue(historyContainer.innerHTML.includes('No test history yet'), 'Should show empty message');
+
+            document.body.removeChild(container);
+        });
+
+        it('should call API to clear history', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            // Create mock DOM
+            const container = document.createElement('div');
+            container.id = 'test-container';
+            container.innerHTML = `
+                <div id="test-history-list"></div>
+                <div id="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+
+            appInstance.testHistory = [
+                { id: 'entry-1', timestamp: 1000, result: { nip_id: 'nip01', success: true, message: 'Test', steps: [] } }
+            ];
+
+            setMockFetch({ data: { status: 'cleared' } });
+
+            await appInstance.clearTestHistory();
+
+            assertEqual(lastFetchUrl, '/api/test/history', 'Should call correct API');
+            assertEqual(lastFetchOptions.method, 'DELETE', 'Should use DELETE method');
+            assertEqual(appInstance.testHistory.length, 0, 'Should clear local history');
+
+            restoreFetch();
+            document.body.removeChild(container);
+        });
+
+        it('should call API to delete single entry', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            const container = document.createElement('div');
+            container.id = 'test-container';
+            container.innerHTML = `<div id="test-history-list"></div>`;
+            document.body.appendChild(container);
+
+            appInstance.testHistory = [
+                { id: 'entry-1', timestamp: 1000, result: { nip_id: 'nip01', success: true, message: 'Test 1', steps: [] } },
+                { id: 'entry-2', timestamp: 2000, result: { nip_id: 'nip05', success: false, message: 'Test 2', steps: [] } }
+            ];
+
+            setMockFetch({ data: { status: 'deleted', id: 'entry-1' } });
+
+            await appInstance.deleteHistoryEntry('entry-1');
+
+            assertEqual(lastFetchUrl, '/api/test/history/entry-1', 'Should call correct API with ID');
+            assertEqual(lastFetchOptions.method, 'DELETE', 'Should use DELETE method');
+            assertEqual(appInstance.testHistory.length, 1, 'Should remove entry from local history');
+            assertEqual(appInstance.testHistory[0].id, 'entry-2', 'Should keep remaining entry');
+
+            restoreFetch();
+            document.body.removeChild(container);
+        });
+
+        it('should load history from API on setup', async function() {
+            const appInstance = window.app || new Shirushi();
+
+            const container = document.createElement('div');
+            container.id = 'test-container';
+            container.innerHTML = `<div id="test-history-list"></div>`;
+            document.body.appendChild(container);
+
+            appInstance.testHistory = [];
+            appInstance.nips = [{ id: 'nip01', name: 'NIP-01' }];
+
+            const mockHistory = [
+                { id: 'server-1', timestamp: 1000, result: { nip_id: 'nip01', success: true, message: 'Server test', steps: [] } }
+            ];
+
+            setMockFetch({ data: mockHistory });
+
+            await appInstance.loadTestHistory();
+
+            assertEqual(lastFetchUrl, '/api/test/history', 'Should fetch from correct API');
+            assertEqual(appInstance.testHistory.length, 1, 'Should load history from server');
+            assertEqual(appInstance.testHistory[0].id, 'server-1', 'Should have server entry');
+
+            restoreFetch();
+            document.body.removeChild(container);
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

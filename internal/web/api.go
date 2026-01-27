@@ -38,20 +38,25 @@ type TestRunner interface {
 
 // API handles REST API requests.
 type API struct {
-	cfg        *config.Config
-	nak        *nak.Nak
-	relayPool  RelayPool
-	testRunner TestRunner
-	hub        *Hub
+	cfg         *config.Config
+	nak         *nak.Nak
+	relayPool   RelayPool
+	testRunner  TestRunner
+	hub         *Hub
+	testHistory []types.TestHistoryEntry
 }
 
 // NewAPI creates a new API handler.
+// maxTestHistoryEntries is the maximum number of test history entries to keep.
+const maxTestHistoryEntries = 100
+
 func NewAPI(cfg *config.Config, nakClient *nak.Nak, relayPool RelayPool, testRunner TestRunner) *API {
 	return &API{
-		cfg:        cfg,
-		nak:        nakClient,
-		relayPool:  relayPool,
-		testRunner: testRunner,
+		cfg:         cfg,
+		nak:         nakClient,
+		relayPool:   relayPool,
+		testRunner:  testRunner,
+		testHistory: make([]types.TestHistoryEntry, 0),
 	}
 }
 
@@ -297,12 +302,94 @@ func (a *API) HandleTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Store in history
+	entry := a.addTestHistory(*result)
+
 	// Broadcast result
 	if a.hub != nil {
 		a.hub.BroadcastTestResult(*result)
 	}
 
-	writeJSON(w, result)
+	// Return result with history entry ID
+	response := map[string]interface{}{
+		"id":        entry.ID,
+		"timestamp": entry.Timestamp,
+		"result":    result,
+	}
+	writeJSON(w, response)
+}
+
+// addTestHistory adds a test result to the history.
+func (a *API) addTestHistory(result types.TestResult) types.TestHistoryEntry {
+	entry := types.TestHistoryEntry{
+		ID:        fmt.Sprintf("%d-%s", time.Now().UnixNano(), result.NIPID),
+		Timestamp: time.Now().Unix(),
+		Result:    result,
+	}
+
+	// Prepend to history (newest first)
+	a.testHistory = append([]types.TestHistoryEntry{entry}, a.testHistory...)
+
+	// Trim to max size
+	if len(a.testHistory) > maxTestHistoryEntries {
+		a.testHistory = a.testHistory[:maxTestHistoryEntries]
+	}
+
+	return entry
+}
+
+// HandleTestHistory returns the test history.
+func (a *API) HandleTestHistory(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, a.testHistory)
+
+	case http.MethodDelete:
+		// Clear all history
+		a.testHistory = make([]types.TestHistoryEntry, 0)
+		writeJSON(w, map[string]string{"status": "cleared"})
+
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+// HandleTestHistoryEntry handles single test history entry operations.
+func (a *API) HandleTestHistoryEntry(w http.ResponseWriter, r *http.Request) {
+	// Extract entry ID from path: /api/test/history/{id}
+	path := strings.TrimPrefix(r.URL.Path, "/api/test/history/")
+	entryID := strings.TrimSpace(path)
+
+	if entryID == "" {
+		writeError(w, http.StatusBadRequest, "entry ID required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// Find entry by ID
+		for _, entry := range a.testHistory {
+			if entry.ID == entryID {
+				writeJSON(w, entry)
+				return
+			}
+		}
+		writeError(w, http.StatusNotFound, "entry not found")
+
+	case http.MethodDelete:
+		// Remove entry by ID
+		for i, entry := range a.testHistory {
+			if entry.ID == entryID {
+				a.testHistory = append(a.testHistory[:i], a.testHistory[i+1:]...)
+				writeJSON(w, map[string]string{"status": "deleted", "id": entryID})
+				return
+			}
+		}
+		writeError(w, http.StatusNotFound, "entry not found")
+
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
 }
 
 // HandleKeyGenerate generates a new keypair.

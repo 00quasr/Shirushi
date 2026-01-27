@@ -39,6 +39,9 @@ class Shirushi {
         this.publishTags = [];
         this.publishHistory = [];
 
+        // Test history state
+        this.testHistory = [];
+
         this.init();
     }
 
@@ -1653,6 +1656,15 @@ class Shirushi {
     // Testing Tab
     setupTesting() {
         // NIP list click handler will be set up after rendering
+
+        // Load test history from server
+        this.loadTestHistory();
+
+        // Setup clear history button
+        const clearBtn = document.getElementById('clear-history-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearTestHistory());
+        }
     }
 
     /**
@@ -2311,8 +2323,17 @@ class Shirushi {
         return params;
     }
 
-    showTestResult(result) {
+    showTestResult(response) {
         const container = document.getElementById('test-results');
+
+        // Handle both formats: {result: {...}} from API and direct result from WebSocket
+        const result = response.result || response;
+        const historyEntry = response.id ? {
+            id: response.id,
+            timestamp: response.timestamp,
+            result: result
+        } : null;
+
         const statusClass = result.success ? 'success' : 'failure';
 
         container.innerHTML = `
@@ -2333,6 +2354,166 @@ class Shirushi {
                 </div>
             </div>
         `;
+
+        // Update history display if this is from API response (has id)
+        if (historyEntry) {
+            this.addToTestHistory(historyEntry);
+        }
+    }
+
+    // Test History Methods
+    /**
+     * Load test history from the server
+     */
+    async loadTestHistory() {
+        try {
+            const response = await fetch('/api/test/history');
+            if (response.ok) {
+                this.testHistory = await response.json();
+                this.renderTestHistory();
+            }
+        } catch (error) {
+            console.error('Failed to load test history:', error);
+        }
+    }
+
+    /**
+     * Add an entry to the local test history and update display
+     * @param {Object} entry - The test history entry with id, timestamp, result
+     */
+    addToTestHistory(entry) {
+        // Add to beginning of array (newest first)
+        this.testHistory = [entry, ...this.testHistory.filter(e => e.id !== entry.id)];
+        // Keep only last 100 entries
+        if (this.testHistory.length > 100) {
+            this.testHistory = this.testHistory.slice(0, 100);
+        }
+        this.renderTestHistory();
+    }
+
+    /**
+     * Clear all test history
+     */
+    async clearTestHistory() {
+        try {
+            const response = await fetch('/api/test/history', { method: 'DELETE' });
+            if (response.ok) {
+                this.testHistory = [];
+                this.renderTestHistory();
+                this.showToast('Test history cleared', 'success');
+            }
+        } catch (error) {
+            console.error('Failed to clear test history:', error);
+            this.showToast('Failed to clear history', 'error');
+        }
+    }
+
+    /**
+     * Delete a single history entry
+     * @param {string} entryId - The entry ID to delete
+     */
+    async deleteHistoryEntry(entryId) {
+        try {
+            const response = await fetch(`/api/test/history/${entryId}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.testHistory = this.testHistory.filter(e => e.id !== entryId);
+                this.renderTestHistory();
+            }
+        } catch (error) {
+            console.error('Failed to delete history entry:', error);
+        }
+    }
+
+    /**
+     * Render the test history list
+     */
+    renderTestHistory() {
+        const container = document.getElementById('test-history-list');
+        if (!container) return;
+
+        if (this.testHistory.length === 0) {
+            container.innerHTML = '<p class="hint">No test history yet</p>';
+            return;
+        }
+
+        container.innerHTML = this.testHistory.map(entry => {
+            const result = entry.result;
+            const nip = this.nips.find(n => n.id === result.nip_id);
+            const nipName = nip ? nip.name : result.nip_id.toUpperCase();
+            const statusClass = result.success ? 'success' : 'failure';
+            const statusIcon = result.success ? '✓' : '✗';
+            const timestamp = new Date(entry.timestamp * 1000);
+            const timeStr = this.formatHistoryTime(timestamp);
+
+            return `
+                <div class="history-entry ${statusClass}" data-entry-id="${entry.id}">
+                    <div class="history-entry-header">
+                        <span class="history-status-icon">${statusIcon}</span>
+                        <span class="history-nip-name">${nipName}</span>
+                        <span class="history-time">${timeStr}</span>
+                        <button class="history-delete-btn" data-id="${entry.id}" title="Delete">×</button>
+                    </div>
+                    <div class="history-entry-message">${this.escapeHtml(result.message)}</div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers
+        container.querySelectorAll('.history-entry').forEach(entry => {
+            // Click on entry to show details
+            entry.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('history-delete-btn')) {
+                    const entryId = entry.dataset.entryId;
+                    const historyEntry = this.testHistory.find(h => h.id === entryId);
+                    if (historyEntry) {
+                        this.showTestResult(historyEntry.result);
+                    }
+                }
+            });
+        });
+
+        // Add delete button handlers
+        container.querySelectorAll('.history-delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.deleteHistoryEntry(btn.dataset.id);
+            });
+        });
+    }
+
+    /**
+     * Format timestamp for history display
+     * @param {Date} date - The date to format
+     * @returns {string} Formatted time string
+     */
+    formatHistoryTime(date) {
+        const now = new Date();
+        const diff = now - date;
+
+        // Less than 1 minute
+        if (diff < 60000) {
+            return 'Just now';
+        }
+
+        // Less than 1 hour
+        if (diff < 3600000) {
+            const mins = Math.floor(diff / 60000);
+            return `${mins}m ago`;
+        }
+
+        // Less than 24 hours
+        if (diff < 86400000) {
+            const hours = Math.floor(diff / 3600000);
+            return `${hours}h ago`;
+        }
+
+        // Same year
+        if (date.getFullYear() === now.getFullYear()) {
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+
+        // Different year
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
     // NIP-07 Extension Detection

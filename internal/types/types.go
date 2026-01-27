@@ -64,6 +64,13 @@ type TestResult struct {
 	Steps   []TestStep `json:"steps"`
 }
 
+// TestHistoryEntry represents a test result with timestamp for history tracking.
+type TestHistoryEntry struct {
+	ID        string     `json:"id"`
+	Timestamp int64      `json:"timestamp"`
+	Result    TestResult `json:"result"`
+}
+
 // TestStep represents a single step in a test.
 type TestStep struct {
 	Name    string `json:"name"`
