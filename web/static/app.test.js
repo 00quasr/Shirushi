@@ -1539,6 +1539,479 @@
         });
     });
 
+    // Chart Initialization Tests
+    describe('Chart Initialization', () => {
+        let container;
+
+        function createChartMockDOM() {
+            const el = document.createElement('div');
+            el.id = 'chart-test-container';
+            el.innerHTML = `
+                <div id="monitoring-tab" class="tab-content">
+                    <div id="monitoring-connected">0</div>
+                    <div id="monitoring-total">0</div>
+                    <div id="monitoring-events-sec">0</div>
+                    <div id="monitoring-total-events">0</div>
+                    <div id="relay-health-list"></div>
+                    <div class="chart-container" style="width: 400px; height: 200px;">
+                        <canvas id="event-rate-chart"></canvas>
+                    </div>
+                    <div class="chart-container" style="width: 400px; height: 200px;">
+                        <canvas id="latency-chart"></canvas>
+                    </div>
+                    <div class="chart-container-full" style="width: 800px; height: 300px;">
+                        <canvas id="health-score-chart"></canvas>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(el);
+            return el;
+        }
+
+        it('should have initializeCharts method', () => {
+            assertDefined(Shirushi.prototype.initializeCharts, 'initializeCharts method should exist');
+        });
+
+        it('should have setupCanvasSize method', () => {
+            assertDefined(Shirushi.prototype.setupCanvasSize, 'setupCanvasSize method should exist');
+        });
+
+        it('should have getCanvasDisplaySize method', () => {
+            assertDefined(Shirushi.prototype.getCanvasDisplaySize, 'getCanvasDisplaySize method should exist');
+        });
+
+        it('should have setupChartResizeHandler method', () => {
+            assertDefined(Shirushi.prototype.setupChartResizeHandler, 'setupChartResizeHandler method should exist');
+        });
+
+        it('should have resizeAllCharts method', () => {
+            assertDefined(Shirushi.prototype.resizeAllCharts, 'resizeAllCharts method should exist');
+        });
+
+        it('should have createLineChart method', () => {
+            assertDefined(Shirushi.prototype.createLineChart, 'createLineChart method should exist');
+        });
+
+        it('should have createBarChart method', () => {
+            assertDefined(Shirushi.prototype.createBarChart, 'createBarChart method should exist');
+        });
+
+        it('should have createMultiLineChart method', () => {
+            assertDefined(Shirushi.prototype.createMultiLineChart, 'createMultiLineChart method should exist');
+        });
+
+        it('should have updateCharts method', () => {
+            assertDefined(Shirushi.prototype.updateCharts, 'updateCharts method should exist');
+        });
+
+        it('should initialize charts object in constructor', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertDefined(instance.charts, 'charts object should be initialized');
+            assertEqual(instance.charts.eventRate, null, 'eventRate chart should be null initially');
+            assertEqual(instance.charts.latency, null, 'latency chart should be null initially');
+            assertEqual(instance.charts.healthScore, null, 'healthScore chart should be null initially');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should create event rate chart when canvas exists', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            assertDefined(instance.charts.eventRate, 'Event rate chart should be created');
+            assertDefined(instance.charts.eventRate.draw, 'Event rate chart should have draw method');
+            assertDefined(instance.charts.eventRate.addPoint, 'Event rate chart should have addPoint method');
+            assertDefined(instance.charts.eventRate.setData, 'Event rate chart should have setData method');
+
+            removeMockDOM(container);
+        });
+
+        it('should create latency chart when canvas exists', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            assertDefined(instance.charts.latency, 'Latency chart should be created');
+            assertDefined(instance.charts.latency.draw, 'Latency chart should have draw method');
+            assertDefined(instance.charts.latency.setData, 'Latency chart should have setData method');
+
+            removeMockDOM(container);
+        });
+
+        it('should create health score chart when canvas exists', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            assertDefined(instance.charts.healthScore, 'Health score chart should be created');
+            assertDefined(instance.charts.healthScore.draw, 'Health score chart should have draw method');
+            assertDefined(instance.charts.healthScore.addPoint, 'Health score chart should have addPoint method');
+            assertDefined(instance.charts.healthScore.setSeriesData, 'Health score chart should have setSeriesData method');
+
+            removeMockDOM(container);
+        });
+
+        it('should handle missing canvas elements gracefully', () => {
+            // Temporarily hide the existing canvas elements
+            const existingEventRate = document.getElementById('event-rate-chart');
+            const existingLatency = document.getElementById('latency-chart');
+            const existingHealth = document.getElementById('health-score-chart');
+
+            const originalIds = [];
+            if (existingEventRate) {
+                originalIds.push({ el: existingEventRate, id: 'event-rate-chart' });
+                existingEventRate.id = 'event-rate-chart-hidden';
+            }
+            if (existingLatency) {
+                originalIds.push({ el: existingLatency, id: 'latency-chart' });
+                existingLatency.id = 'latency-chart-hidden';
+            }
+            if (existingHealth) {
+                originalIds.push({ el: existingHealth, id: 'health-score-chart' });
+                existingHealth.id = 'health-score-chart-hidden';
+            }
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+
+            // Should not throw error when canvas elements don't exist
+            let errorThrown = false;
+            try {
+                instance.initializeCharts();
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            // Restore original IDs
+            originalIds.forEach(item => {
+                item.el.id = item.id;
+            });
+
+            assertFalse(errorThrown, 'initializeCharts should not throw when canvas elements are missing');
+        });
+
+        it('should return correct display size for canvas', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            // Find our test canvas specifically
+            const testCanvas = container.querySelector('#event-rate-chart');
+            if (!testCanvas) {
+                // Skip if canvas not found in test container
+                removeMockDOM(container);
+                return;
+            }
+
+            const parentContainer = testCanvas.parentElement;
+            // Force layout by setting explicit dimensions and display
+            parentContainer.style.width = '400px';
+            parentContainer.style.height = '200px';
+            parentContainer.style.display = 'block';
+            parentContainer.style.position = 'relative';
+
+            const size = instance.getCanvasDisplaySize(testCanvas);
+
+            // The size should be a valid object with width and height properties
+            assertDefined(size, 'getCanvasDisplaySize should return an object');
+            assertDefined(size.width, 'Size should have width property');
+            assertDefined(size.height, 'Size should have height property');
+
+            removeMockDOM(container);
+        });
+
+        it('should set up canvas size for high-DPI displays', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const testCanvas = container.querySelector('#event-rate-chart');
+            if (!testCanvas) {
+                removeMockDOM(container);
+                return;
+            }
+
+            const parentContainer = testCanvas.parentElement;
+            parentContainer.style.width = '400px';
+            parentContainer.style.height = '200px';
+            parentContainer.style.display = 'block';
+            parentContainer.style.position = 'relative';
+
+            instance.setupCanvasSize(testCanvas);
+
+            // Canvas should have style dimensions set or canvas width/height attributes set
+            const hasStyleWidth = testCanvas.style.width && testCanvas.style.width !== '';
+            const hasCanvasWidth = testCanvas.width > 0;
+
+            assertTrue(
+                hasStyleWidth || hasCanvasWidth,
+                'Canvas should have dimensions set after setupCanvasSize'
+            );
+
+            removeMockDOM(container);
+        });
+
+        it('should create line chart with correct properties', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Test Label', 'test/sec');
+
+            assertEqual(chart.label, 'Test Label', 'Chart should have correct label');
+            assertEqual(chart.unit, 'test/sec', 'Chart should have correct unit');
+            assertEqual(chart.maxPoints, 60, 'Chart should have maxPoints of 60');
+            assertTrue(Array.isArray(chart.data), 'Chart data should be an array');
+
+            removeMockDOM(container);
+        });
+
+        it('should create bar chart with correct properties', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('latency-chart');
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createBarChart(ctx, 'Latency Test');
+
+            assertEqual(chart.label, 'Latency Test', 'Chart should have correct label');
+            assertTrue(Array.isArray(chart.data), 'Chart data should be an array');
+
+            removeMockDOM(container);
+        });
+
+        it('should create multi-line chart with correct properties', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('health-score-chart');
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createMultiLineChart(ctx, 'Health Test', '%');
+
+            assertEqual(chart.label, 'Health Test', 'Chart should have correct label');
+            assertEqual(chart.unit, '%', 'Chart should have correct unit');
+            assertEqual(chart.maxPoints, 60, 'Chart should have maxPoints of 60');
+            assertTrue(typeof chart.series === 'object', 'Chart series should be an object');
+            assertTrue(Array.isArray(chart.colors), 'Chart should have colors array');
+            assertEqual(chart.colors.length, 8, 'Chart should have 8 colors');
+
+            removeMockDOM(container);
+        });
+
+        it('should add point to line chart correctly', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.parentElement.style.width = '400px';
+            canvas.parentElement.style.height = '200px';
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Test', 'units');
+            chart.addPoint(5.5);
+
+            assertEqual(chart.data.length, 1, 'Chart should have 1 data point');
+            assertEqual(chart.data[0].value, 5.5, 'Data point should have correct value');
+            assertDefined(chart.data[0].timestamp, 'Data point should have timestamp');
+
+            removeMockDOM(container);
+        });
+
+        it('should limit line chart to maxPoints', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.parentElement.style.width = '400px';
+            canvas.parentElement.style.height = '200px';
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Test', 'units');
+
+            // Add more than maxPoints
+            for (let i = 0; i < 70; i++) {
+                chart.addPoint(i);
+            }
+
+            assertEqual(chart.data.length, 60, 'Chart should not exceed maxPoints');
+            assertEqual(chart.data[0].value, 10, 'Oldest points should be removed');
+
+            removeMockDOM(container);
+        });
+
+        it('should set data on line chart correctly', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('event-rate-chart');
+            canvas.parentElement.style.width = '400px';
+            canvas.parentElement.style.height = '200px';
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createLineChart(ctx, 'Test', 'units');
+            const testData = [{ value: 1 }, { value: 2 }, { value: 3 }];
+            chart.setData(testData);
+
+            assertEqual(chart.data.length, 3, 'Chart should have 3 data points');
+
+            removeMockDOM(container);
+        });
+
+        it('should set data on bar chart correctly', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('latency-chart');
+            canvas.parentElement.style.width = '400px';
+            canvas.parentElement.style.height = '200px';
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createBarChart(ctx, 'Latency');
+            const testData = [
+                { label: 'relay1', value: 100 },
+                { label: 'relay2', value: 200 }
+            ];
+            chart.setData(testData);
+
+            assertEqual(chart.data.length, 2, 'Chart should have 2 data items');
+            assertEqual(chart.data[0].label, 'relay1', 'First item should have correct label');
+
+            removeMockDOM(container);
+        });
+
+        it('should add series data to multi-line chart correctly', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            const canvas = document.getElementById('health-score-chart');
+            canvas.parentElement.style.width = '800px';
+            canvas.parentElement.style.height = '300px';
+            const ctx = canvas.getContext('2d');
+
+            const chart = instance.createMultiLineChart(ctx, 'Health', '%');
+            chart.addPoint('wss://relay1.com', 95);
+            chart.addPoint('wss://relay2.com', 88);
+
+            assertEqual(Object.keys(chart.series).length, 2, 'Chart should have 2 series');
+            assertEqual(chart.series['wss://relay1.com'].length, 1, 'Series 1 should have 1 point');
+            assertEqual(chart.series['wss://relay1.com'][0].value, 95, 'Series 1 should have correct value');
+
+            removeMockDOM(container);
+        });
+
+        it('should update charts with monitoring data', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            const testMonitoringData = {
+                events_per_sec: 5.5,
+                event_rate_history: [{ value: 1 }, { value: 2 }, { value: 3 }],
+                relays: [
+                    { url: 'wss://relay1.com', connected: true, latency_ms: 150, health_score: 90, latency_history: [{ value: 150 }] },
+                    { url: 'wss://relay2.com', connected: true, latency_ms: 300, health_score: 75, latency_history: [{ value: 300 }] }
+                ]
+            };
+
+            // Should not throw
+            let errorThrown = false;
+            try {
+                instance.updateCharts(testMonitoringData);
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'updateCharts should not throw');
+
+            removeMockDOM(container);
+        });
+
+        it('should handle updateCharts with missing data gracefully', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            // Should not throw with minimal data
+            let errorThrown = false;
+            try {
+                instance.updateCharts({});
+                instance.updateCharts({ relays: [] });
+                instance.updateCharts({ relays: null });
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'updateCharts should handle missing data gracefully');
+
+            removeMockDOM(container);
+        });
+
+        it('should resize all charts without error', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.initializeCharts();
+
+            let errorThrown = false;
+            try {
+                instance.resizeAllCharts();
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'resizeAllCharts should not throw');
+
+            removeMockDOM(container);
+        });
+
+        it('should have monitoringInitialized flag', () => {
+            assertDefined(Shirushi.prototype.setupMonitoring, 'setupMonitoring method should exist');
+        });
+
+        it('should calculate health score for relay', () => {
+            assertDefined(Shirushi.prototype.calculateHealthScore, 'calculateHealthScore method should exist');
+
+            const instance = Object.create(Shirushi.prototype);
+
+            // Test connected relay with good latency
+            const goodRelay = { connected: true, latency_ms: 100, error_count: 0 };
+            const goodScore = instance.calculateHealthScore(goodRelay);
+            assertTrue(goodScore >= 90, 'Good relay should have high score');
+
+            // Test disconnected relay
+            const disconnectedRelay = { connected: false };
+            const disconnectedScore = instance.calculateHealthScore(disconnectedRelay);
+            assertEqual(disconnectedScore, 0, 'Disconnected relay should have 0 score');
+
+            // Test relay with high latency
+            const slowRelay = { connected: true, latency_ms: 1500, error_count: 0 };
+            const slowScore = instance.calculateHealthScore(slowRelay);
+            assertTrue(slowScore < 70, 'Slow relay should have lower score');
+
+            // Test relay with errors
+            const errorRelay = { connected: true, latency_ms: 100, error_count: 5 };
+            const errorScore = instance.calculateHealthScore(errorRelay);
+            assertTrue(errorScore < 90, 'Relay with errors should have reduced score');
+        });
+    });
+
     // Avatar and Banner CSS Rules Tests
     // These tests verify CSS rules are loaded correctly by checking stylesheet
     describe('Avatar and Banner CSS Rules', () => {

@@ -1173,29 +1173,130 @@ class Shirushi {
     }
 
     initializeCharts() {
-        // Event Rate Chart
-        const eventRateCanvas = document.getElementById('event-rate-chart');
-        if (eventRateCanvas) {
-            const ctx = eventRateCanvas.getContext('2d');
-            this.charts.eventRate = this.createLineChart(ctx, 'Event Rate', 'events/sec');
-        }
+        // Set up canvas elements with proper sizing
+        const canvasConfigs = [
+            { id: 'event-rate-chart', type: 'line', label: 'Event Rate', unit: 'events/sec' },
+            { id: 'latency-chart', type: 'bar', label: 'Latency Distribution', unit: 'ms' },
+            { id: 'health-score-chart', type: 'multiLine', label: 'Health Score', unit: '%' }
+        ];
 
-        // Latency Distribution Chart
-        const latencyCanvas = document.getElementById('latency-chart');
-        if (latencyCanvas) {
-            const ctx = latencyCanvas.getContext('2d');
-            this.charts.latency = this.createBarChart(ctx, 'Latency Distribution');
-        }
+        canvasConfigs.forEach(config => {
+            const canvas = document.getElementById(config.id);
+            if (!canvas) {
+                console.warn(`Chart canvas not found: ${config.id}`);
+                return;
+            }
 
-        // Health Score History Chart
-        const healthCanvas = document.getElementById('health-score-chart');
-        if (healthCanvas) {
-            const ctx = healthCanvas.getContext('2d');
-            this.charts.healthScore = this.createMultiLineChart(ctx, 'Health Score', '%');
+            // Set up proper canvas sizing for high-DPI displays
+            this.setupCanvasSize(canvas);
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error(`Failed to get 2D context for canvas: ${config.id}`);
+                return;
+            }
+
+            // Create the appropriate chart type
+            switch (config.type) {
+                case 'line':
+                    this.charts.eventRate = this.createLineChart(ctx, config.label, config.unit);
+                    break;
+                case 'bar':
+                    this.charts.latency = this.createBarChart(ctx, config.label);
+                    break;
+                case 'multiLine':
+                    this.charts.healthScore = this.createMultiLineChart(ctx, config.label, config.unit);
+                    break;
+            }
+        });
+
+        // Set up resize handler for responsive charts
+        this.setupChartResizeHandler();
+    }
+
+    setupCanvasSize(canvas) {
+        const container = canvas.parentElement;
+        if (!container) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = container.getBoundingClientRect();
+
+        // Set display size (CSS pixels)
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+
+        // Set actual size in memory (scaled for high-DPI)
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+
+        // Scale context to ensure correct drawing operations
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.scale(dpr, dpr);
         }
     }
 
+    setupChartResizeHandler() {
+        // Debounce resize events
+        let resizeTimeout;
+        const handleResize = () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                this.resizeAllCharts();
+            }, 250);
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        // Also handle when the monitoring tab becomes visible
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    const monitoringTab = document.getElementById('monitoring-tab');
+                    if (monitoringTab && monitoringTab.classList.contains('active')) {
+                        // Small delay to ensure layout is complete
+                        setTimeout(() => this.resizeAllCharts(), 100);
+                    }
+                }
+            });
+        });
+
+        const monitoringTab = document.getElementById('monitoring-tab');
+        if (monitoringTab) {
+            observer.observe(monitoringTab, { attributes: true });
+        }
+    }
+
+    resizeAllCharts() {
+        const canvasIds = ['event-rate-chart', 'latency-chart', 'health-score-chart'];
+
+        canvasIds.forEach(id => {
+            const canvas = document.getElementById(id);
+            if (canvas) {
+                this.setupCanvasSize(canvas);
+            }
+        });
+
+        // Redraw all charts with new sizes
+        if (this.charts.eventRate) {
+            this.charts.eventRate.draw();
+        }
+        if (this.charts.latency) {
+            this.charts.latency.draw();
+        }
+        if (this.charts.healthScore) {
+            this.charts.healthScore.draw();
+        }
+    }
+
+    getCanvasDisplaySize(canvas) {
+        // Get display size in CSS pixels (not scaled canvas size)
+        const rect = canvas.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+    }
+
     createLineChart(ctx, label, unit) {
+        const self = this;
         return {
             ctx,
             label,
@@ -1203,7 +1304,7 @@ class Shirushi {
             data: [],
             maxPoints: 60,
             draw() {
-                const { width, height } = ctx.canvas;
+                const { width, height } = self.getCanvasDisplaySize(ctx.canvas);
                 ctx.clearRect(0, 0, width, height);
 
                 if (this.data.length < 2) {
@@ -1286,12 +1387,13 @@ class Shirushi {
     }
 
     createBarChart(ctx, label) {
+        const self = this;
         return {
             ctx,
             label,
             data: [],
             draw() {
-                const { width, height } = ctx.canvas;
+                const { width, height } = self.getCanvasDisplaySize(ctx.canvas);
                 ctx.clearRect(0, 0, width, height);
 
                 if (this.data.length === 0) {
@@ -1355,6 +1457,7 @@ class Shirushi {
     }
 
     createMultiLineChart(ctx, label, unit) {
+        const self = this;
         return {
             ctx,
             label,
@@ -1363,7 +1466,7 @@ class Shirushi {
             colors: ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'],
             maxPoints: 60,
             draw() {
-                const { width, height } = ctx.canvas;
+                const { width, height } = self.getCanvasDisplaySize(ctx.canvas);
                 ctx.clearRect(0, 0, width, height);
 
                 const seriesNames = Object.keys(this.series);
