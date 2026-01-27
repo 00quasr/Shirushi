@@ -2869,6 +2869,206 @@
         });
     });
 
+    // Tests for alert() to showToast() replacement
+    describe('Alert to Toast Replacement', () => {
+        function setupToastTests() {
+            // Ensure toast container exists
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                document.body.appendChild(container);
+            }
+            // Clear any existing toasts
+            container.innerHTML = '';
+            app.toastContainer = container;
+        }
+
+        it('showEventJson should call toastInfo instead of alert', () => {
+            setupToastTests();
+            // Add a test event to the events array
+            const testEvent = { id: 'test-event-123', content: 'Test content', kind: 1 };
+            app.events = [testEvent];
+
+            // Spy on toastInfo
+            let toastInfoCalled = false;
+            let toastTitle = null;
+            let toastMessage = null;
+            const originalToastInfo = app.toastInfo.bind(app);
+            app.toastInfo = function(title, message) {
+                toastInfoCalled = true;
+                toastTitle = title;
+                toastMessage = message;
+                return originalToastInfo(title, message, 0);
+            };
+
+            app.showEventJson('test-event-123');
+
+            assertTrue(toastInfoCalled, 'toastInfo should be called');
+            assertEqual(toastTitle, 'Event JSON', 'Toast title should be "Event JSON"');
+            assertTrue(toastMessage.includes('test-event-123'), 'Toast message should contain event ID');
+            assertTrue(toastMessage.includes('Test content'), 'Toast message should contain event content');
+
+            // Restore original method
+            app.toastInfo = originalToastInfo;
+            app.events = [];
+        });
+
+        it('showEventJson should not show toast if event not found', () => {
+            setupToastTests();
+            app.events = [];
+
+            let toastInfoCalled = false;
+            const originalToastInfo = app.toastInfo.bind(app);
+            app.toastInfo = function() {
+                toastInfoCalled = true;
+                return originalToastInfo.apply(this, arguments);
+            };
+
+            app.showEventJson('non-existent-event');
+
+            assertFalse(toastInfoCalled, 'toastInfo should not be called for non-existent event');
+
+            app.toastInfo = originalToastInfo;
+        });
+
+        it('generateKeys should call toastError on API error response', async () => {
+            setupToastTests();
+            setMockFetch({ data: { error: 'Test API error' } });
+
+            let toastErrorCalled = false;
+            let errorTitle = null;
+            let errorMessage = null;
+            const originalToastError = app.toastError.bind(app);
+            app.toastError = function(title, message) {
+                toastErrorCalled = true;
+                errorTitle = title;
+                errorMessage = message;
+                return originalToastError(title, message, 0);
+            };
+
+            await app.generateKeys();
+
+            assertTrue(toastErrorCalled, 'toastError should be called');
+            assertEqual(errorTitle, 'Key Generation Error', 'Toast title should indicate key generation error');
+            assertEqual(errorMessage, 'Test API error', 'Toast message should contain the API error');
+
+            app.toastError = originalToastError;
+            restoreFetch();
+        });
+
+        it('generateKeys should call toastError on network error', async () => {
+            setupToastTests();
+            setMockFetch(null, new Error('Network failure'));
+
+            let toastErrorCalled = false;
+            let errorTitle = null;
+            let errorMessage = null;
+            const originalToastError = app.toastError.bind(app);
+            app.toastError = function(title, message) {
+                toastErrorCalled = true;
+                errorTitle = title;
+                errorMessage = message;
+                return originalToastError(title, message, 0);
+            };
+
+            await app.generateKeys();
+
+            assertTrue(toastErrorCalled, 'toastError should be called');
+            assertEqual(errorTitle, 'Key Generation Failed', 'Toast title should indicate key generation failure');
+            assertEqual(errorMessage, 'Network failure', 'Toast message should contain the error message');
+
+            app.toastError = originalToastError;
+            restoreFetch();
+        });
+
+        it('decodeNip19 should call toastError on network error', async () => {
+            setupToastTests();
+
+            // Setup DOM element
+            let inputEl = document.getElementById('nip19-input');
+            if (!inputEl) {
+                inputEl = document.createElement('input');
+                inputEl.id = 'nip19-input';
+                document.body.appendChild(inputEl);
+            }
+            inputEl.value = 'npub1test';
+
+            let resultEl = document.getElementById('nip19-result');
+            if (!resultEl) {
+                resultEl = document.createElement('div');
+                resultEl.id = 'nip19-result';
+                resultEl.classList.add('hidden');
+                document.body.appendChild(resultEl);
+            }
+
+            setMockFetch(null, new Error('Decode network error'));
+
+            let toastErrorCalled = false;
+            let errorTitle = null;
+            let errorMessage = null;
+            const originalToastError = app.toastError.bind(app);
+            app.toastError = function(title, message) {
+                toastErrorCalled = true;
+                errorTitle = title;
+                errorMessage = message;
+                return originalToastError(title, message, 0);
+            };
+
+            await app.decodeNip19();
+
+            assertTrue(toastErrorCalled, 'toastError should be called');
+            assertEqual(errorTitle, 'Decode Failed', 'Toast title should indicate decode failure');
+            assertEqual(errorMessage, 'Decode network error', 'Toast message should contain the error message');
+
+            app.toastError = originalToastError;
+            restoreFetch();
+        });
+
+        it('encodeNip19 should call toastError on network error', async () => {
+            setupToastTests();
+
+            // Setup DOM element
+            let inputEl = document.getElementById('nip19-input');
+            if (!inputEl) {
+                inputEl = document.createElement('input');
+                inputEl.id = 'nip19-input';
+                document.body.appendChild(inputEl);
+            }
+            inputEl.value = 'abcd1234';
+
+            let resultEl = document.getElementById('nip19-result');
+            if (!resultEl) {
+                resultEl = document.createElement('div');
+                resultEl.id = 'nip19-result';
+                resultEl.classList.add('hidden');
+                document.body.appendChild(resultEl);
+            }
+
+            setMockFetch(null, new Error('Encode network error'));
+
+            let toastErrorCalled = false;
+            let errorTitle = null;
+            let errorMessage = null;
+            const originalToastError = app.toastError.bind(app);
+            app.toastError = function(title, message) {
+                toastErrorCalled = true;
+                errorTitle = title;
+                errorMessage = message;
+                return originalToastError(title, message, 0);
+            };
+
+            await app.encodeNip19('npub');
+
+            assertTrue(toastErrorCalled, 'toastError should be called');
+            assertEqual(errorTitle, 'Encode Failed', 'Toast title should indicate encode failure');
+            assertEqual(errorMessage, 'Encode network error', 'Toast message should contain the error message');
+
+            app.toastError = originalToastError;
+            restoreFetch();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

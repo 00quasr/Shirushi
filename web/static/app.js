@@ -692,7 +692,7 @@ class Shirushi {
     showEventJson(eventId) {
         const event = this.events.find(e => e.id === eventId);
         if (event) {
-            alert(JSON.stringify(event, null, 2));
+            this.toastInfo('Event JSON', JSON.stringify(event, null, 2));
         }
     }
 
@@ -893,7 +893,7 @@ class Shirushi {
             const keypair = await response.json();
 
             if (keypair.error) {
-                alert(keypair.error);
+                this.toastError('Key Generation Error', keypair.error);
                 return;
             }
 
@@ -902,7 +902,7 @@ class Shirushi {
             document.getElementById('hex-pubkey-value').value = keypair.hex_pubkey;
             document.getElementById('keypair-result').classList.remove('hidden');
         } catch (error) {
-            alert('Failed to generate keys: ' + error.message);
+            this.toastError('Key Generation Failed', error.message);
         }
     }
 
@@ -932,7 +932,7 @@ class Shirushi {
                 `;
             }
         } catch (error) {
-            alert('Failed to decode: ' + error.message);
+            this.toastError('Decode Failed', error.message);
         }
     }
 
@@ -961,7 +961,7 @@ class Shirushi {
                 `;
             }
         } catch (error) {
-            alert('Failed to encode: ' + error.message);
+            this.toastError('Encode Failed', error.message);
         }
     }
 
