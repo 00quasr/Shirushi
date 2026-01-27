@@ -523,3 +523,44 @@ func TestHub_HandleClientMessage_Ping(t *testing.T) {
 	data := []byte(`{"type":"ping","data":{}}`)
 	hub.HandleClientMessage(data)
 }
+
+func TestGetNIPList_ValidCategories(t *testing.T) {
+	nips := GetNIPList()
+
+	// Valid categories that the frontend expects
+	validCategories := map[string]bool{
+		"core":       true,
+		"identity":   true,
+		"encoding":   true,
+		"encryption": true,
+		"payments":   true,
+		"dvms":       true,
+		"social":     true,
+	}
+
+	for _, nip := range nips {
+		if !validCategories[nip.Category] {
+			t.Errorf("NIP %s has invalid category '%s', expected one of: core, identity, encoding, encryption, payments, dvms, social", nip.ID, nip.Category)
+		}
+	}
+}
+
+func TestGetNIPList_CategoryDistribution(t *testing.T) {
+	nips := GetNIPList()
+
+	// Count NIPs per category to verify distribution
+	categoryCounts := make(map[string]int)
+	for _, nip := range nips {
+		categoryCounts[nip.Category]++
+	}
+
+	// Verify we have at least one category assigned
+	if len(categoryCounts) == 0 {
+		t.Error("expected at least one category in use")
+	}
+
+	// Verify core category has NIPs (it should have NIP-01 and NIP-02)
+	if categoryCounts["core"] < 1 {
+		t.Error("expected at least one NIP in 'core' category")
+	}
+}

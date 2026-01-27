@@ -712,6 +712,53 @@ main {
     margin-top: 2px;
 }
 
+/* Category Badges */
+.category-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+}
+
+.category-badge.core {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+
+.category-badge.identity {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+}
+
+.category-badge.encoding {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+}
+
+.category-badge.encryption {
+    background: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+}
+
+.category-badge.payments {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+}
+
+.category-badge.dvms {
+    background: rgba(236, 72, 153, 0.15);
+    color: #f472b6;
+}
+
+.category-badge.social {
+    background: rgba(20, 184, 166, 0.15);
+    color: #2dd4bf;
+}
+
 .test-detail h3 {
     color: var(--text-1);
     font-size: 16px;

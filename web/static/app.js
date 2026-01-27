@@ -1472,12 +1472,29 @@ class Shirushi {
         // NIP list click handler will be set up after rendering
     }
 
+    /**
+     * Get display label for a category
+     */
+    getCategoryLabel(category) {
+        const labels = {
+            'core': 'Core',
+            'identity': 'Identity',
+            'encoding': 'Encoding',
+            'encryption': 'Encryption',
+            'payments': 'Payments',
+            'dvms': 'DVMs',
+            'social': 'Social'
+        };
+        return labels[category] || category;
+    }
+
     renderNipList() {
         const container = document.getElementById('nip-test-list');
         container.innerHTML = this.nips.map(nip => `
             <div class="nip-item ${this.selectedNip === nip.id ? 'selected' : ''}" data-nip="${nip.id}">
                 <span class="nip-name">${nip.name}</span>
                 <span class="nip-title">${nip.title}</span>
+                ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
             </div>
         `).join('');
 
@@ -1582,6 +1599,7 @@ class Shirushi {
 
         container.innerHTML = `
             <h3>${nip.name}: ${nip.title}</h3>
+            ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
             <p class="nip-description">${nip.description}</p>
             <a href="${nip.specUrl}" target="_blank" class="spec-link">View Specification</a>
             ${signingModeFields}
