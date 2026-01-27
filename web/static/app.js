@@ -3839,3 +3839,4 @@ class Shirushi {
 
 // Initialize app
 const app = new Shirushi();
+window.app = app; // Expose for testing
