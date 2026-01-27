@@ -37,6 +37,51 @@
         <section id="relays-tab" class="tab-content active">
             <div class="panel">
                 <h2>Connected Relays</h2>
+                <!-- Skeleton for Relay Cards -->
+                <div id="relay-list-skeleton" class="skeleton-container skeleton-grid skeleton-grid-relays">
+                    <div class="skeleton-relay-card">
+                        <div class="skeleton-relay-header">
+                            <div class="skeleton skeleton-relay-url"></div>
+                            <div class="skeleton skeleton-relay-status"></div>
+                        </div>
+                        <div class="skeleton-relay-stats">
+                            <div class="skeleton skeleton-relay-stat"></div>
+                            <div class="skeleton skeleton-relay-stat"></div>
+                        </div>
+                        <div class="skeleton-relay-actions">
+                            <div class="skeleton skeleton-relay-btn"></div>
+                            <div class="skeleton skeleton-relay-btn"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton-relay-card">
+                        <div class="skeleton-relay-header">
+                            <div class="skeleton skeleton-relay-url"></div>
+                            <div class="skeleton skeleton-relay-status"></div>
+                        </div>
+                        <div class="skeleton-relay-stats">
+                            <div class="skeleton skeleton-relay-stat"></div>
+                            <div class="skeleton skeleton-relay-stat"></div>
+                        </div>
+                        <div class="skeleton-relay-actions">
+                            <div class="skeleton skeleton-relay-btn"></div>
+                            <div class="skeleton skeleton-relay-btn"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton-relay-card">
+                        <div class="skeleton-relay-header">
+                            <div class="skeleton skeleton-relay-url"></div>
+                            <div class="skeleton skeleton-relay-status"></div>
+                        </div>
+                        <div class="skeleton-relay-stats">
+                            <div class="skeleton skeleton-relay-stat"></div>
+                            <div class="skeleton skeleton-relay-stat"></div>
+                        </div>
+                        <div class="skeleton-relay-actions">
+                            <div class="skeleton skeleton-relay-btn"></div>
+                            <div class="skeleton skeleton-relay-btn"></div>
+                        </div>
+                    </div>
+                </div>
                 <div id="relay-list" class="relay-grid"></div>
             </div>
             <div class="panel">
@@ -64,6 +109,32 @@
                     <button id="explore-profile-btn" class="btn primary">Explore</button>
                 </div>
                 <p class="hint">Enter an npub public key or NIP-05 identifier to explore a Nostr profile</p>
+            </div>
+
+            <!-- Skeleton for Profile Card -->
+            <div id="profile-card-skeleton" class="skeleton-container skeleton-profile-card hidden">
+                <div class="skeleton skeleton-profile-banner"></div>
+                <div class="skeleton-profile-header">
+                    <div class="skeleton skeleton-avatar skeleton-profile-avatar"></div>
+                    <div class="skeleton-profile-info">
+                        <div class="skeleton skeleton-line skeleton-profile-name"></div>
+                        <div class="skeleton skeleton-line skeleton-profile-username"></div>
+                        <div class="skeleton skeleton-line skeleton-profile-pubkey"></div>
+                    </div>
+                </div>
+                <div class="skeleton-profile-body">
+                    <div class="skeleton-profile-about">
+                        <div class="skeleton skeleton-line w-full"></div>
+                        <div class="skeleton skeleton-line w-3\/4"></div>
+                        <div class="skeleton skeleton-line w-1\/2"></div>
+                    </div>
+                    <div class="skeleton-profile-stats">
+                        <div class="skeleton-profile-stat">
+                            <div class="skeleton skeleton-line skeleton-profile-stat-value"></div>
+                            <div class="skeleton skeleton-line skeleton-profile-stat-label"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="profile-card" class="profile-card hidden">
@@ -114,12 +185,82 @@
                 </div>
 
                 <div id="profile-notes-tab" class="profile-tab-content active">
+                    <!-- Skeleton for Notes List -->
+                    <div id="profile-notes-skeleton" class="skeleton-container skeleton-list">
+                        <div class="skeleton-note-card">
+                            <div class="skeleton-note-content">
+                                <div class="skeleton skeleton-line w-full"></div>
+                                <div class="skeleton skeleton-line w-3\/4"></div>
+                                <div class="skeleton skeleton-line w-1\/2"></div>
+                            </div>
+                            <div class="skeleton-note-meta">
+                                <div class="skeleton skeleton-line skeleton-note-time"></div>
+                                <div class="skeleton skeleton-line skeleton-note-id"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-note-card">
+                            <div class="skeleton-note-content">
+                                <div class="skeleton skeleton-line w-full"></div>
+                                <div class="skeleton skeleton-line w-2\/3"></div>
+                            </div>
+                            <div class="skeleton-note-meta">
+                                <div class="skeleton skeleton-line skeleton-note-time"></div>
+                                <div class="skeleton skeleton-line skeleton-note-id"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-note-card">
+                            <div class="skeleton-note-content">
+                                <div class="skeleton skeleton-line w-full"></div>
+                                <div class="skeleton skeleton-line w-full"></div>
+                                <div class="skeleton skeleton-line w-1\/3"></div>
+                            </div>
+                            <div class="skeleton-note-meta">
+                                <div class="skeleton skeleton-line skeleton-note-time"></div>
+                                <div class="skeleton skeleton-line skeleton-note-id"></div>
+                            </div>
+                        </div>
+                    </div>
                     <div id="profile-notes-list" class="profile-notes-list">
                         <p class="hint">Loading notes...</p>
                     </div>
                 </div>
 
                 <div id="profile-following-tab" class="profile-tab-content">
+                    <!-- Skeleton for Following List -->
+                    <div id="profile-following-skeleton" class="skeleton-container skeleton-list skeleton-list-sm hidden">
+                        <div class="skeleton-follow-card">
+                            <div class="skeleton skeleton-avatar skeleton-follow-avatar"></div>
+                            <div class="skeleton-follow-info">
+                                <div class="skeleton skeleton-line skeleton-follow-name"></div>
+                                <div class="skeleton skeleton-line skeleton-follow-pubkey"></div>
+                            </div>
+                            <div class="skeleton skeleton-line skeleton-follow-relay"></div>
+                        </div>
+                        <div class="skeleton-follow-card">
+                            <div class="skeleton skeleton-avatar skeleton-follow-avatar"></div>
+                            <div class="skeleton-follow-info">
+                                <div class="skeleton skeleton-line skeleton-follow-name"></div>
+                                <div class="skeleton skeleton-line skeleton-follow-pubkey"></div>
+                            </div>
+                            <div class="skeleton skeleton-line skeleton-follow-relay"></div>
+                        </div>
+                        <div class="skeleton-follow-card">
+                            <div class="skeleton skeleton-avatar skeleton-follow-avatar"></div>
+                            <div class="skeleton-follow-info">
+                                <div class="skeleton skeleton-line skeleton-follow-name"></div>
+                                <div class="skeleton skeleton-line skeleton-follow-pubkey"></div>
+                            </div>
+                            <div class="skeleton skeleton-line skeleton-follow-relay"></div>
+                        </div>
+                        <div class="skeleton-follow-card">
+                            <div class="skeleton skeleton-avatar skeleton-follow-avatar"></div>
+                            <div class="skeleton-follow-info">
+                                <div class="skeleton skeleton-line skeleton-follow-name"></div>
+                                <div class="skeleton skeleton-line skeleton-follow-pubkey"></div>
+                            </div>
+                            <div class="skeleton skeleton-line skeleton-follow-relay"></div>
+                        </div>
+                    </div>
                     <div id="profile-following-list" class="profile-following-list">
                         <p class="hint">Loading following list...</p>
                     </div>
@@ -142,6 +283,24 @@
                         <div class="zap-stat">
                             <span id="zap-top-zap" class="zap-stat-value">0</span>
                             <span class="zap-stat-label">Top Zap</span>
+                        </div>
+                    </div>
+                    <!-- Skeleton for Zaps List -->
+                    <div id="profile-zaps-skeleton" class="skeleton-container skeleton-list skeleton-list-sm hidden">
+                        <div class="skeleton-zap-card">
+                            <div class="skeleton skeleton-line skeleton-zap-amount"></div>
+                            <div class="skeleton skeleton-line skeleton-zap-sender"></div>
+                            <div class="skeleton skeleton-line skeleton-zap-time"></div>
+                        </div>
+                        <div class="skeleton-zap-card">
+                            <div class="skeleton skeleton-line skeleton-zap-amount"></div>
+                            <div class="skeleton skeleton-line skeleton-zap-sender"></div>
+                            <div class="skeleton skeleton-line skeleton-zap-time"></div>
+                        </div>
+                        <div class="skeleton-zap-card">
+                            <div class="skeleton skeleton-line skeleton-zap-amount"></div>
+                            <div class="skeleton skeleton-line skeleton-zap-sender"></div>
+                            <div class="skeleton skeleton-line skeleton-zap-time"></div>
                         </div>
                     </div>
                     <div id="profile-zaps-list" class="profile-zaps-list">
@@ -167,6 +326,47 @@
                         Auto-scroll
                     </label>
                     <button id="clear-events-btn" class="btn small">Clear</button>
+                </div>
+            </div>
+            <!-- Skeleton for Events List -->
+            <div id="event-list-skeleton" class="skeleton-container">
+                <div class="skeleton-event-card">
+                    <div class="skeleton-event-header">
+                        <div class="skeleton skeleton-event-kind"></div>
+                        <div class="skeleton skeleton-line skeleton-event-time"></div>
+                    </div>
+                    <div class="skeleton skeleton-line skeleton-event-id"></div>
+                    <div class="skeleton skeleton-line skeleton-event-author"></div>
+                    <div class="skeleton-event-content">
+                        <div class="skeleton skeleton-line w-full"></div>
+                        <div class="skeleton skeleton-line w-3\/4"></div>
+                        <div class="skeleton skeleton-line w-1\/2"></div>
+                    </div>
+                </div>
+                <div class="skeleton-event-card">
+                    <div class="skeleton-event-header">
+                        <div class="skeleton skeleton-event-kind"></div>
+                        <div class="skeleton skeleton-line skeleton-event-time"></div>
+                    </div>
+                    <div class="skeleton skeleton-line skeleton-event-id"></div>
+                    <div class="skeleton skeleton-line skeleton-event-author"></div>
+                    <div class="skeleton-event-content">
+                        <div class="skeleton skeleton-line w-full"></div>
+                        <div class="skeleton skeleton-line w-2\/3"></div>
+                    </div>
+                </div>
+                <div class="skeleton-event-card">
+                    <div class="skeleton-event-header">
+                        <div class="skeleton skeleton-event-kind"></div>
+                        <div class="skeleton skeleton-line skeleton-event-time"></div>
+                    </div>
+                    <div class="skeleton skeleton-line skeleton-event-id"></div>
+                    <div class="skeleton skeleton-line skeleton-event-author"></div>
+                    <div class="skeleton-event-content">
+                        <div class="skeleton skeleton-line w-full"></div>
+                        <div class="skeleton skeleton-line w-full"></div>
+                        <div class="skeleton skeleton-line w-1\/3"></div>
+                    </div>
                 </div>
             </div>
             <div id="event-list" class="event-stream"></div>
@@ -299,6 +499,90 @@
 
             <div class="panel">
                 <h3>Relay Health</h3>
+                <!-- Skeleton for Relay Health Cards -->
+                <div id="relay-health-skeleton" class="skeleton-container skeleton-grid skeleton-grid-health">
+                    <div class="skeleton-health-card">
+                        <div class="skeleton-health-header">
+                            <div class="skeleton skeleton-line skeleton-health-url"></div>
+                            <div class="skeleton-health-score">
+                                <div class="skeleton skeleton-line skeleton-health-score-value"></div>
+                                <div class="skeleton skeleton-line skeleton-health-score-bar"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-health-metrics">
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="skeleton-health-card">
+                        <div class="skeleton-health-header">
+                            <div class="skeleton skeleton-line skeleton-health-url"></div>
+                            <div class="skeleton-health-score">
+                                <div class="skeleton skeleton-line skeleton-health-score-value"></div>
+                                <div class="skeleton skeleton-line skeleton-health-score-bar"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-health-metrics">
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="skeleton-health-card">
+                        <div class="skeleton-health-header">
+                            <div class="skeleton skeleton-line skeleton-health-url"></div>
+                            <div class="skeleton-health-score">
+                                <div class="skeleton skeleton-line skeleton-health-score-value"></div>
+                                <div class="skeleton skeleton-line skeleton-health-score-bar"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-health-metrics">
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                            <div class="skeleton-health-metric">
+                                <div class="skeleton skeleton-line skeleton-metric-label"></div>
+                                <div class="skeleton skeleton-line skeleton-metric-value"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="relay-health-list" class="relay-health-grid">
                     <p class="hint">Loading relay health data...</p>
                 </div>

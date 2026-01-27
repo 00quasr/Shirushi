@@ -154,11 +154,15 @@ class Shirushi {
     }
 
     async loadRelays() {
+        // Show skeleton while loading
+        this.showSkeleton('relay-list-skeleton');
         try {
             const response = await fetch('/api/relays');
             this.relays = await response.json();
+            this.hideSkeleton('relay-list-skeleton');
             this.renderRelays();
         } catch (error) {
+            this.hideSkeleton('relay-list-skeleton');
             console.error('Failed to load relays:', error);
         }
     }
@@ -274,10 +278,11 @@ class Shirushi {
 
         const profileCard = document.getElementById('profile-card');
         const profileContent = document.getElementById('profile-content');
+        const profileSkeleton = document.getElementById('profile-card-skeleton');
 
-        // Show loading state
-        profileCard.classList.remove('hidden');
-        profileCard.innerHTML = '<p class="loading">Loading profile...</p>';
+        // Show skeleton loading state
+        profileCard.classList.add('hidden');
+        profileSkeleton.classList.remove('hidden');
         profileContent.classList.add('hidden');
 
         try {
@@ -289,12 +294,18 @@ class Shirushi {
 
             const profile = await response.json();
             this.currentProfile = profile;
+
+            // Hide skeleton, show actual content
+            profileSkeleton.classList.add('hidden');
+            profileCard.classList.remove('hidden');
             this.renderProfile(profile);
             profileContent.classList.remove('hidden');
 
             // Load profile notes by default
             this.loadProfileNotes(profile.pubkey);
         } catch (error) {
+            profileSkeleton.classList.add('hidden');
+            profileCard.classList.remove('hidden');
             profileCard.innerHTML = `<p class="error">${this.escapeHtml(error.message)}</p>`;
         }
     }
@@ -466,11 +477,17 @@ class Shirushi {
 
     async loadProfileNotes(pubkey) {
         const container = document.getElementById('profile-notes-list');
-        container.innerHTML = '<p class="loading">Loading notes...</p>';
+        const skeleton = document.getElementById('profile-notes-skeleton');
+
+        // Show skeleton while loading
+        this.showSkeleton('profile-notes-skeleton');
+        container.innerHTML = '';
 
         try {
             const response = await fetch(`/api/events?kind=1&author=${pubkey}&limit=20`);
             const notes = await response.json() || [];
+
+            this.hideSkeleton('profile-notes-skeleton');
 
             if (notes.length === 0) {
                 container.innerHTML = '<p class="hint">No notes found</p>';
@@ -487,18 +504,24 @@ class Shirushi {
                 </div>
             `).join('');
         } catch (error) {
+            this.hideSkeleton('profile-notes-skeleton');
             container.innerHTML = `<p class="error">Failed to load notes: ${this.escapeHtml(error.message)}</p>`;
         }
     }
 
     async loadProfileFollowing(pubkey) {
         const container = document.getElementById('profile-following-list');
-        container.innerHTML = '<p class="loading">Loading following list...</p>';
+
+        // Show skeleton while loading
+        this.showSkeleton('profile-following-skeleton');
+        container.innerHTML = '';
 
         try {
             // Query kind 3 (contact list) for this pubkey
             const response = await fetch(`/api/events?kind=3&author=${pubkey}&limit=1`);
             const events = await response.json() || [];
+
+            this.hideSkeleton('profile-following-skeleton');
 
             if (events.length === 0) {
                 container.innerHTML = '<p class="hint">No following list found</p>';
@@ -531,13 +554,17 @@ class Shirushi {
                 </div>
             `).join('');
         } catch (error) {
+            this.hideSkeleton('profile-following-skeleton');
             container.innerHTML = `<p class="error">Failed to load following: ${this.escapeHtml(error.message)}</p>`;
         }
     }
 
     async loadProfileZaps(pubkey) {
         const container = document.getElementById('profile-zaps-list');
-        container.innerHTML = '<p class="loading">Loading zap history...</p>';
+
+        // Show skeleton while loading
+        this.showSkeleton('profile-zaps-skeleton');
+        container.innerHTML = '';
 
         try {
             // Query kind 9735 (zap receipts) where this pubkey is the recipient
@@ -583,6 +610,8 @@ class Shirushi {
                 };
             });
 
+            this.hideSkeleton('profile-zaps-skeleton');
+
             // Update stats
             document.getElementById('zap-total-count').textContent = zaps.length;
             document.getElementById('zap-total-sats').textContent = totalSats.toLocaleString();
@@ -604,6 +633,7 @@ class Shirushi {
                 </div>
             `).join('');
         } catch (error) {
+            this.hideSkeleton('profile-zaps-skeleton');
             container.innerHTML = `<p class="error">Failed to load zaps: ${this.escapeHtml(error.message)}</p>`;
         }
     }
@@ -633,6 +663,9 @@ class Shirushi {
     }
 
     async loadEvents() {
+        // Show skeleton while loading
+        this.showSkeleton('event-list-skeleton');
+
         try {
             const kind = document.getElementById('filter-kind').value;
             const author = document.getElementById('filter-author').value;
@@ -643,8 +676,10 @@ class Shirushi {
 
             const response = await fetch(url);
             this.events = await response.json() || [];
+            this.hideSkeleton('event-list-skeleton');
             this.renderEvents();
         } catch (error) {
+            this.hideSkeleton('event-list-skeleton');
             console.error('Failed to load events:', error);
         }
     }
@@ -1353,15 +1388,22 @@ class Shirushi {
     }
 
     async loadMonitoringData() {
+        // Show skeleton while loading (only on first load)
+        if (!this.monitoringInitialized) {
+            this.showSkeleton('relay-health-skeleton');
+        }
+
         try {
             const response = await fetch('/api/monitoring/history');
             const data = await response.json();
 
             if (data) {
+                this.hideSkeleton('relay-health-skeleton');
                 this.monitoringData = data;
                 this.updateMonitoringUI(data);
             }
         } catch (error) {
+            this.hideSkeleton('relay-health-skeleton');
             console.error('Failed to load monitoring data:', error);
         }
     }
@@ -2355,6 +2397,29 @@ class Shirushi {
                 }
             }, 0);
         });
+    }
+
+    // Skeleton Loader Helpers
+    /**
+     * Show a skeleton loader by ID
+     * @param {string} skeletonId - The ID of the skeleton container element
+     */
+    showSkeleton(skeletonId) {
+        const skeleton = document.getElementById(skeletonId);
+        if (skeleton) {
+            skeleton.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Hide a skeleton loader by ID
+     * @param {string} skeletonId - The ID of the skeleton container element
+     */
+    hideSkeleton(skeletonId) {
+        const skeleton = document.getElementById(skeletonId);
+        if (skeleton) {
+            skeleton.classList.add('hidden');
+        }
     }
 }
 
