@@ -1196,6 +1196,64 @@
         });
     });
 
+    // Avatar and Banner CSS Rules Tests
+    // These tests verify CSS rules are loaded correctly by checking stylesheet
+    describe('Avatar and Banner CSS Rules', () => {
+        // Get CSS rules from loaded stylesheet
+        function getCssText() {
+            const sheets = document.styleSheets;
+            let cssText = '';
+            for (let i = 0; i < sheets.length; i++) {
+                try {
+                    if (sheets[i].href && sheets[i].href.includes('style.css')) {
+                        const rules = sheets[i].cssRules || sheets[i].rules;
+                        for (let j = 0; j < rules.length; j++) {
+                            cssText += rules[j].cssText + '\n';
+                        }
+                    }
+                } catch (e) {
+                    // Skip cross-origin stylesheets
+                }
+            }
+            return cssText;
+        }
+
+        it('should have profile-banner.has-image rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('profile-banner') && css.includes('has-image'), 'CSS should have profile-banner.has-image rules');
+        });
+
+        it('should have banner-pulse animation loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('banner-pulse'), 'CSS should have banner-pulse animation');
+        });
+
+        it('should have profile-avatar.loading rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('profile-avatar') && css.includes('loading'), 'CSS should have profile-avatar.loading rules');
+        });
+
+        it('should have avatar-pulse animation loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('avatar-pulse'), 'CSS should have avatar-pulse animation');
+        });
+
+        it('should have profile-avatar size variants loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('avatar-sm') || css.includes('avatar-md') || css.includes('avatar-lg'), 'CSS should have avatar size variants');
+        });
+
+        it('should have profile-avatar ring variants loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('avatar-ring'), 'CSS should have avatar-ring rules');
+        });
+
+        it('should have follow-avatar rule loaded', () => {
+            const css = getCssText();
+            assertTrue(css.includes('follow-avatar'), 'CSS should have follow-avatar rules');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
