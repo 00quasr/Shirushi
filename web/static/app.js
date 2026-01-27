@@ -1597,10 +1597,32 @@ class Shirushi {
             `;
         }
 
+        // Build related NIPs section
+        let relatedNIPsHtml = '';
+        if (nip.relatedNIPs && nip.relatedNIPs.length > 0) {
+            const relatedLinks = nip.relatedNIPs.map(relatedId => {
+                const relatedNip = this.nips.find(n => n.id === relatedId);
+                if (relatedNip) {
+                    return `<button class="related-nip-link" data-nip="${relatedId}">${relatedNip.name}</button>`;
+                }
+                return '';
+            }).filter(Boolean).join('');
+
+            if (relatedLinks) {
+                relatedNIPsHtml = `
+                    <div class="related-nips">
+                        <span class="related-nips-label">Related:</span>
+                        ${relatedLinks}
+                    </div>
+                `;
+            }
+        }
+
         container.innerHTML = `
             <h3>${nip.name}: ${nip.title}</h3>
             ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
             <p class="nip-description">${nip.description}</p>
+            ${relatedNIPsHtml}
             <a href="${nip.specUrl}" target="_blank" class="spec-link">View Specification</a>
             ${signingModeFields}
             ${formFields}
@@ -1609,6 +1631,13 @@ class Shirushi {
 
         document.getElementById('run-test-btn').addEventListener('click', () => {
             this.runTest(nip.id);
+        });
+
+        // Setup related NIP click handlers
+        container.querySelectorAll('.related-nip-link').forEach(link => {
+            link.addEventListener('click', () => {
+                this.selectNip(link.dataset.nip);
+            });
         });
 
         // Setup signing mode handlers
