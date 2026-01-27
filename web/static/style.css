@@ -712,6 +712,217 @@ main {
     margin-top: 2px;
 }
 
+/* Enhanced NIP Cards */
+.nip-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.15s ease;
+    overflow: hidden;
+}
+
+.nip-card:hover {
+    border-color: var(--bg-4);
+}
+
+.nip-card.selected {
+    border-color: var(--accent);
+    background: var(--bg-3);
+}
+
+.nip-card.expanded {
+    border-color: var(--bg-4);
+}
+
+.nip-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 12px;
+    cursor: pointer;
+    gap: 8px;
+}
+
+.nip-card-header:hover {
+    background: var(--bg-3);
+}
+
+.nip-card.selected .nip-card-header:hover {
+    background: transparent;
+}
+
+.nip-card-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.nip-card-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.nip-card-name {
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    white-space: nowrap;
+}
+
+.nip-card-title {
+    font-size: 12px;
+    color: var(--text-3);
+}
+
+.nip-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.nip-card-meta .category-badge {
+    margin-top: 0;
+}
+
+.nip-card-examples-count {
+    font-size: 10px;
+    color: var(--text-3);
+    background: var(--bg-3);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.nip-card-expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: var(--bg-3);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-3);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.nip-card-expand-btn:hover {
+    background: var(--bg-4);
+    color: var(--text-1);
+}
+
+.nip-card-expand-btn svg {
+    transition: transform 0.2s ease;
+}
+
+.nip-card-expand-btn.expanded svg {
+    transform: rotate(180deg);
+}
+
+/* Expanded card content */
+.nip-card-expanded {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease-out, padding 0.25s ease-out;
+    background: var(--bg-1);
+    border-top: 1px solid transparent;
+}
+
+.nip-card-expanded.visible {
+    max-height: 300px;
+    padding: 12px;
+    border-top-color: var(--border);
+}
+
+.nip-card-section-label {
+    font-size: 11px;
+    color: var(--text-3);
+    font-weight: 500;
+    margin-right: 6px;
+}
+
+.nip-card-kinds {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.nip-card-kind-badge {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: default;
+}
+
+.nip-card-kind-badge:hover {
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.nip-card-related {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.nip-card-related-link {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-2);
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.nip-card-related-link:hover {
+    background: var(--bg-4);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.nip-card-examples-preview {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.nip-card-examples-list {
+    font-size: 11px;
+    color: var(--text-2);
+    line-height: 1.4;
+}
+
+.nip-card-spec-link {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.nip-card-spec-link:hover {
+    color: var(--text-1);
+    text-decoration: underline;
+}
+
 /* Category Badges */
 .category-badge {
     display: inline-block;
@@ -4278,7 +4489,16 @@ main {
     }
 
     .nip-list {
-        max-height: 200px;
+        max-height: 250px;
+    }
+
+    .nip-card-expanded.visible {
+        max-height: 350px;
+    }
+
+    .nip-card-title-row {
+        flex-direction: column;
+        gap: 2px;
     }
 
     header {

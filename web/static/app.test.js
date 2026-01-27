@@ -5982,6 +5982,306 @@
         });
     });
 
+    // ========================================
+    // Enhanced NIP Cards Tests
+    // ========================================
+    describe('Enhanced NIP Cards', () => {
+        // Mock NIP data for testing
+        const mockNips = [
+            {
+                id: 'nip01',
+                name: 'NIP-01',
+                title: 'Basic Protocol',
+                description: 'Core protocol: events, signatures, subscriptions',
+                category: 'core',
+                relatedNIPs: ['nip02', 'nip05'],
+                eventKinds: [0, 1],
+                exampleEvents: [
+                    { description: 'User Metadata (Kind 0)', json: '{"kind":0}' },
+                    { description: 'Text Note (Kind 1)', json: '{"kind":1}' }
+                ],
+                specUrl: 'https://github.com/nostr-protocol/nips/blob/master/01.md',
+                hasTest: true
+            },
+            {
+                id: 'nip02',
+                name: 'NIP-02',
+                title: 'Follow List',
+                description: 'Contact list and petname scheme',
+                category: 'core',
+                relatedNIPs: ['nip01'],
+                eventKinds: [3],
+                exampleEvents: [],
+                specUrl: 'https://github.com/nostr-protocol/nips/blob/master/02.md',
+                hasTest: true
+            },
+            {
+                id: 'nip19',
+                name: 'NIP-19',
+                title: 'Bech32 Encoding',
+                description: 'bech32-encoded entities',
+                category: 'encoding',
+                relatedNIPs: [],
+                eventKinds: [],
+                exampleEvents: [
+                    { description: 'npub example', json: 'npub1...' }
+                ],
+                specUrl: 'https://github.com/nostr-protocol/nips/blob/master/19.md',
+                hasTest: true
+            }
+        ];
+
+        // Helper to create NIP list DOM
+        function createNipListDOM() {
+            const container = document.createElement('div');
+            container.id = 'nip-test-list';
+            document.body.appendChild(container);
+        }
+
+        function removeNipListDOM() {
+            const container = document.getElementById('nip-test-list');
+            if (container) container.remove();
+        }
+
+        // Helper to create a mock Shirushi instance
+        function createMockApp() {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.nips = mockNips;
+            mockApp.selectedNip = null;
+            mockApp.expandedNipCards = new Set();
+            mockApp.getEventKindDescription = Shirushi.prototype.getEventKindDescription;
+            mockApp.getCategoryLabel = Shirushi.prototype.getCategoryLabel;
+            mockApp.renderNipCard = Shirushi.prototype.renderNipCard;
+            mockApp.renderNipList = Shirushi.prototype.renderNipList;
+            mockApp.toggleNipCardExpanded = Shirushi.prototype.toggleNipCardExpanded;
+            mockApp.selectNip = function(nipId) {
+                this.selectedNip = nipId;
+            };
+            return mockApp;
+        }
+
+        it('should render NIP cards for all NIPs', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const cards = container.querySelectorAll('.nip-card');
+
+            assertEqual(cards.length, 3, 'should render 3 NIP cards');
+            removeNipListDOM();
+        });
+
+        it('should render NIP card with correct name and title', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+
+            const name = firstCard.querySelector('.nip-card-name');
+            const title = firstCard.querySelector('.nip-card-title');
+
+            assertEqual(name.textContent, 'NIP-01', 'name should be NIP-01');
+            assertEqual(title.textContent, 'Basic Protocol', 'title should be Basic Protocol');
+            removeNipListDOM();
+        });
+
+        it('should render category badge', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const badge = firstCard.querySelector('.category-badge');
+
+            assertDefined(badge, 'category badge should exist');
+            assertTrue(badge.classList.contains('core'), 'badge should have core class');
+            removeNipListDOM();
+        });
+
+        it('should render examples count indicator when examples exist', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const examplesCount = firstCard.querySelector('.nip-card-examples-count');
+
+            assertDefined(examplesCount, 'examples count should exist');
+            assertTrue(examplesCount.textContent.includes('2'), 'should show 2 examples');
+            removeNipListDOM();
+        });
+
+        it('should render expand button for cards with expandable content', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const expandBtn = firstCard.querySelector('.nip-card-expand-btn');
+
+            assertDefined(expandBtn, 'expand button should exist for NIP-01');
+            removeNipListDOM();
+        });
+
+        it('should render event kind badges in expanded content', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.expandedNipCards.add('nip01');
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const kindBadges = firstCard.querySelectorAll('.nip-card-kind-badge');
+
+            assertEqual(kindBadges.length, 2, 'should render 2 event kind badges');
+            assertEqual(kindBadges[0].textContent, 'Kind 0', 'first badge should be Kind 0');
+            assertEqual(kindBadges[1].textContent, 'Kind 1', 'second badge should be Kind 1');
+            removeNipListDOM();
+        });
+
+        it('should render related NIP links in expanded content', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.expandedNipCards.add('nip01');
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const relatedLinks = firstCard.querySelectorAll('.nip-card-related-link');
+
+            assertEqual(relatedLinks.length, 2, 'should render 2 related NIP links');
+            removeNipListDOM();
+        });
+
+        it('should render spec link in expanded content', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.expandedNipCards.add('nip01');
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const specLink = firstCard.querySelector('.nip-card-spec-link');
+
+            assertDefined(specLink, 'spec link should exist');
+            assertEqual(specLink.getAttribute('href'), 'https://github.com/nostr-protocol/nips/blob/master/01.md', 'spec link should have correct href');
+            removeNipListDOM();
+        });
+
+        it('should toggle expanded state on expand button click', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const expandedContent = firstCard.querySelector('.nip-card-expanded');
+
+            assertFalse(expandedContent.classList.contains('visible'), 'expanded content should be hidden initially');
+
+            // Simulate toggle
+            mockApp.toggleNipCardExpanded(firstCard, 'nip01');
+
+            assertTrue(mockApp.expandedNipCards.has('nip01'), 'nip01 should be in expanded set');
+            assertTrue(firstCard.classList.contains('expanded'), 'card should have expanded class');
+            assertTrue(expandedContent.classList.contains('visible'), 'expanded content should be visible');
+
+            // Toggle again to collapse
+            mockApp.toggleNipCardExpanded(firstCard, 'nip01');
+
+            assertFalse(mockApp.expandedNipCards.has('nip01'), 'nip01 should not be in expanded set');
+            assertFalse(firstCard.classList.contains('expanded'), 'card should not have expanded class');
+            assertFalse(expandedContent.classList.contains('visible'), 'expanded content should be hidden');
+
+            removeNipListDOM();
+        });
+
+        it('should mark selected card with selected class', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.selectedNip = 'nip01';
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const secondCard = container.querySelector('.nip-card[data-nip="nip02"]');
+
+            assertTrue(firstCard.classList.contains('selected'), 'nip01 card should be selected');
+            assertFalse(secondCard.classList.contains('selected'), 'nip02 card should not be selected');
+            removeNipListDOM();
+        });
+
+        it('should not render expand button for cards without expandable content', () => {
+            createNipListDOM();
+            // Create NIP with no expandable content
+            const mockApp = createMockApp();
+            mockApp.nips = [{
+                id: 'nip99',
+                name: 'NIP-99',
+                title: 'Test NIP',
+                description: 'Test',
+                category: null,
+                relatedNIPs: [],
+                eventKinds: [],
+                exampleEvents: [],
+                specUrl: 'https://example.com',
+                hasTest: false
+            }];
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const card = container.querySelector('.nip-card[data-nip="nip99"]');
+            const expandBtn = card.querySelector('.nip-card-expand-btn');
+
+            assertEqual(expandBtn, null, 'expand button should not exist for card without expandable content');
+            removeNipListDOM();
+        });
+
+        it('should render examples preview in expanded content', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.expandedNipCards.add('nip01');
+            mockApp.renderNipList();
+
+            const container = document.getElementById('nip-test-list');
+            const firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+            const examplesPreview = firstCard.querySelector('.nip-card-examples-preview');
+            const examplesList = firstCard.querySelector('.nip-card-examples-list');
+
+            assertDefined(examplesPreview, 'examples preview should exist');
+            assertTrue(examplesList.textContent.includes('User Metadata'), 'should include first example description');
+            assertTrue(examplesList.textContent.includes('Text Note'), 'should include second example description');
+            removeNipListDOM();
+        });
+
+        it('should preserve expanded state across re-renders', () => {
+            createNipListDOM();
+            const mockApp = createMockApp();
+            mockApp.expandedNipCards.add('nip01');
+            mockApp.renderNipList();
+
+            let container = document.getElementById('nip-test-list');
+            let firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+
+            assertTrue(firstCard.classList.contains('expanded'), 'card should be expanded initially');
+
+            // Re-render
+            mockApp.renderNipList();
+
+            container = document.getElementById('nip-test-list');
+            firstCard = container.querySelector('.nip-card[data-nip="nip01"]');
+
+            assertTrue(firstCard.classList.contains('expanded'), 'card should remain expanded after re-render');
+            removeNipListDOM();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

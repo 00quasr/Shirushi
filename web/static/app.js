@@ -10,6 +10,7 @@ class Shirushi {
         this.commandHistory = [];
         this.historyIndex = -1;
         this.selectedNip = null;
+        this.expandedNipCards = new Set();
 
         this.currentProfile = null;
 
@@ -1582,19 +1583,163 @@ class Shirushi {
 
     renderNipList() {
         const container = document.getElementById('nip-test-list');
-        container.innerHTML = this.nips.map(nip => `
-            <div class="nip-item ${this.selectedNip === nip.id ? 'selected' : ''}" data-nip="${nip.id}">
-                <span class="nip-name">${nip.name}</span>
-                <span class="nip-title">${nip.title}</span>
-                ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
-            </div>
-        `).join('');
+        container.innerHTML = this.nips.map(nip => this.renderNipCard(nip)).join('');
 
-        container.querySelectorAll('.nip-item').forEach(item => {
-            item.addEventListener('click', () => {
-                this.selectNip(item.dataset.nip);
+        // Setup click handlers for NIP cards
+        container.querySelectorAll('.nip-card').forEach(card => {
+            const nipId = card.dataset.nip;
+
+            // Header click selects the NIP
+            card.querySelector('.nip-card-header').addEventListener('click', (e) => {
+                // Don't select if clicking the expand button
+                if (e.target.closest('.nip-card-expand-btn')) return;
+                this.selectNip(nipId);
+            });
+
+            // Expand button toggles expanded state
+            const expandBtn = card.querySelector('.nip-card-expand-btn');
+            if (expandBtn) {
+                expandBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleNipCardExpanded(card, nipId);
+                });
+            }
+
+            // Related NIP links in the expanded view
+            card.querySelectorAll('.nip-card-related-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectNip(link.dataset.nip);
+                });
             });
         });
+    }
+
+    /**
+     * Render an enhanced NIP card with expandable details
+     * @param {Object} nip - NIP info object
+     * @returns {string} HTML string for the card
+     */
+    renderNipCard(nip) {
+        const isSelected = this.selectedNip === nip.id;
+        const isExpanded = this.expandedNipCards && this.expandedNipCards.has(nip.id);
+
+        // Build event kinds badges for expanded view
+        let eventKindsHtml = '';
+        if (nip.eventKinds && nip.eventKinds.length > 0) {
+            const kindBadges = nip.eventKinds.map(kind =>
+                `<span class="nip-card-kind-badge" title="${this.getEventKindDescription(kind)}">Kind ${kind}</span>`
+            ).join('');
+            eventKindsHtml = `
+                <div class="nip-card-kinds">
+                    <span class="nip-card-section-label">Event Kinds:</span>
+                    ${kindBadges}
+                </div>
+            `;
+        }
+
+        // Build related NIPs section for expanded view
+        let relatedNIPsHtml = '';
+        if (nip.relatedNIPs && nip.relatedNIPs.length > 0) {
+            const relatedLinks = nip.relatedNIPs.map(relatedId => {
+                const relatedNip = this.nips.find(n => n.id === relatedId);
+                if (relatedNip) {
+                    return `<button class="nip-card-related-link" data-nip="${relatedId}">${relatedNip.name}</button>`;
+                }
+                return '';
+            }).filter(Boolean).join('');
+
+            if (relatedLinks) {
+                relatedNIPsHtml = `
+                    <div class="nip-card-related">
+                        <span class="nip-card-section-label">Related:</span>
+                        ${relatedLinks}
+                    </div>
+                `;
+            }
+        }
+
+        // Build example events count indicator
+        let examplesIndicator = '';
+        if (nip.exampleEvents && nip.exampleEvents.length > 0) {
+            examplesIndicator = `<span class="nip-card-examples-count" title="${nip.exampleEvents.length} example event(s)">${nip.exampleEvents.length} example${nip.exampleEvents.length > 1 ? 's' : ''}</span>`;
+        }
+
+        // Build expanded content
+        const hasExpandableContent = (nip.eventKinds && nip.eventKinds.length > 0) ||
+                                     (nip.relatedNIPs && nip.relatedNIPs.length > 0) ||
+                                     (nip.exampleEvents && nip.exampleEvents.length > 0);
+
+        let expandedContent = '';
+        if (hasExpandableContent) {
+            expandedContent = `
+                <div class="nip-card-expanded ${isExpanded ? 'visible' : ''}">
+                    ${eventKindsHtml}
+                    ${relatedNIPsHtml}
+                    ${nip.exampleEvents && nip.exampleEvents.length > 0 ? `
+                        <div class="nip-card-examples-preview">
+                            <span class="nip-card-section-label">Examples:</span>
+                            <span class="nip-card-examples-list">${nip.exampleEvents.map(ex => ex.description).join(', ')}</span>
+                        </div>
+                    ` : ''}
+                    <a href="${nip.specUrl}" target="_blank" class="nip-card-spec-link" onclick="event.stopPropagation()">View Spec →</a>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="nip-card ${isSelected ? 'selected' : ''} ${isExpanded ? 'expanded' : ''}" data-nip="${nip.id}">
+                <div class="nip-card-header">
+                    <div class="nip-card-main">
+                        <div class="nip-card-title-row">
+                            <span class="nip-card-name">${nip.name}</span>
+                            <span class="nip-card-title">${nip.title}</span>
+                        </div>
+                        <div class="nip-card-meta">
+                            ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
+                            ${examplesIndicator}
+                        </div>
+                    </div>
+                    ${hasExpandableContent ? `
+                        <button class="nip-card-expand-btn ${isExpanded ? 'expanded' : ''}" title="${isExpanded ? 'Collapse' : 'Expand'} details">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    ` : ''}
+                </div>
+                ${expandedContent}
+            </div>
+        `;
+    }
+
+    /**
+     * Toggle the expanded state of a NIP card
+     * @param {HTMLElement} card - The card element
+     * @param {string} nipId - The NIP ID
+     */
+    toggleNipCardExpanded(card, nipId) {
+        // Initialize expanded cards set if needed
+        if (!this.expandedNipCards) {
+            this.expandedNipCards = new Set();
+        }
+
+        const expandedContent = card.querySelector('.nip-card-expanded');
+        const expandBtn = card.querySelector('.nip-card-expand-btn');
+
+        if (this.expandedNipCards.has(nipId)) {
+            // Collapse
+            this.expandedNipCards.delete(nipId);
+            card.classList.remove('expanded');
+            expandBtn.classList.remove('expanded');
+            expandedContent.classList.remove('visible');
+        } else {
+            // Expand
+            this.expandedNipCards.add(nipId);
+            card.classList.add('expanded');
+            expandBtn.classList.add('expanded');
+            expandedContent.classList.add('visible');
+        }
     }
 
     selectNip(nipId) {
