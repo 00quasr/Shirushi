@@ -61,6 +61,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/monitoring/history", s.api.HandleMonitoringHistory)
 	mux.HandleFunc("/api/monitoring/health", s.api.HandleMonitoringHealth)
 	mux.HandleFunc("/api/events", s.api.HandleEvents)
+	mux.HandleFunc("/api/events/thread/", s.api.HandleThread)
 	mux.HandleFunc("/api/events/subscribe", s.api.HandleEventSubscribe)
 	mux.HandleFunc("/api/nips", s.api.HandleNIPs)
 	mux.HandleFunc("/api/test/", s.api.HandleTest)

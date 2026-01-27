@@ -23,6 +23,8 @@ type RelayPool interface {
 	Stats() map[string]types.RelayStats
 	Count() int
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
+	QueryEventsByIDs(ids []string) ([]types.Event, error)
+	QueryEventReplies(eventID string) ([]types.Event, error)
 	Subscribe(kinds []int, authors []string, callback func(types.Event)) string
 	MonitoringData() *types.MonitoringData
 }
@@ -682,4 +684,233 @@ func (a *API) HandleEventPublish(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"relay":   connectedRelays[0],
 	})
+}
+
+// HandleThread fetches a thread for a given event ID (NIP-10).
+// Path: /api/events/thread/{eventId}
+func (a *API) HandleThread(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Extract event ID from URL path: /api/events/thread/{eventId}
+	path := strings.TrimPrefix(r.URL.Path, "/api/events/thread/")
+	eventID := strings.TrimSpace(path)
+
+	if eventID == "" {
+		writeError(w, http.StatusBadRequest, "event ID is required in path")
+		return
+	}
+
+	// Validate event ID format (should be 64 hex characters)
+	if len(eventID) != 64 {
+		writeError(w, http.StatusBadRequest, "event ID must be a 64-character hex string")
+		return
+	}
+	for _, c := range eventID {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			writeError(w, http.StatusBadRequest, "event ID must be a valid hex string")
+			return
+		}
+	}
+
+	// Build the thread
+	thread, err := a.buildThread(eventID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to build thread: "+err.Error())
+		return
+	}
+
+	writeJSON(w, thread)
+}
+
+// buildThread constructs a thread starting from a given event ID.
+// It fetches the target event, finds the root via "e" tags with "root" marker,
+// and then fetches all replies to build the tree structure.
+func (a *API) buildThread(eventID string) (*types.Thread, error) {
+	thread := &types.Thread{
+		TargetID: eventID,
+		Events:   []types.ThreadEvent{},
+	}
+
+	// Fetch the target event
+	events, err := a.relayPool.QueryEventsByIDs([]string{eventID})
+	if err != nil {
+		return nil, err
+	}
+	if len(events) == 0 {
+		return nil, fmt.Errorf("event not found")
+	}
+
+	targetEvent := events[0]
+
+	// Parse NIP-10 tags to find root and reply references
+	rootID, replyID := parseNIP10Tags(targetEvent.Tags)
+
+	// If no root is found, this event IS the root
+	if rootID == "" {
+		rootID = eventID
+	}
+
+	// Collect all event IDs we need to fetch (ancestors)
+	ancestorIDs := make(map[string]bool)
+	if rootID != eventID {
+		ancestorIDs[rootID] = true
+	}
+	if replyID != "" && replyID != eventID && replyID != rootID {
+		ancestorIDs[replyID] = true
+	}
+
+	// Fetch ancestors if any
+	var ancestors []types.Event
+	if len(ancestorIDs) > 0 {
+		ids := make([]string, 0, len(ancestorIDs))
+		for id := range ancestorIDs {
+			ids = append(ids, id)
+		}
+		ancestors, _ = a.relayPool.QueryEventsByIDs(ids)
+	}
+
+	// Fetch replies to the root (to build the thread)
+	replies, _ := a.relayPool.QueryEventReplies(rootID)
+
+	// Also fetch replies to the target event if it's not the root
+	if eventID != rootID {
+		targetReplies, _ := a.relayPool.QueryEventReplies(eventID)
+		replies = append(replies, targetReplies...)
+	}
+
+	// Build a map of all events
+	eventMap := make(map[string]types.Event)
+	eventMap[targetEvent.ID] = targetEvent
+	for _, e := range ancestors {
+		eventMap[e.ID] = e
+	}
+	for _, e := range replies {
+		eventMap[e.ID] = e
+	}
+
+	// Build parent-child relationships
+	children := make(map[string][]string) // parentID -> []childID
+	parents := make(map[string]string)    // childID -> parentID
+	eventRoots := make(map[string]string) // eventID -> rootID
+
+	for id, event := range eventMap {
+		eRoot, eReply := parseNIP10Tags(event.Tags)
+		if eRoot != "" {
+			eventRoots[id] = eRoot
+		} else {
+			eventRoots[id] = id // It's a root
+		}
+
+		// Determine parent
+		parentID := eReply
+		if parentID == "" && eRoot != "" {
+			parentID = eRoot
+		}
+
+		if parentID != "" && parentID != id {
+			parents[id] = parentID
+			children[parentID] = append(children[parentID], id)
+		}
+	}
+
+	// Calculate depths using BFS from root
+	depths := make(map[string]int)
+	depths[rootID] = 0
+	queue := []string{rootID}
+	maxDepth := 0
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		currentDepth := depths[current]
+		if currentDepth > maxDepth {
+			maxDepth = currentDepth
+		}
+
+		for _, childID := range children[current] {
+			if _, visited := depths[childID]; !visited {
+				depths[childID] = currentDepth + 1
+				queue = append(queue, childID)
+			}
+		}
+	}
+
+	// Convert to ThreadEvent slice, sorted by timestamp
+	var threadEvents []types.ThreadEvent
+	for id, event := range eventMap {
+		depth := depths[id]
+		if depth == 0 && id != rootID {
+			depth = 1 // Default to 1 if not reachable from root
+		}
+
+		te := types.ThreadEvent{
+			Event:      event,
+			Depth:      depth,
+			IsRoot:     id == rootID,
+			ParentID:   parents[id],
+			RootID:     eventRoots[id],
+			ReplyCount: len(children[id]),
+		}
+		threadEvents = append(threadEvents, te)
+
+		if id == rootID {
+			thread.RootEvent = &te
+		}
+	}
+
+	// Sort by timestamp (oldest first for thread display)
+	for i := 0; i < len(threadEvents)-1; i++ {
+		for j := i + 1; j < len(threadEvents); j++ {
+			if threadEvents[i].CreatedAt > threadEvents[j].CreatedAt {
+				threadEvents[i], threadEvents[j] = threadEvents[j], threadEvents[i]
+			}
+		}
+	}
+
+	thread.Events = threadEvents
+	thread.TotalSize = len(threadEvents)
+	thread.MaxDepth = maxDepth
+
+	return thread, nil
+}
+
+// parseNIP10Tags extracts root and reply event IDs from NIP-10 formatted tags.
+// Returns (rootID, replyID)
+func parseNIP10Tags(tags [][]string) (string, string) {
+	var rootID, replyID string
+	var eTags [][]string
+
+	// Collect all "e" tags
+	for _, tag := range tags {
+		if len(tag) >= 2 && tag[0] == "e" {
+			eTags = append(eTags, tag)
+		}
+	}
+
+	// Look for marked tags first (NIP-10 preferred method)
+	for _, tag := range eTags {
+		if len(tag) >= 4 {
+			marker := tag[3]
+			switch marker {
+			case "root":
+				rootID = tag[1]
+			case "reply":
+				replyID = tag[1]
+			}
+		}
+	}
+
+	// Fall back to positional method if no markers found
+	if rootID == "" && replyID == "" && len(eTags) > 0 {
+		// Deprecated positional method: first = root, last = reply
+		rootID = eTags[0][1]
+		if len(eTags) > 1 {
+			replyID = eTags[len(eTags)-1][1]
+		}
+	}
+
+	return rootID, replyID
 }

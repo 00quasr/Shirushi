@@ -87,6 +87,8 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
 	events         []types.Event
+	eventsByID     map[string]types.Event
+	repliesMap     map[string][]types.Event
 	err            error
 	monitoringData *types.MonitoringData
 }
@@ -101,6 +103,27 @@ func (m *mockRelayPool) Subscribe(kinds []int, authors []string, callback func(t
 }
 func (m *mockRelayPool) QueryEvents(kindStr, author, limitStr string) ([]types.Event, error) {
 	return m.events, m.err
+}
+func (m *mockRelayPool) QueryEventsByIDs(ids []string) ([]types.Event, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	var events []types.Event
+	for _, id := range ids {
+		if event, ok := m.eventsByID[id]; ok {
+			events = append(events, event)
+		}
+	}
+	return events, nil
+}
+func (m *mockRelayPool) QueryEventReplies(eventID string) ([]types.Event, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.repliesMap != nil {
+		return m.repliesMap[eventID], nil
+	}
+	return nil, nil
 }
 func (m *mockRelayPool) MonitoringData() *types.MonitoringData {
 	return m.monitoringData
@@ -1468,5 +1491,351 @@ func TestHandleProfile_SpecialCharactersInContent(t *testing.T) {
 	expectedAbout := "Hello! 👋 This is a test with \"quotes\" and <html> & symbols"
 	if profile.About != expectedAbout {
 		t.Errorf("expected about '%s', got '%s'", expectedAbout, profile.About)
+	}
+}
+
+// Tests for HandleThread endpoint (NIP-10)
+
+func TestHandleThread_Success(t *testing.T) {
+	rootEventID := "1111111111111111111111111111111111111111111111111111111111111111"
+	replyEventID := "2222222222222222222222222222222222222222222222222222222222222222"
+
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{
+			rootEventID: {
+				ID:        rootEventID,
+				Kind:      1,
+				PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+				Content:   "This is the root post",
+				CreatedAt: 1700000000,
+				Tags:      [][]string{},
+			},
+			replyEventID: {
+				ID:        replyEventID,
+				Kind:      1,
+				PubKey:    "bbbb222222222222222222222222222222222222222222222222222222222222",
+				Content:   "This is a reply",
+				CreatedAt: 1700000100,
+				Tags: [][]string{
+					{"e", rootEventID, "wss://relay.example.com", "root"},
+				},
+			},
+		},
+		repliesMap: map[string][]types.Event{
+			rootEventID: {
+				{
+					ID:        replyEventID,
+					Kind:      1,
+					PubKey:    "bbbb222222222222222222222222222222222222222222222222222222222222",
+					Content:   "This is a reply",
+					CreatedAt: 1700000100,
+					Tags: [][]string{
+						{"e", rootEventID, "wss://relay.example.com", "root"},
+					},
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/thread/"+rootEventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var thread types.Thread
+	if err := json.NewDecoder(w.Body).Decode(&thread); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if thread.TotalSize != 2 {
+		t.Errorf("expected total_size 2, got %d", thread.TotalSize)
+	}
+
+	if thread.TargetID != rootEventID {
+		t.Errorf("expected target_id '%s', got '%s'", rootEventID, thread.TargetID)
+	}
+
+	if thread.RootEvent == nil {
+		t.Error("expected root_event to be set")
+	} else if thread.RootEvent.ID != rootEventID {
+		t.Errorf("expected root event ID '%s', got '%s'", rootEventID, thread.RootEvent.ID)
+	}
+}
+
+func TestHandleThread_MissingEventID(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/thread/", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "event ID is required in path" {
+		t.Errorf("expected error about missing event ID, got '%s'", resp["error"])
+	}
+}
+
+func TestHandleThread_InvalidEventIDLength(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/thread/tooshort", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "event ID must be a 64-character hex string" {
+		t.Errorf("expected error about event ID length, got '%s'", resp["error"])
+	}
+}
+
+func TestHandleThread_InvalidEventIDHex(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// 64 characters but contains 'g' which is not valid hex
+	req := httptest.NewRequest(http.MethodGet, "/api/events/thread/g234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "event ID must be a valid hex string" {
+		t.Errorf("expected error about invalid hex, got '%s'", resp["error"])
+	}
+}
+
+func TestHandleThread_EventNotFound(t *testing.T) {
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{}, // Empty map - event not found
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	req := httptest.NewRequest(http.MethodGet, "/api/events/thread/"+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(resp["error"], "event not found") {
+		t.Errorf("expected error about event not found, got '%s'", resp["error"])
+	}
+}
+
+func TestHandleThread_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	req := httptest.NewRequest(http.MethodPost, "/api/events/thread/"+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleThread_ReplyEvent(t *testing.T) {
+	// Test loading a thread from a reply event (should find the root)
+	rootEventID := "1111111111111111111111111111111111111111111111111111111111111111"
+	replyEventID := "2222222222222222222222222222222222222222222222222222222222222222"
+
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{
+			rootEventID: {
+				ID:        rootEventID,
+				Kind:      1,
+				PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+				Content:   "This is the root post",
+				CreatedAt: 1700000000,
+				Tags:      [][]string{},
+			},
+			replyEventID: {
+				ID:        replyEventID,
+				Kind:      1,
+				PubKey:    "bbbb222222222222222222222222222222222222222222222222222222222222",
+				Content:   "This is a reply",
+				CreatedAt: 1700000100,
+				Tags: [][]string{
+					{"e", rootEventID, "wss://relay.example.com", "root"},
+				},
+			},
+		},
+		repliesMap: map[string][]types.Event{
+			rootEventID: {
+				{
+					ID:        replyEventID,
+					Kind:      1,
+					PubKey:    "bbbb222222222222222222222222222222222222222222222222222222222222",
+					Content:   "This is a reply",
+					CreatedAt: 1700000100,
+					Tags: [][]string{
+						{"e", rootEventID, "wss://relay.example.com", "root"},
+					},
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Query for the reply event
+	req := httptest.NewRequest(http.MethodGet, "/api/events/thread/"+replyEventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleThread(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var thread types.Thread
+	if err := json.NewDecoder(w.Body).Decode(&thread); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Should include the reply event in the thread
+	if thread.TargetID != replyEventID {
+		t.Errorf("expected target_id '%s', got '%s'", replyEventID, thread.TargetID)
+	}
+
+	// Should have found root and reply
+	if thread.TotalSize < 1 {
+		t.Errorf("expected at least 1 event, got %d", thread.TotalSize)
+	}
+}
+
+func TestParseNIP10Tags_MarkedTags(t *testing.T) {
+	// Test parsing NIP-10 marked tags (preferred method)
+	tags := [][]string{
+		{"e", "rootid123", "wss://relay.example.com", "root"},
+		{"e", "replyid456", "wss://relay.example.com", "reply"},
+		{"p", "pubkey789"},
+	}
+
+	rootID, replyID := parseNIP10Tags(tags)
+
+	if rootID != "rootid123" {
+		t.Errorf("expected rootID 'rootid123', got '%s'", rootID)
+	}
+	if replyID != "replyid456" {
+		t.Errorf("expected replyID 'replyid456', got '%s'", replyID)
+	}
+}
+
+func TestParseNIP10Tags_PositionalMethod(t *testing.T) {
+	// Test parsing NIP-10 tags using deprecated positional method
+	// First e tag = root, last e tag = reply
+	tags := [][]string{
+		{"e", "rootid123"},
+		{"e", "middleid789"},
+		{"e", "replyid456"},
+		{"p", "pubkey789"},
+	}
+
+	rootID, replyID := parseNIP10Tags(tags)
+
+	if rootID != "rootid123" {
+		t.Errorf("expected rootID 'rootid123' (positional), got '%s'", rootID)
+	}
+	if replyID != "replyid456" {
+		t.Errorf("expected replyID 'replyid456' (positional), got '%s'", replyID)
+	}
+}
+
+func TestParseNIP10Tags_SingleETag(t *testing.T) {
+	// Test parsing with single e tag (both root and reply are the same)
+	tags := [][]string{
+		{"e", "onlyid123"},
+		{"p", "pubkey789"},
+	}
+
+	rootID, replyID := parseNIP10Tags(tags)
+
+	if rootID != "onlyid123" {
+		t.Errorf("expected rootID 'onlyid123', got '%s'", rootID)
+	}
+	// With only one e tag, there's no separate reply
+	if replyID != "" {
+		t.Errorf("expected empty replyID with single e tag, got '%s'", replyID)
+	}
+}
+
+func TestParseNIP10Tags_NoETags(t *testing.T) {
+	// Test with no e tags (root event)
+	tags := [][]string{
+		{"p", "pubkey789"},
+		{"t", "nostr"},
+	}
+
+	rootID, replyID := parseNIP10Tags(tags)
+
+	if rootID != "" {
+		t.Errorf("expected empty rootID, got '%s'", rootID)
+	}
+	if replyID != "" {
+		t.Errorf("expected empty replyID, got '%s'", replyID)
+	}
+}
+
+func TestParseNIP10Tags_MixedMarkers(t *testing.T) {
+	// Test with only root marker (direct reply to root)
+	tags := [][]string{
+		{"e", "rootid123", "wss://relay.example.com", "root"},
+		{"p", "pubkey789"},
+	}
+
+	rootID, replyID := parseNIP10Tags(tags)
+
+	if rootID != "rootid123" {
+		t.Errorf("expected rootID 'rootid123', got '%s'", rootID)
+	}
+	// No reply marker, so replyID should be empty
+	if replyID != "" {
+		t.Errorf("expected empty replyID, got '%s'", replyID)
 	}
 }

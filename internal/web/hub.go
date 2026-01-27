@@ -250,6 +250,51 @@ func GetNIPList() []types.NIPInfo {
 			HasTest: true,
 		},
 		{
+			ID:          "nip10",
+			Name:        "NIP-10",
+			Title:       "Reply Threads",
+			Description: "Marked e and p tags for threading text notes into conversations",
+			Category:    "core",
+			RelatedNIPs: []string{"nip01"},
+			EventKinds:  []int{1},
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "Reply with marked tags (preferred)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1704067200,
+  "kind": 1,
+  "tags": [
+    ["e", "root-event-id...", "wss://relay.example.com", "root"],
+    ["e", "parent-event-id...", "wss://relay.example.com", "reply"],
+    ["p", "root-author-pubkey..."],
+    ["p", "parent-author-pubkey..."]
+  ],
+  "content": "This is a reply to a thread!",
+  "sig": "..."
+}`,
+				},
+				{
+					Description: "Top-level reply to root",
+					JSON: `{
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1704067200,
+  "kind": 1,
+  "tags": [
+    ["e", "root-event-id...", "wss://relay.example.com", "root"],
+    ["p", "root-author-pubkey..."]
+  ],
+  "content": "This is a direct reply to the root!",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/10.md",
+			HasTest: false,
+		},
+		{
 			ID:          "nip05",
 			Name:        "NIP-05",
 			Title:       "DNS Identity",

@@ -7248,6 +7248,276 @@
         });
     });
 
+    // Thread Viewer (NIP-10) Tests
+    describe('parseNIP10Tags', () => {
+        it('should parse marked e tags correctly', () => {
+            const event = {
+                id: 'event123',
+                tags: [
+                    ['e', 'rootid123', 'wss://relay.example.com', 'root'],
+                    ['e', 'replyid456', 'wss://relay.example.com', 'reply'],
+                    ['p', 'pubkey789']
+                ]
+            };
+
+            const result = app.parseNIP10Tags(event);
+
+            assertEqual(result.rootId, 'rootid123', 'Should extract root ID');
+            assertEqual(result.replyId, 'replyid456', 'Should extract reply ID');
+            assertTrue(result.hasThread, 'Should indicate event has thread');
+            assertFalse(result.isRoot, 'Should not be root when it has e tags');
+        });
+
+        it('should handle event with only root marker (direct reply)', () => {
+            const event = {
+                id: 'event123',
+                tags: [
+                    ['e', 'rootid123', 'wss://relay.example.com', 'root'],
+                    ['p', 'pubkey789']
+                ]
+            };
+
+            const result = app.parseNIP10Tags(event);
+
+            assertEqual(result.rootId, 'rootid123', 'Should extract root ID');
+            assertEqual(result.replyId, null, 'Reply ID should be null for direct reply');
+            assertTrue(result.hasThread, 'Should indicate event has thread');
+        });
+
+        it('should handle root event (no e tags)', () => {
+            const event = {
+                id: 'event123',
+                tags: [
+                    ['p', 'pubkey789'],
+                    ['t', 'nostr']
+                ]
+            };
+
+            const result = app.parseNIP10Tags(event);
+
+            assertEqual(result.rootId, null, 'Root ID should be null');
+            assertEqual(result.replyId, null, 'Reply ID should be null');
+            assertFalse(result.hasThread, 'Should not have thread');
+            assertTrue(result.isRoot, 'Should be a root event');
+        });
+
+        it('should fall back to positional method when no markers', () => {
+            const event = {
+                id: 'event123',
+                tags: [
+                    ['e', 'firstid'],
+                    ['e', 'middleid'],
+                    ['e', 'lastid']
+                ]
+            };
+
+            const result = app.parseNIP10Tags(event);
+
+            assertEqual(result.rootId, 'firstid', 'First e tag should be root (positional)');
+            assertEqual(result.replyId, 'lastid', 'Last e tag should be reply (positional)');
+            assertTrue(result.hasThread, 'Should have thread');
+        });
+
+        it('should handle event with no tags', () => {
+            const event = {
+                id: 'event123',
+                tags: null
+            };
+
+            const result = app.parseNIP10Tags(event);
+
+            assertFalse(result.hasThread, 'Should not have thread');
+            assertTrue(result.isRoot, 'Should be root');
+        });
+    });
+
+    describe('showThreadViewer', () => {
+        const testThread = {
+            target_id: 'targetEventId',
+            root_event: {
+                id: 'rootEventId',
+                kind: 1,
+                pubkey: 'rootAuthorPubkey',
+                content: 'This is the root post',
+                created_at: 1700000000,
+                is_root: true,
+                depth: 0,
+                reply_count: 1
+            },
+            events: [
+                {
+                    id: 'rootEventId',
+                    kind: 1,
+                    pubkey: 'rootAuthorPubkey',
+                    content: 'This is the root post',
+                    created_at: 1700000000,
+                    is_root: true,
+                    depth: 0,
+                    reply_count: 1
+                },
+                {
+                    id: 'replyEventId',
+                    kind: 1,
+                    pubkey: 'replyAuthorPubkey',
+                    content: 'This is a reply',
+                    created_at: 1700000100,
+                    is_root: false,
+                    depth: 1,
+                    parent_id: 'rootEventId',
+                    root_id: 'rootEventId',
+                    reply_count: 0
+                }
+            ],
+            total_size: 2,
+            max_depth: 1
+        };
+
+        it('should fetch thread data from API', async () => {
+            setMockFetch({ data: testThread });
+
+            let fetchUrl = null;
+            const originalFetch = window.fetch;
+            window.fetch = function(url) {
+                fetchUrl = url;
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve(testThread)
+                });
+            };
+
+            // Mock showModal to prevent actual modal display
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function() {
+                return Promise.resolve(null);
+            };
+
+            await app.showThreadViewer('rootEventId');
+
+            assertTrue(fetchUrl.includes('/api/events/thread/'), 'Should call thread API');
+            assertTrue(fetchUrl.includes('rootEventId'), 'Should include event ID');
+
+            app.showModal = originalShowModal;
+            window.fetch = originalFetch;
+            restoreFetch();
+        });
+
+        it('should handle API error gracefully', async () => {
+            const originalFetch = window.fetch;
+            window.fetch = function() {
+                return Promise.resolve({
+                    ok: false,
+                    json: () => Promise.resolve({ error: 'Event not found' })
+                });
+            };
+
+            let toastErrorCalled = false;
+            const originalToastError = app.toastError.bind(app);
+            app.toastError = function() {
+                toastErrorCalled = true;
+            };
+
+            try {
+                await app.showThreadViewer('nonexistentId');
+            } catch (e) {
+                // Expected
+            }
+
+            assertTrue(toastErrorCalled, 'Should show error toast on failure');
+
+            app.toastError = originalToastError;
+            window.fetch = originalFetch;
+        });
+    });
+
+    describe('renderThreadView', () => {
+        const testThread = {
+            target_id: 'replyEventId',
+            root_event: {
+                id: 'rootEventId',
+                kind: 1,
+                pubkey: 'rootAuthorPubkey1234567890abcdef1234567890abcdef12345678',
+                content: 'This is the root post',
+                created_at: 1700000000,
+                is_root: true,
+                depth: 0,
+                reply_count: 1
+            },
+            events: [
+                {
+                    id: 'rootEventId',
+                    kind: 1,
+                    pubkey: 'rootAuthorPubkey1234567890abcdef1234567890abcdef12345678',
+                    content: 'This is the root post',
+                    created_at: 1700000000,
+                    is_root: true,
+                    depth: 0,
+                    reply_count: 1
+                },
+                {
+                    id: 'replyEventId',
+                    kind: 1,
+                    pubkey: 'replyAuthorPubkey234567890abcdef1234567890abcdef12345678',
+                    content: 'This is a reply',
+                    created_at: 1700000100,
+                    is_root: false,
+                    depth: 1,
+                    parent_id: 'rootEventId',
+                    root_id: 'rootEventId',
+                    reply_count: 0
+                }
+            ],
+            total_size: 2,
+            max_depth: 1
+        };
+
+        it('should render thread info header', () => {
+            const html = app.renderThreadView(testThread, 'replyEventId');
+
+            assertTrue(html.includes('thread-info'), 'Should include thread info section');
+            assertTrue(html.includes('Max depth: 1'), 'Should show max depth');
+            assertTrue(html.includes('Events: 2'), 'Should show total events');
+        });
+
+        it('should mark target event with is-target class', () => {
+            const html = app.renderThreadView(testThread, 'replyEventId');
+
+            assertTrue(html.includes('is-target'), 'Target event should have is-target class');
+        });
+
+        it('should render root badge for root event', () => {
+            const html = app.renderThreadView(testThread, 'replyEventId');
+
+            assertTrue(html.includes('Root'), 'Root event should have Root badge');
+        });
+
+        it('should render event content', () => {
+            const html = app.renderThreadView(testThread, 'replyEventId');
+
+            assertTrue(html.includes('This is the root post'), 'Should display root event content');
+            assertTrue(html.includes('This is a reply'), 'Should display reply content');
+        });
+
+        it('should include action buttons', () => {
+            const html = app.renderThreadView(testThread, 'replyEventId');
+
+            assertTrue(html.includes('Raw JSON'), 'Should have Raw JSON button');
+            assertTrue(html.includes('View Profile'), 'Should have View Profile button');
+        });
+
+        it('should handle empty thread', () => {
+            const emptyThread = {
+                target_id: 'someId',
+                events: [],
+                total_size: 0,
+                max_depth: 0
+            };
+
+            const html = app.renderThreadView(emptyThread, 'someId');
+
+            assertTrue(html.includes('No events'), 'Should show no events message');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

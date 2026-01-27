@@ -788,6 +788,7 @@ class Shirushi {
                 ${this.renderTagsSection(event)}
                 <div class="event-actions">
                     <button class="btn small" onclick="app.showEventJson('${event.id}')">Raw JSON</button>
+                    <button class="btn small" onclick="app.showThreadViewer('${event.id}')">View Thread</button>
                     <button class="btn small" onclick="app.exploreProfileByPubkey('${event.pubkey}')">View Profile</button>
                 </div>
             </div>
@@ -3833,6 +3834,275 @@ class Shirushi {
         const skeleton = document.getElementById(skeletonId);
         if (skeleton) {
             skeleton.classList.add('hidden');
+        }
+    }
+
+    // Thread Viewer (NIP-10)
+
+    /**
+     * Check if an event has NIP-10 thread markers (e tags with root/reply)
+     * @param {Object} event - The Nostr event
+     * @returns {Object} - { hasThread, isRoot, rootId, replyId }
+     */
+    parseNIP10Tags(event) {
+        if (!event.tags) return { hasThread: false, isRoot: true };
+
+        const eTags = event.tags.filter(tag => tag[0] === 'e');
+        if (eTags.length === 0) return { hasThread: false, isRoot: true };
+
+        let rootId = null;
+        let replyId = null;
+
+        // Look for marked tags (NIP-10 preferred method)
+        for (const tag of eTags) {
+            if (tag.length >= 4) {
+                const marker = tag[3];
+                if (marker === 'root') rootId = tag[1];
+                if (marker === 'reply') replyId = tag[1];
+            }
+        }
+
+        // Fall back to positional method if no markers
+        if (!rootId && !replyId && eTags.length > 0) {
+            rootId = eTags[0][1];
+            if (eTags.length > 1) {
+                replyId = eTags[eTags.length - 1][1];
+            }
+        }
+
+        return {
+            hasThread: eTags.length > 0,
+            isRoot: !rootId && !replyId,
+            rootId,
+            replyId
+        };
+    }
+
+    /**
+     * Show the thread viewer modal for an event
+     * @param {string} eventId - The event ID to show thread for
+     */
+    async showThreadViewer(eventId) {
+        await this.withLoading('thread-viewer', async () => {
+            const response = await fetch(`/api/events/thread/${encodeURIComponent(eventId)}`);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to load thread');
+            }
+
+            const thread = await response.json();
+
+            if (thread.events.length === 0) {
+                throw new Error('No events found in thread');
+            }
+
+            const modalBody = this.renderThreadView(thread, eventId);
+
+            await this.showModal({
+                title: `Thread (${thread.total_size} events)`,
+                body: modalBody,
+                size: 'lg',
+                buttons: [
+                    { text: 'Close', type: 'primary', value: null }
+                ]
+            });
+
+            // Attach event handlers after modal is shown
+            this.attachThreadEventHandlers();
+
+        }, {
+            showErrorToast: true
+        });
+    }
+
+    /**
+     * Render the thread view HTML
+     * @param {Object} thread - Thread data from API
+     * @param {string} targetEventId - The event that was clicked to open thread
+     * @returns {string} - HTML string
+     */
+    renderThreadView(thread, targetEventId) {
+        if (thread.events.length === 0) {
+            return '<p class="hint">No events in thread.</p>';
+        }
+
+        // Build parent-child relationships for tree view
+        const childrenMap = new Map();
+        const eventMap = new Map();
+
+        for (const event of thread.events) {
+            eventMap.set(event.id, event);
+            if (event.parent_id) {
+                if (!childrenMap.has(event.parent_id)) {
+                    childrenMap.set(event.parent_id, []);
+                }
+                childrenMap.get(event.parent_id).push(event);
+            }
+        }
+
+        // Sort children by timestamp
+        for (const [parentId, children] of childrenMap) {
+            children.sort((a, b) => a.created_at - b.created_at);
+        }
+
+        // Find root events (events without parents in our set)
+        const rootEvents = thread.events.filter(e => !e.parent_id || !eventMap.has(e.parent_id));
+        rootEvents.sort((a, b) => a.created_at - b.created_at);
+
+        // Render tree recursively
+        const renderEventNode = (event, depth = 0) => {
+            const isTarget = event.id === targetEventId;
+            const children = childrenMap.get(event.id) || [];
+            const indent = Math.min(depth, 5); // Cap indent at 5 levels
+
+            const authorShort = event.pubkey.substring(0, 8);
+            const contentPreview = event.content.length > 280
+                ? event.content.substring(0, 280) + '...'
+                : event.content;
+
+            const badges = [];
+            if (event.is_root) badges.push('<span class="thread-badge root">Root</span>');
+            if (isTarget) badges.push('<span class="thread-badge target">Target</span>');
+            if (event.reply_count > 0) badges.push(`<span class="thread-badge replies">${event.reply_count} replies</span>`);
+
+            let html = `
+                <div class="thread-event ${isTarget ? 'is-target' : ''}"
+                     style="--thread-depth: ${indent};"
+                     data-event-id="${event.id}">
+                    <div class="thread-event-header">
+                        <span class="thread-author" data-pubkey="${event.pubkey}">
+                            ${authorShort}...
+                        </span>
+                        <span class="thread-time">${this.formatTime(event.created_at)}</span>
+                        ${badges.join('')}
+                    </div>
+                    <div class="thread-event-content">${this.escapeHtml(contentPreview)}</div>
+                    <div class="thread-event-actions">
+                        <button class="btn small" data-thread-json="${event.id}">Raw JSON</button>
+                        <button class="btn small" data-thread-profile="${event.pubkey}">View Profile</button>
+                    </div>
+                </div>
+            `;
+
+            // Render children recursively
+            if (children.length > 0) {
+                html += `<div class="thread-children">`;
+                for (const child of children) {
+                    html += renderEventNode(child, depth + 1);
+                }
+                html += `</div>`;
+            }
+
+            return html;
+        };
+
+        let html = '<div class="thread-container">';
+
+        // Thread info header
+        html += `
+            <div class="thread-info">
+                <span>Max depth: ${thread.max_depth}</span>
+                <span>Events: ${thread.total_size}</span>
+            </div>
+        `;
+
+        // Render from roots
+        for (const rootEvent of rootEvents) {
+            html += renderEventNode(rootEvent, 0);
+        }
+
+        html += '</div>';
+
+        return html;
+    }
+
+    /**
+     * Attach event handlers for thread viewer elements
+     */
+    attachThreadEventHandlers() {
+        const modalBody = document.getElementById('modal-body');
+        if (!modalBody) return;
+
+        // Raw JSON buttons
+        modalBody.querySelectorAll('[data-thread-json]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const eventId = btn.dataset.threadJson;
+                // Find the event in the thread container
+                const eventEl = modalBody.querySelector(`[data-event-id="${eventId}"]`);
+                if (eventEl) {
+                    // Fetch and show the event JSON
+                    this.showThreadEventJson(eventId);
+                }
+            });
+        });
+
+        // View Profile buttons
+        modalBody.querySelectorAll('[data-thread-profile]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const pubkey = btn.dataset.threadProfile;
+                this.closeModal();
+                this.exploreProfileByPubkey(pubkey);
+            });
+        });
+
+        // Author links
+        modalBody.querySelectorAll('[data-pubkey]').forEach(el => {
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const pubkey = el.dataset.pubkey;
+                this.closeModal();
+                this.exploreProfileByPubkey(pubkey);
+            });
+        });
+    }
+
+    /**
+     * Show JSON for an event in the thread (fetches from API)
+     * @param {string} eventId - Event ID
+     */
+    async showThreadEventJson(eventId) {
+        try {
+            const response = await fetch(`/api/events/thread/${encodeURIComponent(eventId)}`);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to load event');
+            }
+
+            const thread = await response.json();
+            const event = thread.events.find(e => e.id === eventId);
+
+            if (event) {
+                // Remove thread-specific fields for cleaner display
+                const displayEvent = {
+                    id: event.id,
+                    kind: event.kind,
+                    pubkey: event.pubkey,
+                    content: event.content,
+                    created_at: event.created_at,
+                    tags: event.tags
+                };
+
+                this.showModal({
+                    title: 'Event JSON',
+                    body: this.syntaxHighlightJson(displayEvent),
+                    size: 'lg',
+                    buttons: [
+                        { text: 'Copy', type: 'default', value: 'copy' },
+                        { text: 'Close', type: 'primary', value: null }
+                    ]
+                }).then(value => {
+                    if (value === 'copy') {
+                        navigator.clipboard.writeText(JSON.stringify(displayEvent, null, 2))
+                            .then(() => this.toastSuccess('Copied', 'JSON copied to clipboard'))
+                            .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
+                    }
+                });
+            }
+        } catch (error) {
+            this.toastError('Error', error.message || 'Failed to load event');
         }
     }
 }

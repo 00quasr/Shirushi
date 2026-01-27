@@ -277,6 +277,88 @@ func (p *Pool) MonitoringData() *types.MonitoringData {
 	return p.monitor.GetMonitoringData()
 }
 
+// QueryEventsByIDs fetches events by their IDs from connected relays.
+func (p *Pool) QueryEventsByIDs(ids []string) ([]types.Event, error) {
+	relays := p.GetConnected()
+	if len(relays) == 0 {
+		return nil, fmt.Errorf("no connected relays")
+	}
+
+	if len(ids) == 0 {
+		return []types.Event{}, nil
+	}
+
+	filter := nostr.Filter{
+		IDs:   ids,
+		Limit: len(ids),
+	}
+
+	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+	defer cancel()
+
+	var events []types.Event
+	seen := make(map[string]bool)
+	ch := p.pool.SubManyEose(ctx, relays, nostr.Filters{filter})
+
+	for ev := range ch {
+		if !seen[ev.Event.ID] {
+			seen[ev.Event.ID] = true
+			events = append(events, types.Event{
+				ID:        ev.Event.ID,
+				Kind:      ev.Event.Kind,
+				PubKey:    ev.Event.PubKey,
+				Content:   ev.Event.Content,
+				CreatedAt: int64(ev.Event.CreatedAt),
+				Tags:      convertTags(ev.Event.Tags),
+				Relay:     ev.Relay.URL,
+			})
+		}
+	}
+
+	return events, nil
+}
+
+// QueryEventReplies fetches events that reference (reply to) a given event ID.
+func (p *Pool) QueryEventReplies(eventID string) ([]types.Event, error) {
+	relays := p.GetConnected()
+	if len(relays) == 0 {
+		return nil, fmt.Errorf("no connected relays")
+	}
+
+	// Query for kind 1 events with e-tags referencing this event ID
+	filter := nostr.Filter{
+		Kinds: []int{1},
+		Tags: nostr.TagMap{
+			"e": []string{eventID},
+		},
+		Limit: 100,
+	}
+
+	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+	defer cancel()
+
+	var events []types.Event
+	seen := make(map[string]bool)
+	ch := p.pool.SubManyEose(ctx, relays, nostr.Filters{filter})
+
+	for ev := range ch {
+		if !seen[ev.Event.ID] {
+			seen[ev.Event.ID] = true
+			events = append(events, types.Event{
+				ID:        ev.Event.ID,
+				Kind:      ev.Event.Kind,
+				PubKey:    ev.Event.PubKey,
+				Content:   ev.Event.Content,
+				CreatedAt: int64(ev.Event.CreatedAt),
+				Tags:      convertTags(ev.Event.Tags),
+				Relay:     ev.Relay.URL,
+			})
+		}
+	}
+
+	return events, nil
+}
+
 // Close closes all relay connections.
 func (p *Pool) Close() {
 	p.cancel()

@@ -175,3 +175,22 @@ type HealthSummary struct {
 	TotalCount     int                  `json:"total_count"`
 	Timestamp      int64                `json:"timestamp"`
 }
+
+// ThreadEvent represents an event in a thread with its position/depth info.
+type ThreadEvent struct {
+	Event
+	Depth      int    `json:"depth"`
+	IsRoot     bool   `json:"is_root"`
+	ParentID   string `json:"parent_id,omitempty"`
+	RootID     string `json:"root_id,omitempty"`
+	ReplyCount int    `json:"reply_count"`
+}
+
+// Thread represents a complete thread of events (NIP-10).
+type Thread struct {
+	RootEvent *ThreadEvent  `json:"root_event,omitempty"`
+	Events    []ThreadEvent `json:"events"`
+	TotalSize int           `json:"total_size"`
+	MaxDepth  int           `json:"max_depth"`
+	TargetID  string        `json:"target_id"`
+}
