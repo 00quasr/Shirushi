@@ -570,6 +570,7 @@
             instance.exploreProfile = function() {
                 exploreProfileCalled = true;
             };
+            instance.switchTab = function() {};
 
             const newPubkey = 'newpubkey1234567890abcdef1234567890abcdef1234567890abcdef1234';
             instance.exploreProfileByPubkey(newPubkey);
@@ -580,6 +581,39 @@
                 'Search input should be set to new pubkey'
             );
             assertTrue(exploreProfileCalled, 'exploreProfile should be called');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should switch to explorer tab before exploring profile', async () => {
+            container = createMockDOM();
+            setMockFetch({ data: testProfile });
+
+            let switchTabCalled = false;
+            let switchedToTab = null;
+            let exploreProfileCalled = false;
+            let callOrder = [];
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.switchTab = function(tabName) {
+                switchTabCalled = true;
+                switchedToTab = tabName;
+                callOrder.push('switchTab');
+            };
+            instance.exploreProfile = function() {
+                exploreProfileCalled = true;
+                callOrder.push('exploreProfile');
+            };
+
+            const newPubkey = 'newpubkey1234567890abcdef1234567890abcdef1234567890abcdef1234';
+            instance.exploreProfileByPubkey(newPubkey);
+
+            assertTrue(switchTabCalled, 'switchTab should be called');
+            assertEqual(switchedToTab, 'explorer', 'Should switch to explorer tab');
+            assertTrue(exploreProfileCalled, 'exploreProfile should be called');
+            assertEqual(callOrder[0], 'switchTab', 'switchTab should be called before exploreProfile');
+            assertEqual(callOrder[1], 'exploreProfile', 'exploreProfile should be called after switchTab');
 
             restoreFetch();
             removeMockDOM(container);
@@ -4088,6 +4122,40 @@
             // Check for copy author button
             const copyAuthorBtn = document.querySelector('[data-copy-author]');
             assertDefined(copyAuthorBtn, 'Copy author pubkey button should exist');
+        });
+
+        it('event cards should have View Profile button that links to author profile', async () => {
+            const appInstance = getApp();
+
+            // Set up mock event data
+            appInstance.events = [
+                {
+                    id: 'abc123def456789012345678901234567890123456789012345678901234',
+                    pubkey: 'pub123456789012345678901234567890123456789012345678901234',
+                    kind: 1,
+                    content: 'Test content',
+                    created_at: Math.floor(Date.now() / 1000)
+                }
+            ];
+
+            // Render events
+            appInstance.renderEvents();
+
+            // Check for View Profile button
+            const eventActions = document.querySelector('.event-actions');
+            assertDefined(eventActions, 'Event actions container should exist');
+
+            const viewProfileBtn = eventActions.querySelector('button:nth-child(2)');
+            assertDefined(viewProfileBtn, 'View Profile button should exist');
+            assertEqual(viewProfileBtn.textContent, 'View Profile', 'Button should have correct text');
+            assertTrue(
+                viewProfileBtn.getAttribute('onclick').includes('exploreProfileByPubkey'),
+                'Button should call exploreProfileByPubkey'
+            );
+            assertTrue(
+                viewProfileBtn.getAttribute('onclick').includes('pub123456789012345678901234567890123456789012345678901234'),
+                'Button should pass the correct pubkey'
+            );
         });
     });
 

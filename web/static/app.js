@@ -609,6 +609,7 @@ class Shirushi {
     }
 
     exploreProfileByPubkey(pubkey) {
+        this.switchTab('explorer');
         document.getElementById('profile-search').value = pubkey;
         this.exploreProfile();
     }
@@ -690,6 +691,7 @@ class Shirushi {
                 ${event.relay ? `<div class="event-relay">via ${this.escapeHtml(event.relay)}</div>` : ''}
                 <div class="event-actions">
                     <button class="btn small" onclick="app.showEventJson('${event.id}')">Raw JSON</button>
+                    <button class="btn small" onclick="app.exploreProfileByPubkey('${event.pubkey}')">View Profile</button>
                 </div>
             </div>
         `).join('');
