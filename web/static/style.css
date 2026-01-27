@@ -976,8 +976,27 @@ main {
     display: none;
 }
 
+.nip05-badge.unverified {
+    background: rgba(156, 163, 175, 0.15);
+    color: var(--text-2);
+}
+
+.nip05-badge.verifying {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent);
+}
+
 .nip05-icon {
     font-size: 10px;
+}
+
+.nip05-icon.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .profile-actions {

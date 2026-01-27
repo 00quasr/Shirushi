@@ -337,11 +337,24 @@ class Shirushi {
         document.getElementById('profile-pubkey').textContent =
             profile.pubkey.substring(0, 8) + '...' + profile.pubkey.substring(56);
 
-        // Set NIP-05 badge
+        // Set NIP-05 badge with verification status
         const nip05Badge = document.getElementById('profile-nip05-badge');
+        const nip05Icon = nip05Badge.querySelector('.nip05-icon');
         if (profile.nip05) {
             nip05Badge.classList.remove('hidden');
             document.getElementById('profile-nip05').textContent = profile.nip05;
+
+            // Update badge based on verification status
+            if (profile.nip05_valid) {
+                nip05Badge.classList.remove('unverified', 'verifying');
+                nip05Icon.textContent = '✓';
+                nip05Icon.title = 'NIP-05 verified';
+            } else {
+                nip05Badge.classList.add('unverified');
+                nip05Badge.classList.remove('verifying');
+                nip05Icon.textContent = '✗';
+                nip05Icon.title = 'NIP-05 not verified';
+            }
         } else {
             nip05Badge.classList.add('hidden');
         }

@@ -708,6 +708,60 @@
             removeMockDOM(container);
         });
 
+        it('should show verified badge when nip05_valid is true', () => {
+            container = createProfileMockDOM();
+
+            const verifiedProfile = { ...testProfile, nip05: 'test@example.com', nip05_valid: true };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(verifiedProfile);
+
+            const badge = document.getElementById('profile-nip05-badge');
+            const icon = badge.querySelector('.nip05-icon');
+
+            assertFalse(badge.classList.contains('hidden'), 'NIP-05 badge should be visible');
+            assertFalse(badge.classList.contains('unverified'), 'NIP-05 badge should not have unverified class');
+            assertEqual(icon.textContent, '✓', 'Icon should show checkmark');
+            assertEqual(icon.title, 'NIP-05 verified', 'Icon should have verified tooltip');
+
+            removeMockDOM(container);
+        });
+
+        it('should show unverified badge when nip05_valid is false', () => {
+            container = createProfileMockDOM();
+
+            const unverifiedProfile = { ...testProfile, nip05: 'test@example.com', nip05_valid: false };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(unverifiedProfile);
+
+            const badge = document.getElementById('profile-nip05-badge');
+            const icon = badge.querySelector('.nip05-icon');
+
+            assertFalse(badge.classList.contains('hidden'), 'NIP-05 badge should be visible');
+            assertTrue(badge.classList.contains('unverified'), 'NIP-05 badge should have unverified class');
+            assertEqual(icon.textContent, '✗', 'Icon should show X mark');
+            assertEqual(icon.title, 'NIP-05 not verified', 'Icon should have not verified tooltip');
+
+            removeMockDOM(container);
+        });
+
+        it('should show unverified badge when nip05_valid is undefined', () => {
+            container = createProfileMockDOM();
+
+            const profileWithNip05NoValidation = { ...testProfile, nip05: 'test@example.com' };
+            delete profileWithNip05NoValidation.nip05_valid;
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(profileWithNip05NoValidation);
+
+            const badge = document.getElementById('profile-nip05-badge');
+            const icon = badge.querySelector('.nip05-icon');
+
+            assertFalse(badge.classList.contains('hidden'), 'NIP-05 badge should be visible');
+            assertTrue(badge.classList.contains('unverified'), 'NIP-05 badge should have unverified class when validation is undefined');
+            assertEqual(icon.textContent, '✗', 'Icon should show X mark');
+
+            removeMockDOM(container);
+        });
+
         it('should render about text', () => {
             container = createProfileMockDOM();
 
@@ -1019,6 +1073,37 @@
             const styles = getComputedStyle(badge);
 
             assertEqual(styles.display, 'none', 'NIP-05 badge with hidden class should have display none');
+
+            styleContainer.remove();
+        });
+
+        it('should have nip05-badge.unverified with different styling', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const verifiedBadge = createStyledElement('nip05-badge', styleContainer);
+            const unverifiedBadge = createStyledElement('nip05-badge unverified', styleContainer);
+
+            const verifiedStyles = getComputedStyle(verifiedBadge);
+            const unverifiedStyles = getComputedStyle(unverifiedBadge);
+
+            // Unverified badge should have different color than verified
+            assertTrue(
+                verifiedStyles.color !== unverifiedStyles.color,
+                'Unverified badge should have different color than verified'
+            );
+
+            styleContainer.remove();
+        });
+
+        it('should have nip05-badge.verifying with accent color styling', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const verifyingBadge = createStyledElement('nip05-badge verifying', styleContainer);
+            const styles = getComputedStyle(verifyingBadge);
+
+            assertEqual(styles.display, 'inline-flex', 'Verifying badge should have inline-flex display');
 
             styleContainer.remove();
         });

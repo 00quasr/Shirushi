@@ -4,8 +4,11 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/keanuklestil/shirushi/internal/config"
 	"github.com/keanuklestil/shirushi/internal/nak"
@@ -446,5 +449,68 @@ func (a *API) lookupProfile(w http.ResponseWriter, pubkey string) {
 		}
 	}
 
+	// Verify NIP-05 if present
+	if profile.NIP05 != "" {
+		profile.NIP05Valid = verifyNIP05(profile.NIP05, pubkey)
+	}
+
 	writeJSON(w, profile)
+}
+
+// verifyNIP05 verifies a NIP-05 identifier against an expected pubkey.
+// It fetches the .well-known/nostr.json file and checks if the name maps to the expected pubkey.
+func verifyNIP05(address, expectedPubkey string) bool {
+	// Parse address (user@domain)
+	parts := strings.Split(address, "@")
+	if len(parts) != 2 {
+		return false
+	}
+	name := parts[0]
+	domain := parts[1]
+
+	// Build URL
+	url := fmt.Sprintf("https://%s/.well-known/nostr.json?name=%s", domain, name)
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	// Fetch nostr.json
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	// Read and parse response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+
+	var nip05Data struct {
+		Names map[string]string `json:"names"`
+	}
+	if err := json.Unmarshal(body, &nip05Data); err != nil {
+		return false
+	}
+
+	// Check if the name maps to the expected pubkey
+	pubkey, exists := nip05Data.Names[name]
+	if !exists {
+		return false
+	}
+
+	// Compare pubkeys (case-insensitive hex comparison)
+	return strings.EqualFold(pubkey, expectedPubkey)
 }
