@@ -741,6 +741,387 @@ main {
     background: var(--text-3);
 }
 
+/* Profile Card */
+.profile-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.profile-card.hidden {
+    display: none;
+}
+
+.profile-banner {
+    height: 120px;
+    background: linear-gradient(135deg, var(--bg-3), var(--bg-2));
+    background-size: cover;
+    background-position: center;
+}
+
+.profile-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 0 20px 16px;
+    margin-top: -40px;
+}
+
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    background-size: cover;
+    background-position: center;
+    border: 4px solid var(--bg-1);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.profile-info {
+    flex: 1;
+    padding-top: 44px;
+    min-width: 0;
+}
+
+.profile-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.profile-display-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-0);
+}
+
+.profile-username {
+    display: block;
+    font-size: 14px;
+    color: var(--text-2);
+    margin-top: 2px;
+}
+
+.profile-pubkey {
+    display: block;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 4px;
+}
+
+.nip05-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(34, 197, 94, 0.15);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--success);
+}
+
+.nip05-badge.hidden {
+    display: none;
+}
+
+.nip05-icon {
+    font-size: 10px;
+}
+
+.profile-actions {
+    padding-top: 44px;
+    flex-shrink: 0;
+}
+
+.profile-body {
+    padding: 0 20px 20px;
+}
+
+.profile-about {
+    font-size: 14px;
+    color: var(--text-1);
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.profile-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.profile-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-2);
+    text-decoration: none;
+}
+
+.profile-link:hover {
+    color: var(--text-1);
+}
+
+.profile-link.hidden {
+    display: none;
+}
+
+.link-icon {
+    font-size: 14px;
+}
+
+.link-text {
+    word-break: break-all;
+}
+
+.profile-stats {
+    display: flex;
+    gap: 24px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stat-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-0);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-3);
+}
+
+/* Profile Content Tabs */
+.profile-content {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.profile-content.hidden {
+    display: none;
+}
+
+.profile-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+}
+
+.profile-tab {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.profile-tab:hover {
+    background: var(--bg-3);
+    color: var(--text-1);
+}
+
+.profile-tab.active {
+    background: var(--bg-3);
+    color: var(--text-0);
+}
+
+.profile-tab-content {
+    display: none;
+    padding: 16px;
+}
+
+.profile-tab-content.active {
+    display: block;
+}
+
+/* Profile Notes */
+.profile-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.note-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.note-content {
+    font-size: 14px;
+    color: var(--text-1);
+    line-height: 1.5;
+    word-break: break-word;
+    margin-bottom: 8px;
+}
+
+.note-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-3);
+}
+
+.note-time {
+    font-family: 'Geist Mono', monospace;
+}
+
+.note-id {
+    font-family: 'Geist Mono', monospace;
+}
+
+/* Profile Following */
+.profile-following-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.follow-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.follow-card:hover {
+    background: var(--bg-3);
+}
+
+.follow-pubkey {
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    color: var(--text-1);
+}
+
+.follow-petname {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.follow-relay {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-left: auto;
+}
+
+/* Profile Zaps */
+.profile-zaps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.zap-stats-summary {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.zap-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.zap-stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-0);
+}
+
+.zap-stat-label {
+    font-size: 12px;
+    color: var(--text-3);
+}
+
+.zap-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.zap-amount {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--warning);
+}
+
+.zap-sender {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--text-2);
+}
+
+.zap-time {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--text-3);
+    margin-left: auto;
+}
+
+.zap-message {
+    width: 100%;
+    font-size: 13px;
+    color: var(--text-2);
+    font-style: italic;
+    margin-top: 4px;
+}
+
+/* Loading and Error states */
+.loading {
+    color: var(--text-2);
+    font-size: 13px;
+}
+
+.error {
+    color: var(--error);
+    font-size: 13px;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .testing-layout {
@@ -763,5 +1144,40 @@ main {
 
     .relay-grid {
         grid-template-columns: 1fr;
+    }
+
+    .profile-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .profile-info {
+        padding-top: 12px;
+    }
+
+    .profile-name-row {
+        justify-content: center;
+    }
+
+    .profile-actions {
+        padding-top: 8px;
+    }
+
+    .profile-stats {
+        justify-content: center;
+    }
+
+    .zap-stats-summary {
+        justify-content: center;
+    }
+
+    .follow-card {
+        flex-wrap: wrap;
+    }
+
+    .follow-relay {
+        margin-left: 0;
+        width: 100%;
     }
 }

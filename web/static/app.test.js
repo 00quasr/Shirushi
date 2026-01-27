@@ -890,6 +890,312 @@
         });
     });
 
+    // CSS Tests for Profile Card Styles
+    describe('Profile Card CSS', () => {
+        let styleContainer;
+
+        function createStyledElement(className, parent = document.body) {
+            const el = document.createElement('div');
+            el.className = className;
+            parent.appendChild(el);
+            return el;
+        }
+
+        function getComputedStyle(el) {
+            return window.getComputedStyle(el);
+        }
+
+        it('should have profile-card styles defined', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const card = createStyledElement('profile-card', styleContainer);
+            const styles = getComputedStyle(card);
+
+            assertEqual(styles.borderRadius, '8px', 'Profile card should have 8px border radius');
+            assertEqual(styles.overflow, 'hidden', 'Profile card should have overflow hidden');
+
+            styleContainer.remove();
+        });
+
+        it('should hide profile-card when hidden class is applied', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const card = createStyledElement('profile-card hidden', styleContainer);
+            const styles = getComputedStyle(card);
+
+            assertEqual(styles.display, 'none', 'Profile card with hidden class should have display none');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-banner height of 120px', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const banner = createStyledElement('profile-banner', styleContainer);
+            const styles = getComputedStyle(banner);
+
+            assertEqual(styles.height, '120px', 'Profile banner should have 120px height');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-avatar as a circle with 80px dimensions', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const avatar = createStyledElement('profile-avatar', styleContainer);
+            const styles = getComputedStyle(avatar);
+
+            assertEqual(styles.width, '80px', 'Profile avatar should have 80px width');
+            assertEqual(styles.height, '80px', 'Profile avatar should have 80px height');
+            assertEqual(styles.borderRadius, '50%', 'Profile avatar should be circular');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-header with flex display', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const header = createStyledElement('profile-header', styleContainer);
+            const styles = getComputedStyle(header);
+
+            assertEqual(styles.display, 'flex', 'Profile header should have flex display');
+            assertEqual(styles.gap, '16px', 'Profile header should have 16px gap');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-display-name with 18px font size and bold weight', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const name = createStyledElement('profile-display-name', styleContainer);
+            const styles = getComputedStyle(name);
+
+            assertEqual(styles.fontSize, '18px', 'Display name should have 18px font size');
+            assertEqual(styles.fontWeight, '600', 'Display name should have font weight 600');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-pubkey with monospace font', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const pubkey = createStyledElement('profile-pubkey', styleContainer);
+            const styles = getComputedStyle(pubkey);
+
+            assertTrue(
+                styles.fontFamily.includes('Geist Mono') || styles.fontFamily.includes('monospace'),
+                'Profile pubkey should use monospace font'
+            );
+            assertEqual(styles.fontSize, '12px', 'Profile pubkey should have 12px font size');
+
+            styleContainer.remove();
+        });
+
+        it('should have nip05-badge with inline-flex display', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const badge = createStyledElement('nip05-badge', styleContainer);
+            const styles = getComputedStyle(badge);
+
+            assertEqual(styles.display, 'inline-flex', 'NIP-05 badge should have inline-flex display');
+            assertEqual(styles.borderRadius, '4px', 'NIP-05 badge should have 4px border radius');
+
+            styleContainer.remove();
+        });
+
+        it('should hide nip05-badge when hidden class is applied', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const badge = createStyledElement('nip05-badge hidden', styleContainer);
+            const styles = getComputedStyle(badge);
+
+            assertEqual(styles.display, 'none', 'NIP-05 badge with hidden class should have display none');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-content with proper panel styling', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const content = createStyledElement('profile-content', styleContainer);
+            const styles = getComputedStyle(content);
+
+            assertEqual(styles.borderRadius, '8px', 'Profile content should have 8px border radius');
+            assertEqual(styles.overflow, 'hidden', 'Profile content should have overflow hidden');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-tabs with flex display', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const tabs = createStyledElement('profile-tabs', styleContainer);
+            const styles = getComputedStyle(tabs);
+
+            assertEqual(styles.display, 'flex', 'Profile tabs should have flex display');
+            assertEqual(styles.gap, '4px', 'Profile tabs should have 4px gap');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-tab with cursor pointer', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const tab = createStyledElement('profile-tab', styleContainer);
+            const styles = getComputedStyle(tab);
+
+            assertEqual(styles.cursor, 'pointer', 'Profile tab should have cursor pointer');
+            assertEqual(styles.borderRadius, '6px', 'Profile tab should have 6px border radius');
+
+            styleContainer.remove();
+        });
+
+        it('should hide profile-tab-content by default', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const tabContent = createStyledElement('profile-tab-content', styleContainer);
+            const styles = getComputedStyle(tabContent);
+
+            assertEqual(styles.display, 'none', 'Profile tab content should be hidden by default');
+
+            styleContainer.remove();
+        });
+
+        it('should show profile-tab-content when active', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const tabContent = createStyledElement('profile-tab-content active', styleContainer);
+            const styles = getComputedStyle(tabContent);
+
+            assertEqual(styles.display, 'block', 'Active profile tab content should have display block');
+
+            styleContainer.remove();
+        });
+
+        it('should have note-card with proper styling', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const noteCard = createStyledElement('note-card', styleContainer);
+            const styles = getComputedStyle(noteCard);
+
+            assertEqual(styles.borderRadius, '8px', 'Note card should have 8px border radius');
+            assertEqual(styles.padding, '14px', 'Note card should have 14px padding');
+
+            styleContainer.remove();
+        });
+
+        it('should have follow-card with cursor pointer', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const followCard = createStyledElement('follow-card', styleContainer);
+            const styles = getComputedStyle(followCard);
+
+            assertEqual(styles.cursor, 'pointer', 'Follow card should have cursor pointer');
+            assertEqual(styles.display, 'flex', 'Follow card should have flex display');
+
+            styleContainer.remove();
+        });
+
+        it('should have zap-card with flex layout', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const zapCard = createStyledElement('zap-card', styleContainer);
+            const styles = getComputedStyle(zapCard);
+
+            assertEqual(styles.display, 'flex', 'Zap card should have flex display');
+            assertEqual(styles.borderRadius, '6px', 'Zap card should have 6px border radius');
+
+            styleContainer.remove();
+        });
+
+        it('should have zap-stats-summary with flex layout', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const zapStats = createStyledElement('zap-stats-summary', styleContainer);
+            const styles = getComputedStyle(zapStats);
+
+            assertEqual(styles.display, 'flex', 'Zap stats summary should have flex display');
+            assertEqual(styles.gap, '24px', 'Zap stats summary should have 24px gap');
+
+            styleContainer.remove();
+        });
+
+        it('should have zap-stat-value with bold text', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const zapStatValue = createStyledElement('zap-stat-value', styleContainer);
+            const styles = getComputedStyle(zapStatValue);
+
+            assertEqual(styles.fontSize, '20px', 'Zap stat value should have 20px font size');
+            assertEqual(styles.fontWeight, '600', 'Zap stat value should have font weight 600');
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-stats with border-top', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const stats = createStyledElement('profile-stats', styleContainer);
+            const styles = getComputedStyle(stats);
+
+            assertEqual(styles.display, 'flex', 'Profile stats should have flex display');
+            assertTrue(
+                styles.borderTopStyle === 'solid' || styles.borderTop.includes('solid'),
+                'Profile stats should have solid border top'
+            );
+
+            styleContainer.remove();
+        });
+
+        it('should have profile-link with proper styling', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const link = createStyledElement('profile-link', styleContainer);
+            const styles = getComputedStyle(link);
+
+            assertEqual(styles.display, 'inline-flex', 'Profile link should have inline-flex display');
+            assertTrue(
+                styles.textDecoration.includes('none') || styles.textDecorationLine === 'none',
+                'Profile link should have no text decoration'
+            );
+
+            styleContainer.remove();
+        });
+
+        it('should hide profile-link when hidden class is applied', () => {
+            styleContainer = document.createElement('div');
+            document.body.appendChild(styleContainer);
+
+            const link = createStyledElement('profile-link hidden', styleContainer);
+            const styles = getComputedStyle(link);
+
+            assertEqual(styles.display, 'none', 'Profile link with hidden class should have display none');
+
+            styleContainer.remove();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
