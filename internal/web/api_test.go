@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/keanuklestil/shirushi/internal/config"
@@ -1154,5 +1155,125 @@ func TestHandleMonitoringHealth_ExcludesHistoryData(t *testing.T) {
 	}
 	if _, exists := relay["health_score"]; !exists {
 		t.Error("health endpoint should include health_score")
+	}
+}
+
+// Tests for HandleEventSign endpoint
+
+func TestHandleEventSign_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/sign", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventSign(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventSign_NakUnavailable(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := `{"kind":1,"content":"test","tags":[],"privateKey":"nsec1test"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/sign", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSign(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "nak CLI not available" {
+		t.Errorf("expected error 'nak CLI not available', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleEventSign_InvalidRequestBody(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := `invalid json`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/sign", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSign(w, req)
+
+	// With nil nak, it should return service unavailable first
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+// Tests for HandleEventVerify endpoint
+
+func TestHandleEventVerify_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/verify", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventVerify_NakUnavailable(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := `{"id":"test","pubkey":"test","sig":"test"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/verify", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+// Tests for HandleEventPublish endpoint
+
+func TestHandleEventPublish_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/publish", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventPublish_NakUnavailable(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := `{"id":"test","pubkey":"test","sig":"test"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
 	}
 }

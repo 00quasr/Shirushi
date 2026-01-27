@@ -50,13 +50,81 @@ func (t *NIP01Test) Run(ctx context.Context, params map[string]interface{}) (*ty
 		return makeResult(t.ID(), false, steps), nil
 	}
 
-	// Step 1: Generate keypair
-	keypair, err := t.nak.GenerateKey()
-	if err != nil {
-		steps = append(steps, makeStep("Generate keypair", false, "", err.Error()))
-		return makeResult(t.ID(), false, steps), nil
+	// Check for user-provided signing mode
+	signingMode := "generated" // default to generated keys
+	if mode, ok := params["signingMode"].(string); ok {
+		signingMode = mode
 	}
-	steps = append(steps, makeStep("Generate keypair", true, fmt.Sprintf("npub: %s...", keypair.PublicKey[:20]), ""))
+
+	var privateKey string
+	var publicKey string
+
+	// Step 1: Get keypair based on signing mode
+	switch signingMode {
+	case "provided":
+		// User provided their private key (nsec)
+		nsec, ok := params["privateKey"].(string)
+		if !ok || nsec == "" {
+			steps = append(steps, makeStep("Get user keypair", false, "", "Private key (nsec) not provided"))
+			return makeResult(t.ID(), false, steps), nil
+		}
+		privateKey = nsec
+
+		// Derive public key from private key
+		pubkey, err := t.nak.PublicKeyFromPrivate(nsec)
+		if err != nil {
+			steps = append(steps, makeStep("Get user keypair", false, "", "Failed to derive public key: "+err.Error()))
+			return makeResult(t.ID(), false, steps), nil
+		}
+		publicKey = pubkey
+		steps = append(steps, makeStep("Use provided keypair", true, fmt.Sprintf("npub: %s...", publicKey[:20]), ""))
+
+	case "extension":
+		// Event was signed client-side via NIP-07 extension
+		signedEventJSON, ok := params["signedEvent"].(string)
+		if !ok || signedEventJSON == "" {
+			steps = append(steps, makeStep("Get signed event", false, "", "Pre-signed event not provided"))
+			return makeResult(t.ID(), false, steps), nil
+		}
+
+		// Verify the pre-signed event
+		valid, err := t.nak.Verify(signedEventJSON)
+		if err != nil || !valid {
+			errMsg := "signature invalid"
+			if err != nil {
+				errMsg = err.Error()
+			}
+			steps = append(steps, makeStep("Verify extension-signed event", false, "", errMsg))
+			return makeResult(t.ID(), false, steps), nil
+		}
+		steps = append(steps, makeStep("Verify extension-signed event", true, "Signature valid", ""))
+
+		// Publish the pre-signed event
+		relays := t.relayPool.GetConnected()
+		if len(relays) > 0 {
+			err = t.nak.Publish(signedEventJSON, relays[0])
+			if err != nil {
+				steps = append(steps, makeStep("Publish extension-signed event", false, "", err.Error()))
+			} else {
+				steps = append(steps, makeStep("Publish extension-signed event", true, fmt.Sprintf("Published to %s", relays[0]), ""))
+			}
+		} else {
+			steps = append(steps, makeStep("Publish extension-signed event", false, "", "No connected relays"))
+		}
+
+		return makeResult(t.ID(), success, steps), nil
+
+	default: // "generated"
+		// Generate a new keypair for testing
+		keypair, err := t.nak.GenerateKey()
+		if err != nil {
+			steps = append(steps, makeStep("Generate keypair", false, "", err.Error()))
+			return makeResult(t.ID(), false, steps), nil
+		}
+		privateKey = keypair.PrivateKey
+		publicKey = keypair.PublicKey
+		steps = append(steps, makeStep("Generate keypair", true, fmt.Sprintf("npub: %s...", publicKey[:20]), ""))
+	}
 
 	// Step 2: Create event
 	content := "Shirushi NIP-01 test event"
@@ -67,7 +135,7 @@ func (t *NIP01Test) Run(ctx context.Context, params map[string]interface{}) (*ty
 	event, err := t.nak.CreateEvent(nak.CreateEventOptions{
 		Kind:       1,
 		Content:    content,
-		PrivateKey: keypair.PrivateKey,
+		PrivateKey: privateKey,
 	})
 	if err != nil {
 		steps = append(steps, makeStep("Create event", false, "", err.Error()))

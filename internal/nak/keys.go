@@ -47,9 +47,21 @@ func (n *Nak) GenerateKey() (*Keypair, error) {
 	}, nil
 }
 
-// PublicKeyFromPrivate derives the public key from a private key.
+// PublicKeyFromPrivate derives the public key (npub format) from a private key.
 func (n *Nak) PublicKeyFromPrivate(nsec string) (string, error) {
-	return n.Run("key", "public", nsec)
+	// Get hex public key from private key
+	hexPubKey, err := n.Run("key", "public", nsec)
+	if err != nil {
+		return "", err
+	}
+
+	// Encode to npub
+	npub, err := n.Run("encode", "npub", strings.TrimSpace(hexPubKey))
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(npub), nil
 }
 
 // ConvertKey converts a key between formats.

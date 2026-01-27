@@ -70,6 +70,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/nak", s.api.HandleNak)
 	mux.HandleFunc("/api/profile/lookup", s.api.HandleProfileLookup)
 	mux.HandleFunc("/api/profile/", s.api.HandleProfile)
+	mux.HandleFunc("/api/events/sign", s.api.HandleEventSign)
+	mux.HandleFunc("/api/events/verify", s.api.HandleEventVerify)
+	mux.HandleFunc("/api/events/publish", s.api.HandleEventPublish)
 
 	// WebSocket
 	mux.HandleFunc("/ws", s.handleWebSocket)

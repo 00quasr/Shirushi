@@ -567,3 +567,119 @@ func verifyNIP05(address, expectedPubkey string) bool {
 	// Compare pubkeys (case-insensitive hex comparison)
 	return strings.EqualFold(pubkey, expectedPubkey)
 }
+
+// HandleEventSign signs an event with a provided private key.
+func (a *API) HandleEventSign(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if a.nak == nil {
+		writeError(w, http.StatusServiceUnavailable, "nak CLI not available")
+		return
+	}
+
+	var req struct {
+		Kind       int        `json:"kind"`
+		Content    string     `json:"content"`
+		Tags       [][]string `json:"tags"`
+		PrivateKey string     `json:"privateKey"` // nsec format
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.PrivateKey == "" {
+		writeError(w, http.StatusBadRequest, "privateKey is required")
+		return
+	}
+
+	event, err := a.nak.CreateEvent(nak.CreateEventOptions{
+		Kind:       req.Kind,
+		Content:    req.Content,
+		Tags:       req.Tags,
+		PrivateKey: req.PrivateKey,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create event: "+err.Error())
+		return
+	}
+
+	writeJSON(w, event)
+}
+
+// HandleEventVerify verifies a signed event's signature.
+func (a *API) HandleEventVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if a.nak == nil {
+		writeError(w, http.StatusServiceUnavailable, "nak CLI not available")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
+		return
+	}
+
+	valid, err := a.nak.Verify(string(body))
+	if err != nil {
+		writeJSON(w, map[string]interface{}{"valid": false, "error": err.Error()})
+		return
+	}
+
+	writeJSON(w, map[string]interface{}{"valid": valid})
+}
+
+// HandleEventPublish publishes a signed event to connected relays.
+func (a *API) HandleEventPublish(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if a.nak == nil {
+		writeError(w, http.StatusServiceUnavailable, "nak CLI not available")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
+		return
+	}
+
+	eventJSON := string(body)
+
+	// Get connected relays
+	relays := a.relayPool.List()
+	var connectedRelays []string
+	for _, relay := range relays {
+		if relay.Connected {
+			connectedRelays = append(connectedRelays, relay.URL)
+		}
+	}
+
+	if len(connectedRelays) == 0 {
+		writeError(w, http.StatusBadRequest, "no connected relays")
+		return
+	}
+
+	// Publish to first connected relay
+	err = a.nak.Publish(eventJSON, connectedRelays[0])
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to publish: "+err.Error())
+		return
+	}
+
+	writeJSON(w, map[string]interface{}{
+		"success": true,
+		"relay":   connectedRelays[0],
+	})
+}

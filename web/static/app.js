@@ -1079,6 +1079,10 @@ class Shirushi {
         const container = document.getElementById('test-form');
         let formFields = '';
 
+        // Tests that create/sign events can use different signing modes
+        const signingTestIds = ['nip01', 'nip44', 'nip90'];
+        const needsSigningMode = signingTestIds.includes(nip.id);
+
         // Add NIP-specific form fields
         switch (nip.id) {
             case 'nip05':
@@ -1118,10 +1122,46 @@ class Shirushi {
                 break;
         }
 
+        // Add signing mode selector for tests that create events
+        let signingModeFields = '';
+        if (needsSigningMode) {
+            signingModeFields = `
+                <div class="form-group signing-mode-section">
+                    <label>Signing Mode:</label>
+                    <div class="signing-mode-options">
+                        <label class="radio-option">
+                            <input type="radio" name="signing-mode" value="generated" checked>
+                            <span class="radio-label">Generated Keys</span>
+                            <span class="radio-description">Create temporary keypair for testing</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="signing-mode" value="provided">
+                            <span class="radio-label">Your Keys (nsec)</span>
+                            <span class="radio-description">Sign with your own private key</span>
+                        </label>
+                        <label class="radio-option" id="extension-signing-option">
+                            <input type="radio" name="signing-mode" value="extension">
+                            <span class="radio-label">NIP-07 Extension</span>
+                            <span class="radio-description">Sign via browser extension (Alby, nos2x, etc.)</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group hidden" id="nsec-input-group">
+                    <label>Private Key (nsec):</label>
+                    <div class="key-input-row">
+                        <input type="password" id="test-param-privatekey" placeholder="nsec1...">
+                        <button type="button" class="btn small" id="toggle-test-nsec">Show</button>
+                    </div>
+                    <p class="hint warning">Your key is sent to the backend for signing. Only use for testing!</p>
+                </div>
+            `;
+        }
+
         container.innerHTML = `
             <h3>${nip.name}: ${nip.title}</h3>
             <p class="nip-description">${nip.description}</p>
             <a href="${nip.specUrl}" target="_blank" class="spec-link">View Specification</a>
+            ${signingModeFields}
             ${formFields}
             <button class="btn primary" id="run-test-btn">Run Test</button>
         `;
@@ -1130,13 +1170,78 @@ class Shirushi {
             this.runTest(nip.id);
         });
 
+        // Setup signing mode handlers
+        if (needsSigningMode) {
+            this.setupSigningModeHandlers();
+        }
+
         document.getElementById('test-results').innerHTML = '';
     }
 
+    /**
+     * Setup event handlers for signing mode selection in test forms
+     */
+    setupSigningModeHandlers() {
+        const signingModeRadios = document.querySelectorAll('input[name="signing-mode"]');
+        const nsecInputGroup = document.getElementById('nsec-input-group');
+        const toggleNsecBtn = document.getElementById('toggle-test-nsec');
+        const extensionOption = document.getElementById('extension-signing-option');
+
+        // Check extension availability and update UI
+        this.detectExtension().then(result => {
+            if (!result.available && extensionOption) {
+                const radio = extensionOption.querySelector('input[type="radio"]');
+                radio.disabled = true;
+                extensionOption.classList.add('disabled');
+                extensionOption.querySelector('.radio-description').textContent = 'No NIP-07 extension detected';
+            }
+        });
+
+        // Handle signing mode changes
+        signingModeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'provided') {
+                    nsecInputGroup.classList.remove('hidden');
+                } else {
+                    nsecInputGroup.classList.add('hidden');
+                }
+            });
+        });
+
+        // Toggle nsec visibility
+        if (toggleNsecBtn) {
+            toggleNsecBtn.addEventListener('click', () => {
+                const input = document.getElementById('test-param-privatekey');
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    toggleNsecBtn.textContent = 'Hide';
+                } else {
+                    input.type = 'password';
+                    toggleNsecBtn.textContent = 'Show';
+                }
+            });
+        }
+    }
+
     async runTest(nipId) {
-        const params = this.getTestParams(nipId);
         const resultsContainer = document.getElementById('test-results');
         const runBtn = document.getElementById('run-test-btn');
+
+        // Check if this test uses signing modes
+        const signingTestIds = ['nip01', 'nip44', 'nip90'];
+        const needsSigningMode = signingTestIds.includes(nipId);
+
+        // Get selected signing mode
+        const signingMode = document.querySelector('input[name="signing-mode"]:checked')?.value || 'generated';
+
+        // Handle NIP-07 extension signing client-side
+        if (needsSigningMode && signingMode === 'extension') {
+            await this.runTestWithExtension(nipId, resultsContainer, runBtn);
+            return;
+        }
+
+        // Get params for other modes
+        const params = this.getTestParams(nipId);
 
         await this.withLoading(`test-${nipId}`, async () => {
             const response = await fetch(`/api/test/${nipId}`, {
@@ -1163,8 +1268,83 @@ class Shirushi {
         });
     }
 
+    /**
+     * Run a test using NIP-07 browser extension for signing
+     * @param {string} nipId - The NIP test ID
+     * @param {HTMLElement} resultsContainer - Container for results
+     * @param {HTMLElement} runBtn - The run button element
+     */
+    async runTestWithExtension(nipId, resultsContainer, runBtn) {
+        await this.withLoading(`test-${nipId}-extension`, async () => {
+            // First check extension is available
+            const extResult = await this.detectExtension();
+            if (!extResult.available) {
+                throw new Error('No NIP-07 browser extension detected');
+            }
+
+            // Create the unsigned event for the test
+            const content = 'Shirushi NIP-01 test event (signed via NIP-07 extension)';
+            const unsignedEvent = {
+                kind: 1,
+                content: content,
+                tags: [],
+                created_at: Math.floor(Date.now() / 1000)
+            };
+
+            // Sign with extension (will prompt user)
+            resultsContainer.innerHTML = '<p class="info">Please approve the signing request in your browser extension...</p>';
+            const signResult = await this.signWithExtension(unsignedEvent);
+
+            if (!signResult.success) {
+                throw new Error(signResult.error || 'Extension signing failed');
+            }
+
+            // Now send the pre-signed event to the backend for verification and publishing
+            const params = {
+                signingMode: 'extension',
+                signedEvent: JSON.stringify(signResult.event)
+            };
+
+            const response = await fetch(`/api/test/${nipId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Test request failed' }));
+                throw new Error(error.error || 'Test request failed');
+            }
+
+            const result = await response.json();
+            this.showTestResult(result);
+        }, {
+            button: runBtn,
+            buttonText: 'Signing...',
+            container: resultsContainer,
+            containerMessage: 'Waiting for extension...',
+            showErrorToast: false
+        }).catch(error => {
+            resultsContainer.innerHTML = `<p class="error">Test failed: ${this.escapeHtml(error.message)}</p>`;
+        });
+    }
+
     getTestParams(nipId) {
         const params = {};
+
+        // Get signing mode for tests that support it
+        const signingTestIds = ['nip01', 'nip44', 'nip90'];
+        if (signingTestIds.includes(nipId)) {
+            const signingMode = document.querySelector('input[name="signing-mode"]:checked')?.value || 'generated';
+            params.signingMode = signingMode;
+
+            if (signingMode === 'provided') {
+                const privateKey = document.getElementById('test-param-privatekey')?.value?.trim();
+                if (privateKey) {
+                    params.privateKey = privateKey;
+                }
+            }
+        }
 
         switch (nipId) {
             case 'nip05':
