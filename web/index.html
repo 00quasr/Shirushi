@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shirushi - AI Agent Swarm over Nostr</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>Shirushi</h1>
+                <p class="subtitle">AI Agent Swarm over Nostr (NIP-90)</p>
+            </div>
+            <div class="header-right">
+                <div class="nostr-badge">
+                    <span>NIP-90 DVM</span>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <span class="status-dot disconnected"></span>
+                    <span class="status-text">Connecting</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="visualization">
+                <svg id="graph"></svg>
+                <div class="viz-overlay">
+                    <div class="viz-info">
+                        <h3>Agent Network</h3>
+                        <p>Drag nodes to rearrange</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel nostr-info">
+                    <h2>About Nostr and NIP-90</h2>
+                    <div class="info-content">
+                        <p><strong>Nostr</strong> (Notes and Other Stuff Transmitted by Relays) is a decentralized protocol for censorship-resistant communication.</p>
+                        <p><strong>NIP-90</strong> defines Data Vending Machines - a marketplace for AI/compute services:</p>
+                        <ul>
+                            <li><code>Kind 5xxx</code> Job requests</li>
+                            <li><code>Kind 6xxx</code> Job results</li>
+                            <li><code>Kind 7000</code> Status feedback</li>
+                        </ul>
+                        <div class="relay-list">
+                            <span class="relay-label">Active Relays:</span>
+                            <code>wss://relay.damus.io</code>
+                            <code>wss://nos.lol</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Agent Swarm</h2>
+                    <div class="agent-list" id="agent-list">
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Submit Task</h2>
+                    <div class="task-input">
+                        <textarea id="task-input" placeholder="Enter your task..."></textarea>
+                        <button id="submit-btn" onclick="submitTask()">Submit to Swarm</button>
+                        <p class="input-hint">Ctrl+Enter to submit</p>
+                    </div>
+                </div>
+
+                <div class="panel event-stream">
+                    <h2>Event Stream</h2>
+                    <div class="events" id="events">
+                        <div class="event info">Waiting for events...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <p>Built with <strong>Go</strong> + <strong>go-nostr</strong> + <strong>D3.js</strong></p>
+                <p class="footer-links">
+                    <a href="https://github.com/nostr-protocol/nips/blob/master/90.md" target="_blank">NIP-90 Spec</a>
+                    <span>/</span>
+                    <a href="https://github.com/nbd-wtf/go-nostr" target="_blank">go-nostr</a>
+                    <span>/</span>
+                    <a href="https://nostr.com" target="_blank">Learn Nostr</a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/static/graph.js"></script>
+</body>
+</html>

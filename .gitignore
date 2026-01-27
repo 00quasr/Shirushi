@@ -1,0 +1,21 @@
+# Environment variables (contains secrets)
+.env
+
+# Binaries
+shirushi
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage.out
+
+# Build
+dist/
