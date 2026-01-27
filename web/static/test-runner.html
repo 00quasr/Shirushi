@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shirushi Tests</title>
+    <style>
+        body {
+            font-family: 'Geist Mono', monospace;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4a9eff;
+        }
+        #results {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .test-output {
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .passed {
+            color: #4ade80;
+        }
+        .failed {
+            color: #ef4444;
+        }
+        .summary {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .summary.success {
+            background: #166534;
+            color: #4ade80;
+        }
+        .summary.failure {
+            background: #7f1d1d;
+            color: #ef4444;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shirushi App Tests</h1>
+    <button id="run-tests">Run Tests</button>
+    <div id="results">
+        <div class="test-output" id="output">Click "Run Tests" to start...</div>
+    </div>
+
+    <!-- Mock required elements for the app -->
+    <div style="display: none;">
+        <span id="connection-status"></span>
+        <span id="connection-text"></span>
+        <div id="relay-list"></div>
+        <input id="relay-url">
+        <button id="add-relay-btn"></button>
+        <div id="nip-test-list"></div>
+        <input id="filter-kind">
+        <input id="filter-author">
+        <button id="apply-filter-btn"></button>
+        <button id="clear-filter-btn"></button>
+        <button id="clear-events-btn"></button>
+        <div id="event-list"></div>
+        <input id="auto-scroll" type="checkbox">
+        <button id="generate-key-btn"></button>
+        <input id="nsec-value">
+        <input id="npub-value">
+        <input id="hex-pubkey-value">
+        <div id="keypair-result" class="hidden"></div>
+        <button id="toggle-nsec"></button>
+        <input id="nip19-input">
+        <button id="decode-btn"></button>
+        <div id="nip19-result" class="hidden"></div>
+        <input id="nak-command">
+        <button id="run-nak-btn"></button>
+        <pre id="nak-output"></pre>
+        <div id="command-history"></div>
+        <div id="test-form"></div>
+        <div id="test-results"></div>
+        <!-- Explorer elements -->
+        <input id="profile-search">
+        <button id="explore-profile-btn"></button>
+        <div id="profile-card" class="hidden"></div>
+        <div id="profile-content" class="hidden">
+            <button class="profile-tab active" data-profile-tab="notes"></button>
+            <button class="profile-tab" data-profile-tab="following"></button>
+            <button class="profile-tab" data-profile-tab="zaps"></button>
+            <div id="profile-notes-tab" class="profile-tab-content active"></div>
+            <div id="profile-following-tab" class="profile-tab-content"></div>
+            <div id="profile-zaps-tab" class="profile-tab-content"></div>
+        </div>
+        <div id="profile-notes-list"></div>
+        <div id="profile-following-list"></div>
+        <div id="profile-zaps-list"></div>
+        <div id="profile-follow-count">0</div>
+        <div id="zap-total-count">0</div>
+        <div id="zap-total-sats">0</div>
+        <div id="zap-avg-sats">0</div>
+        <div id="zap-top-zap">0</div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="app.test.js"></script>
+    <script>
+        // Override console.log to capture output
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        let testOutput = '';
+
+        console.log = function(...args) {
+            const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+            testOutput += message + '\n';
+            originalLog.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+            testOutput += message + '\n';
+            originalError.apply(console, args);
+        };
+
+        document.getElementById('run-tests').addEventListener('click', async () => {
+            testOutput = '';
+            output.textContent = 'Running tests...\n';
+
+            try {
+                const results = await window.runShirushiTests();
+
+                // Format output with colors
+                const lines = testOutput.split('\n');
+                output.innerHTML = lines.map(line => {
+                    if (line.includes('✓')) {
+                        return `<span class="passed">${escapeHtml(line)}</span>`;
+                    } else if (line.includes('✗')) {
+                        return `<span class="failed">${escapeHtml(line)}</span>`;
+                    }
+                    return escapeHtml(line);
+                }).join('\n');
+
+                // Add summary
+                const summary = document.createElement('div');
+                summary.className = `summary ${results.failed === 0 ? 'success' : 'failure'}`;
+                summary.textContent = results.failed === 0
+                    ? `All ${results.passed} tests passed!`
+                    : `${results.failed} test(s) failed, ${results.passed} passed`;
+                output.appendChild(summary);
+            } catch (error) {
+                output.innerHTML = `<span class="failed">Test runner error: ${escapeHtml(error.message)}</span>`;
+            }
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

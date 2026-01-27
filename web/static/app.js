@@ -11,6 +11,8 @@ class Shirushi {
         this.historyIndex = -1;
         this.selectedNip = null;
 
+        this.currentProfile = null;
+
         this.init();
     }
 
@@ -18,6 +20,7 @@ class Shirushi {
         this.setupWebSocket();
         this.setupTabs();
         this.setupRelays();
+        this.setupExplorer();
         this.setupEvents();
         this.setupTesting();
         this.setupKeys();
@@ -209,6 +212,359 @@ class Shirushi {
             Object.assign(relay, status);
             this.renderRelays();
         }
+    }
+
+    // Explorer Tab
+    setupExplorer() {
+        document.getElementById('explore-profile-btn').addEventListener('click', () => {
+            this.exploreProfile();
+        });
+
+        document.getElementById('profile-search').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.exploreProfile();
+            }
+        });
+
+        // Profile sub-tab navigation
+        document.querySelectorAll('[data-profile-tab]').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.profileTab;
+                this.switchProfileTab(tabName);
+            });
+        });
+    }
+
+    async exploreProfile() {
+        const input = document.getElementById('profile-search').value.trim();
+        if (!input) return;
+
+        const profileCard = document.getElementById('profile-card');
+        const profileContent = document.getElementById('profile-content');
+
+        // Show loading state
+        profileCard.classList.remove('hidden');
+        profileCard.innerHTML = '<p class="loading">Loading profile...</p>';
+        profileContent.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/api/profile/${encodeURIComponent(input)}`);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to load profile');
+            }
+
+            const profile = await response.json();
+            this.currentProfile = profile;
+            this.renderProfile(profile);
+            profileContent.classList.remove('hidden');
+
+            // Load profile notes by default
+            this.loadProfileNotes(profile.pubkey);
+        } catch (error) {
+            profileCard.innerHTML = `<p class="error">${this.escapeHtml(error.message)}</p>`;
+        }
+    }
+
+    renderProfile(profile) {
+        const profileCard = document.getElementById('profile-card');
+
+        // Reset card structure
+        profileCard.innerHTML = `
+            <div id="profile-banner" class="profile-banner"></div>
+            <div class="profile-header">
+                <div id="profile-avatar" class="profile-avatar"></div>
+                <div class="profile-info">
+                    <div class="profile-name-row">
+                        <span id="profile-display-name" class="profile-display-name"></span>
+                        <span id="profile-nip05-badge" class="nip05-badge hidden">
+                            <span class="nip05-icon">✓</span>
+                            <span id="profile-nip05"></span>
+                        </span>
+                    </div>
+                    <span id="profile-name" class="profile-username"></span>
+                    <span id="profile-pubkey" class="profile-pubkey"></span>
+                </div>
+                <div class="profile-actions">
+                    <button class="btn small" id="copy-npub-btn">Copy npub</button>
+                </div>
+            </div>
+            <div class="profile-body">
+                <p id="profile-about" class="profile-about"></p>
+                <div class="profile-links">
+                    <a id="profile-website" class="profile-link hidden" target="_blank" rel="noopener noreferrer">
+                        <span class="link-icon">🌐</span>
+                        <span class="link-text"></span>
+                    </a>
+                    <span id="profile-lightning" class="profile-link hidden">
+                        <span class="link-icon">⚡</span>
+                        <span class="link-text"></span>
+                    </span>
+                </div>
+                <div class="profile-stats">
+                    <div class="stat">
+                        <span id="profile-follow-count" class="stat-value">0</span>
+                        <span class="stat-label">Following</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Set banner
+        const banner = document.getElementById('profile-banner');
+        if (profile.banner) {
+            banner.style.backgroundImage = `url(${profile.banner})`;
+        } else {
+            banner.style.backgroundImage = '';
+        }
+
+        // Set avatar
+        const avatar = document.getElementById('profile-avatar');
+        if (profile.picture) {
+            avatar.style.backgroundImage = `url(${profile.picture})`;
+        } else {
+            avatar.style.backgroundImage = '';
+            avatar.textContent = (profile.name || profile.pubkey || '?')[0].toUpperCase();
+        }
+
+        // Set display name and username
+        document.getElementById('profile-display-name').textContent =
+            profile.display_name || profile.name || 'Anonymous';
+        document.getElementById('profile-name').textContent =
+            profile.name ? `@${profile.name}` : '';
+
+        // Set pubkey (shortened)
+        document.getElementById('profile-pubkey').textContent =
+            profile.pubkey.substring(0, 8) + '...' + profile.pubkey.substring(56);
+
+        // Set NIP-05 badge
+        const nip05Badge = document.getElementById('profile-nip05-badge');
+        if (profile.nip05) {
+            nip05Badge.classList.remove('hidden');
+            document.getElementById('profile-nip05').textContent = profile.nip05;
+        } else {
+            nip05Badge.classList.add('hidden');
+        }
+
+        // Set about
+        document.getElementById('profile-about').textContent = profile.about || '';
+
+        // Set website
+        const websiteEl = document.getElementById('profile-website');
+        if (profile.website) {
+            websiteEl.classList.remove('hidden');
+            websiteEl.href = profile.website;
+            websiteEl.querySelector('.link-text').textContent = profile.website.replace(/^https?:\/\//, '');
+        } else {
+            websiteEl.classList.add('hidden');
+        }
+
+        // Set lightning address
+        const lightningEl = document.getElementById('profile-lightning');
+        if (profile.lud16) {
+            lightningEl.classList.remove('hidden');
+            lightningEl.querySelector('.link-text').textContent = profile.lud16;
+        } else {
+            lightningEl.classList.add('hidden');
+        }
+
+        // Set follow count
+        document.getElementById('profile-follow-count').textContent = profile.follow_count || 0;
+
+        // Setup copy button
+        document.getElementById('copy-npub-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/keys/encode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'npub', hex: profile.pubkey })
+                });
+                const result = await response.json();
+                if (result.encoded) {
+                    navigator.clipboard.writeText(result.encoded);
+                    document.getElementById('copy-npub-btn').textContent = 'Copied!';
+                    setTimeout(() => {
+                        document.getElementById('copy-npub-btn').textContent = 'Copy npub';
+                    }, 1500);
+                }
+            } catch (error) {
+                console.error('Failed to copy npub:', error);
+            }
+        });
+    }
+
+    switchProfileTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('[data-profile-tab]').forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-profile-tab="${tabName}"]`).classList.add('active');
+
+        // Update tab content
+        document.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(`profile-${tabName}-tab`).classList.add('active');
+
+        // Load tab data if needed
+        if (this.currentProfile) {
+            switch (tabName) {
+                case 'notes':
+                    this.loadProfileNotes(this.currentProfile.pubkey);
+                    break;
+                case 'following':
+                    this.loadProfileFollowing(this.currentProfile.pubkey);
+                    break;
+                case 'zaps':
+                    this.loadProfileZaps(this.currentProfile.pubkey);
+                    break;
+            }
+        }
+    }
+
+    async loadProfileNotes(pubkey) {
+        const container = document.getElementById('profile-notes-list');
+        container.innerHTML = '<p class="loading">Loading notes...</p>';
+
+        try {
+            const response = await fetch(`/api/events?kind=1&author=${pubkey}&limit=20`);
+            const notes = await response.json() || [];
+
+            if (notes.length === 0) {
+                container.innerHTML = '<p class="hint">No notes found</p>';
+                return;
+            }
+
+            container.innerHTML = notes.map(note => `
+                <div class="note-card">
+                    <div class="note-content">${this.escapeHtml(note.content)}</div>
+                    <div class="note-meta">
+                        <span class="note-time">${this.formatTime(note.created_at)}</span>
+                        <span class="note-id">${note.id.substring(0, 8)}...</span>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            container.innerHTML = `<p class="error">Failed to load notes: ${this.escapeHtml(error.message)}</p>`;
+        }
+    }
+
+    async loadProfileFollowing(pubkey) {
+        const container = document.getElementById('profile-following-list');
+        container.innerHTML = '<p class="loading">Loading following list...</p>';
+
+        try {
+            // Query kind 3 (contact list) for this pubkey
+            const response = await fetch(`/api/events?kind=3&author=${pubkey}&limit=1`);
+            const events = await response.json() || [];
+
+            if (events.length === 0) {
+                container.innerHTML = '<p class="hint">No following list found</p>';
+                return;
+            }
+
+            // Parse contact list from tags
+            const event = events[0];
+            const follows = event.tags
+                .filter(tag => tag[0] === 'p')
+                .map(tag => ({
+                    pubkey: tag[1],
+                    relay: tag[2] || null,
+                    petname: tag[3] || null
+                }));
+
+            // Update follow count
+            document.getElementById('profile-follow-count').textContent = follows.length;
+
+            if (follows.length === 0) {
+                container.innerHTML = '<p class="hint">Not following anyone</p>';
+                return;
+            }
+
+            container.innerHTML = follows.slice(0, 50).map(follow => `
+                <div class="follow-card" onclick="app.exploreProfileByPubkey('${follow.pubkey}')">
+                    <span class="follow-pubkey">${follow.pubkey.substring(0, 16)}...</span>
+                    ${follow.petname ? `<span class="follow-petname">${this.escapeHtml(follow.petname)}</span>` : ''}
+                    ${follow.relay ? `<span class="follow-relay">${this.escapeHtml(follow.relay)}</span>` : ''}
+                </div>
+            `).join('');
+        } catch (error) {
+            container.innerHTML = `<p class="error">Failed to load following: ${this.escapeHtml(error.message)}</p>`;
+        }
+    }
+
+    async loadProfileZaps(pubkey) {
+        const container = document.getElementById('profile-zaps-list');
+        container.innerHTML = '<p class="loading">Loading zap history...</p>';
+
+        try {
+            // Query kind 9735 (zap receipts) where this pubkey is the recipient
+            const response = await fetch(`/api/events?kind=9735&limit=50`);
+            const allZaps = await response.json() || [];
+
+            // Filter zaps for this pubkey (check 'p' tag)
+            const zaps = allZaps.filter(zap =>
+                zap.tags.some(tag => tag[0] === 'p' && tag[1] === pubkey)
+            );
+
+            // Parse zap amounts from bolt11 tags
+            let totalSats = 0;
+            let topZap = 0;
+            const parsedZaps = zaps.map(zap => {
+                const bolt11Tag = zap.tags.find(t => t[0] === 'bolt11');
+                const descTag = zap.tags.find(t => t[0] === 'description');
+                let amount = 0;
+                let senderPubkey = '';
+
+                // Try to extract amount from description
+                if (descTag && descTag[1]) {
+                    try {
+                        const desc = JSON.parse(descTag[1]);
+                        if (desc.amount) {
+                            amount = Math.floor(parseInt(desc.amount) / 1000); // msats to sats
+                        }
+                        senderPubkey = desc.pubkey || '';
+                    } catch (e) {
+                        // Ignore parse errors
+                    }
+                }
+
+                totalSats += amount;
+                if (amount > topZap) topZap = amount;
+
+                return {
+                    id: zap.id,
+                    amount,
+                    sender: senderPubkey,
+                    content: zap.content,
+                    created_at: zap.created_at
+                };
+            });
+
+            // Update stats
+            document.getElementById('zap-total-count').textContent = zaps.length;
+            document.getElementById('zap-total-sats').textContent = totalSats.toLocaleString();
+            document.getElementById('zap-avg-sats').textContent =
+                zaps.length > 0 ? Math.round(totalSats / zaps.length).toLocaleString() : '0';
+            document.getElementById('zap-top-zap').textContent = topZap.toLocaleString();
+
+            if (parsedZaps.length === 0) {
+                container.innerHTML = '<p class="hint">No zaps found</p>';
+                return;
+            }
+
+            container.innerHTML = parsedZaps.map(zap => `
+                <div class="zap-card">
+                    <span class="zap-amount">⚡ ${zap.amount.toLocaleString()} sats</span>
+                    <span class="zap-sender">${zap.sender ? zap.sender.substring(0, 16) + '...' : 'Anonymous'}</span>
+                    <span class="zap-time">${this.formatTime(zap.created_at)}</span>
+                    ${zap.content ? `<span class="zap-message">${this.escapeHtml(zap.content)}</span>` : ''}
+                </div>
+            `).join('');
+        } catch (error) {
+            container.innerHTML = `<p class="error">Failed to load zaps: ${this.escapeHtml(error.message)}</p>`;
+        }
+    }
+
+    exploreProfileByPubkey(pubkey) {
+        document.getElementById('profile-search').value = pubkey;
+        this.exploreProfile();
     }
 
     // Events Tab
