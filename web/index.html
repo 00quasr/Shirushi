@@ -32,6 +32,7 @@
         <button class="tab active" data-tab="relays">Relays</button>
         <button class="tab" data-tab="explorer">Explorer</button>
         <button class="tab" data-tab="events">Events</button>
+        <button class="tab" data-tab="publish">Publish</button>
         <button class="tab" data-tab="testing">Testing</button>
         <button class="tab" data-tab="keys">Keys</button>
         <button class="tab" data-tab="console">Console</button>
@@ -376,6 +377,103 @@
                 </div>
             </div>
             <div id="event-list" class="event-stream"></div>
+        </section>
+
+        <!-- Publish Tab -->
+        <section id="publish-tab" class="tab-content">
+            <div class="publish-layout">
+                <div class="panel publish-form-panel">
+                    <h2>Publish Event</h2>
+                    <p class="hint">Create and publish events to connected relays as yourself</p>
+
+                    <div class="publish-form">
+                        <div class="form-group">
+                            <label for="publish-kind">Event Kind</label>
+                            <select id="publish-kind" class="form-select">
+                                <option value="1">1 - Short Text Note</option>
+                                <option value="0">0 - Metadata</option>
+                                <option value="3">3 - Contacts</option>
+                                <option value="4">4 - Encrypted Direct Message</option>
+                                <option value="7">7 - Reaction</option>
+                                <option value="custom">Custom Kind...</option>
+                            </select>
+                            <input type="number" id="publish-custom-kind" class="form-input hidden" placeholder="Enter custom kind number" min="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="publish-content">Content</label>
+                            <textarea id="publish-content" class="form-textarea" rows="4" placeholder="Enter your message..."></textarea>
+                            <span class="char-count"><span id="content-char-count">0</span> characters</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tags <span class="optional">(optional)</span></label>
+                            <div id="publish-tags" class="tags-container">
+                                <!-- Tags will be added here dynamically -->
+                            </div>
+                            <div class="tag-input-row">
+                                <input type="text" id="tag-key" class="form-input tag-input" placeholder="Key (e.g., p, e, t)">
+                                <input type="text" id="tag-value" class="form-input tag-input" placeholder="Value">
+                                <button id="add-tag-btn" class="btn small">Add Tag</button>
+                            </div>
+                            <p class="hint">Common tags: p (pubkey), e (event), t (hashtag)</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Signing Method</label>
+                            <div class="signing-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="signing-method" value="extension" id="sign-extension" checked>
+                                    <span class="radio-label">
+                                        <span class="radio-title">Browser Extension (NIP-07)</span>
+                                        <span class="radio-desc" id="extension-sign-status">Checking...</span>
+                                    </span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="signing-method" value="nsec" id="sign-nsec">
+                                    <span class="radio-label">
+                                        <span class="radio-title">Private Key (nsec)</span>
+                                        <span class="radio-desc">Enter your nsec to sign</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group hidden" id="nsec-input-group">
+                            <label for="publish-nsec">Private Key (nsec)</label>
+                            <div class="key-input-wrapper">
+                                <input type="password" id="publish-nsec" class="form-input" placeholder="nsec1...">
+                                <button type="button" id="toggle-publish-nsec" class="btn small">Show</button>
+                            </div>
+                            <p class="hint warning">Your private key is never stored or sent to any server when using extension signing</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Target Relays</label>
+                            <div id="publish-relay-list" class="relay-checkbox-list">
+                                <p class="hint">Loading relays...</p>
+                            </div>
+                        </div>
+
+                        <div class="publish-actions">
+                            <button id="preview-event-btn" class="btn">Preview Event</button>
+                            <button id="publish-event-btn" class="btn primary">Publish Event</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel publish-preview-panel">
+                    <h3>Event Preview</h3>
+                    <div id="event-preview" class="event-preview">
+                        <p class="hint">Fill out the form to preview your event</p>
+                    </div>
+
+                    <h3>Publish History</h3>
+                    <div id="publish-history" class="publish-history">
+                        <p class="hint">No events published yet</p>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Testing Tab -->

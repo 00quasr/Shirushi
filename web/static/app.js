@@ -34,6 +34,10 @@ class Shirushi {
         this.loadingStates = new Map();
         this.loadingCallbacks = new Map();
 
+        // Publish state
+        this.publishTags = [];
+        this.publishHistory = [];
+
         this.init();
     }
 
@@ -45,6 +49,7 @@ class Shirushi {
         this.setupRelays();
         this.setupExplorer();
         this.setupEvents();
+        this.setupPublish();
         this.setupTesting();
         this.setupKeys();
         this.setupConsole();
@@ -1042,6 +1047,424 @@ class Shirushi {
                 }
             });
         }
+    }
+
+    // Publish Tab
+    setupPublish() {
+        // Kind selector
+        const kindSelect = document.getElementById('publish-kind');
+        const customKindInput = document.getElementById('publish-custom-kind');
+        if (kindSelect) {
+            kindSelect.addEventListener('change', () => {
+                if (kindSelect.value === 'custom') {
+                    customKindInput.classList.remove('hidden');
+                    customKindInput.focus();
+                } else {
+                    customKindInput.classList.add('hidden');
+                }
+                this.updateEventPreview();
+            });
+        }
+        if (customKindInput) {
+            customKindInput.addEventListener('input', () => this.updateEventPreview());
+        }
+
+        // Content textarea
+        const contentTextarea = document.getElementById('publish-content');
+        const charCount = document.getElementById('content-char-count');
+        if (contentTextarea) {
+            contentTextarea.addEventListener('input', () => {
+                if (charCount) {
+                    charCount.textContent = contentTextarea.value.length;
+                }
+                this.updateEventPreview();
+            });
+        }
+
+        // Tag management
+        const addTagBtn = document.getElementById('add-tag-btn');
+        if (addTagBtn) {
+            addTagBtn.addEventListener('click', () => this.addPublishTag());
+        }
+
+        // Allow Enter key to add tags
+        const tagKeyInput = document.getElementById('tag-key');
+        const tagValueInput = document.getElementById('tag-value');
+        if (tagKeyInput) {
+            tagKeyInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    tagValueInput.focus();
+                }
+            });
+        }
+        if (tagValueInput) {
+            tagValueInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addPublishTag();
+                }
+            });
+        }
+
+        // Signing method toggle
+        const signExtension = document.getElementById('sign-extension');
+        const signNsec = document.getElementById('sign-nsec');
+        const nsecInputGroup = document.getElementById('nsec-input-group');
+
+        if (signExtension && signNsec && nsecInputGroup) {
+            signExtension.addEventListener('change', () => {
+                if (signExtension.checked) {
+                    nsecInputGroup.classList.add('hidden');
+                }
+            });
+            signNsec.addEventListener('change', () => {
+                if (signNsec.checked) {
+                    nsecInputGroup.classList.remove('hidden');
+                    document.getElementById('publish-nsec').focus();
+                }
+            });
+        }
+
+        // Toggle nsec visibility
+        const toggleNsecBtn = document.getElementById('toggle-publish-nsec');
+        const nsecInput = document.getElementById('publish-nsec');
+        if (toggleNsecBtn && nsecInput) {
+            toggleNsecBtn.addEventListener('click', () => {
+                if (nsecInput.type === 'password') {
+                    nsecInput.type = 'text';
+                    toggleNsecBtn.textContent = 'Hide';
+                } else {
+                    nsecInput.type = 'password';
+                    toggleNsecBtn.textContent = 'Show';
+                }
+            });
+        }
+
+        // Preview and publish buttons
+        const previewBtn = document.getElementById('preview-event-btn');
+        const publishBtn = document.getElementById('publish-event-btn');
+
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => this.updateEventPreview());
+        }
+
+        if (publishBtn) {
+            publishBtn.addEventListener('click', () => this.publishEvent());
+        }
+
+        // Update extension status in signing options
+        this.updatePublishExtensionStatus();
+
+        // Load relays for the checkbox list when tab is shown
+        document.querySelector('[data-tab="publish"]').addEventListener('click', () => {
+            this.loadPublishRelays();
+        });
+    }
+
+    async updatePublishExtensionStatus() {
+        const statusEl = document.getElementById('extension-sign-status');
+        const extensionRadio = document.getElementById('sign-extension');
+        if (!statusEl) return;
+
+        const result = await this.detectExtension();
+
+        if (result.available) {
+            const name = result.name || 'NIP-07 Extension';
+            statusEl.textContent = result.pubkey
+                ? `${name} - ${result.pubkey.slice(0, 8)}...`
+                : `${name} detected`;
+            statusEl.classList.add('available');
+            statusEl.classList.remove('unavailable');
+            if (extensionRadio) {
+                extensionRadio.disabled = false;
+            }
+        } else {
+            statusEl.textContent = 'No extension detected';
+            statusEl.classList.add('unavailable');
+            statusEl.classList.remove('available');
+            // Auto-select nsec if no extension
+            const nsecRadio = document.getElementById('sign-nsec');
+            if (nsecRadio && extensionRadio) {
+                nsecRadio.checked = true;
+                extensionRadio.disabled = true;
+                document.getElementById('nsec-input-group').classList.remove('hidden');
+            }
+        }
+    }
+
+    loadPublishRelays() {
+        const container = document.getElementById('publish-relay-list');
+        if (!container) return;
+
+        if (this.relays.length === 0) {
+            container.innerHTML = '<p class="hint">No relays connected. Add relays from the Relays tab.</p>';
+            return;
+        }
+
+        container.innerHTML = this.relays.map((relay, index) => `
+            <label class="relay-checkbox-item">
+                <input type="checkbox" name="publish-relay" value="${this.escapeHtml(relay.url)}" ${relay.connected ? 'checked' : ''}>
+                <span class="relay-status-dot ${relay.connected ? 'connected' : 'disconnected'}"></span>
+                <span class="relay-url">${this.escapeHtml(relay.url)}</span>
+            </label>
+        `).join('');
+    }
+
+    addPublishTag() {
+        const keyInput = document.getElementById('tag-key');
+        const valueInput = document.getElementById('tag-value');
+        const container = document.getElementById('publish-tags');
+
+        const key = keyInput.value.trim();
+        const value = valueInput.value.trim();
+
+        if (!key) {
+            this.toastWarning('Missing Tag Key', 'Please enter a tag key');
+            keyInput.focus();
+            return;
+        }
+
+        this.publishTags.push([key, value]);
+        this.renderPublishTags();
+
+        keyInput.value = '';
+        valueInput.value = '';
+        keyInput.focus();
+
+        this.updateEventPreview();
+    }
+
+    removePublishTag(index) {
+        this.publishTags.splice(index, 1);
+        this.renderPublishTags();
+        this.updateEventPreview();
+    }
+
+    renderPublishTags() {
+        const container = document.getElementById('publish-tags');
+        if (!container) return;
+
+        if (this.publishTags.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = this.publishTags.map((tag, index) => `
+            <span class="tag-item">
+                <span class="tag-key">${this.escapeHtml(tag[0])}</span>
+                <span class="tag-value">${this.escapeHtml(tag[1] || '(empty)')}</span>
+                <button class="remove-tag" onclick="app.removePublishTag(${index})" title="Remove tag">&times;</button>
+            </span>
+        `).join('');
+    }
+
+    getPublishEventKind() {
+        const kindSelect = document.getElementById('publish-kind');
+        const customKindInput = document.getElementById('publish-custom-kind');
+
+        if (kindSelect.value === 'custom') {
+            return parseInt(customKindInput.value) || 1;
+        }
+        return parseInt(kindSelect.value) || 1;
+    }
+
+    updateEventPreview() {
+        const previewContainer = document.getElementById('event-preview');
+        if (!previewContainer) return;
+
+        const kind = this.getPublishEventKind();
+        const content = document.getElementById('publish-content').value;
+        const tags = this.publishTags;
+
+        const eventPreview = {
+            kind: kind,
+            content: content,
+            tags: tags,
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: '(will be set by signer)',
+            id: '(will be computed)',
+            sig: '(will be computed)'
+        };
+
+        previewContainer.innerHTML = `
+            <div class="preview-field">
+                <div class="preview-label">Kind</div>
+                <div class="preview-value">${kind}</div>
+            </div>
+            <div class="preview-field">
+                <div class="preview-label">Content</div>
+                <div class="preview-value content">${this.escapeHtml(content) || '(empty)'}</div>
+            </div>
+            <div class="preview-field">
+                <div class="preview-label">Tags</div>
+                <div class="preview-value">${tags.length > 0 ? tags.map(t => `[${t.map(v => `"${this.escapeHtml(v)}"`).join(', ')}]`).join(', ') : '(none)'}</div>
+            </div>
+            <div class="preview-field">
+                <div class="preview-label">JSON Preview</div>
+                <pre>${this.escapeHtml(JSON.stringify(eventPreview, null, 2))}</pre>
+            </div>
+        `;
+    }
+
+    getSelectedPublishRelays() {
+        const checkboxes = document.querySelectorAll('input[name="publish-relay"]:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    async publishEvent() {
+        const publishBtn = document.getElementById('publish-event-btn');
+        const kind = this.getPublishEventKind();
+        const content = document.getElementById('publish-content').value;
+        const tags = this.publishTags;
+        const selectedRelays = this.getSelectedPublishRelays();
+
+        // Validate
+        if (selectedRelays.length === 0) {
+            this.toastError('No Relays Selected', 'Please select at least one relay to publish to');
+            return;
+        }
+
+        // Get signing method
+        const useExtension = document.getElementById('sign-extension').checked;
+        const nsecInput = document.getElementById('publish-nsec');
+
+        if (!useExtension && !nsecInput.value.trim()) {
+            this.toastError('Missing Private Key', 'Please enter your nsec private key');
+            nsecInput.focus();
+            return;
+        }
+
+        await this.withLoading('publish-event', async () => {
+            let signedEvent;
+
+            if (useExtension) {
+                // Sign with NIP-07 extension
+                const unsignedEvent = {
+                    kind: kind,
+                    content: content,
+                    tags: tags,
+                    created_at: Math.floor(Date.now() / 1000)
+                };
+
+                const signResult = await this.signWithExtension(unsignedEvent);
+                if (!signResult.success) {
+                    throw new Error(signResult.error || 'Failed to sign with extension');
+                }
+                signedEvent = signResult.event;
+            } else {
+                // Sign with provided nsec via backend
+                const signResponse = await fetch('/api/events/sign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        kind: kind,
+                        content: content,
+                        tags: tags,
+                        privateKey: nsecInput.value.trim()
+                    })
+                });
+
+                if (!signResponse.ok) {
+                    const error = await signResponse.json();
+                    throw new Error(error.error || 'Failed to sign event');
+                }
+
+                signedEvent = await signResponse.json();
+            }
+
+            // Publish to selected relays
+            const publishResults = [];
+            for (const relay of selectedRelays) {
+                try {
+                    const publishResponse = await fetch('/api/events/publish', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(signedEvent)
+                    });
+
+                    if (publishResponse.ok) {
+                        const result = await publishResponse.json();
+                        publishResults.push({ relay, success: true, result });
+                    } else {
+                        const error = await publishResponse.json();
+                        publishResults.push({ relay, success: false, error: error.error });
+                    }
+                } catch (err) {
+                    publishResults.push({ relay, success: false, error: err.message });
+                }
+            }
+
+            // Check results
+            const successCount = publishResults.filter(r => r.success).length;
+            const failCount = publishResults.length - successCount;
+
+            // Add to history
+            this.addToPublishHistory({
+                event: signedEvent,
+                results: publishResults,
+                timestamp: Date.now()
+            });
+
+            // Clear form on success
+            if (successCount > 0) {
+                document.getElementById('publish-content').value = '';
+                document.getElementById('content-char-count').textContent = '0';
+                this.publishTags = [];
+                this.renderPublishTags();
+                this.updateEventPreview();
+
+                if (failCount === 0) {
+                    this.toastSuccess('Event Published', `Successfully published to ${successCount} relay${successCount > 1 ? 's' : ''}`);
+                } else {
+                    this.toastWarning('Partially Published', `Published to ${successCount} relay(s), failed on ${failCount}`);
+                }
+            } else {
+                throw new Error('Failed to publish to any relay');
+            }
+        }, {
+            button: publishBtn,
+            buttonText: 'Publishing...',
+            showErrorToast: true
+        });
+    }
+
+    addToPublishHistory(entry) {
+        this.publishHistory.unshift(entry);
+        // Keep only last 10 entries
+        if (this.publishHistory.length > 10) {
+            this.publishHistory.pop();
+        }
+        this.renderPublishHistory();
+    }
+
+    renderPublishHistory() {
+        const container = document.getElementById('publish-history');
+        if (!container) return;
+
+        if (this.publishHistory.length === 0) {
+            container.innerHTML = '<p class="hint">No events published yet</p>';
+            return;
+        }
+
+        container.innerHTML = this.publishHistory.map(entry => {
+            const successCount = entry.results.filter(r => r.success).length;
+            const totalCount = entry.results.length;
+            const isSuccess = successCount > 0;
+
+            return `
+                <div class="publish-history-item">
+                    <div class="history-header">
+                        <span class="history-kind">Kind ${entry.event.kind}</span>
+                        <span class="history-time">${this.formatTime(Math.floor(entry.timestamp / 1000))}</span>
+                    </div>
+                    <div class="history-content">${this.escapeHtml(entry.event.content.substring(0, 100))}${entry.event.content.length > 100 ? '...' : ''}</div>
+                    <div class="history-status ${isSuccess ? 'success' : 'error'}">
+                        ${isSuccess ? '✓' : '✗'} ${successCount}/${totalCount} relays
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     // Testing Tab
