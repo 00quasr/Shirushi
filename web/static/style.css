@@ -1546,6 +1546,158 @@ main {
     font-size: 13px;
 }
 
+/* Spinner Component */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-light);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Spinner Size Variants */
+.spinner.spinner-xs {
+    width: 12px;
+    height: 12px;
+    border-width: 1.5px;
+}
+
+.spinner.spinner-sm {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+.spinner.spinner-md {
+    width: 24px;
+    height: 24px;
+    border-width: 2.5px;
+}
+
+.spinner.spinner-lg {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+}
+
+.spinner.spinner-xl {
+    width: 48px;
+    height: 48px;
+    border-width: 4px;
+}
+
+/* Spinner Color Variants */
+.spinner.spinner-accent {
+    border-color: var(--border-light);
+    border-top-color: var(--accent);
+}
+
+.spinner.spinner-success {
+    border-color: rgba(34, 197, 94, 0.2);
+    border-top-color: var(--success);
+}
+
+.spinner.spinner-error {
+    border-color: rgba(239, 68, 68, 0.2);
+    border-top-color: var(--error);
+}
+
+.spinner.spinner-warning {
+    border-color: rgba(234, 179, 8, 0.2);
+    border-top-color: var(--warning);
+}
+
+.spinner.spinner-white {
+    border-color: rgba(255, 255, 255, 0.2);
+    border-top-color: white;
+}
+
+/* Spinner with Label */
+.spinner-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spinner-container.spinner-container-vertical {
+    flex-direction: column;
+    gap: 12px;
+}
+
+.spinner-label {
+    font-size: 13px;
+    color: var(--text-2);
+}
+
+/* Spinner Overlay */
+.spinner-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: inherit;
+    z-index: 10;
+}
+
+/* Spinner in Button */
+.btn .spinner {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+}
+
+.btn.btn-loading {
+    position: relative;
+    color: transparent;
+    pointer-events: none;
+}
+
+.btn.btn-loading .spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.btn.btn-loading .spinner.spinner-white {
+    border-color: rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+}
+
+/* Full Page Spinner */
+.spinner-fullpage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: var(--bg-0);
+    z-index: 9999;
+}
+
+.spinner-fullpage .spinner {
+    width: 40px;
+    height: 40px;
+    border-width: 3px;
+}
+
+.spinner-fullpage .spinner-label {
+    font-size: 14px;
+    color: var(--text-1);
+}
+
 /* Monitoring Tab */
 .monitoring-header {
     margin-bottom: 16px;

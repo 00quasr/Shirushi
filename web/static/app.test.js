@@ -4404,6 +4404,230 @@
         });
     });
 
+    // ==========================================
+    // Spinner Component Tests
+    // ==========================================
+    describe('Spinner Component', () => {
+        it('spinner base element renders correctly', () => {
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner';
+            document.body.appendChild(spinner);
+
+            const styles = window.getComputedStyle(spinner);
+            assertEqual(styles.display, 'inline-block', 'Spinner should be inline-block');
+            assertEqual(styles.borderRadius, '50%', 'Spinner should be circular');
+
+            document.body.removeChild(spinner);
+        });
+
+        it('spinner size variants apply correct dimensions', () => {
+            const sizes = {
+                'spinner-xs': '12px',
+                'spinner-sm': '16px',
+                'spinner-md': '24px',
+                'spinner-lg': '32px',
+                'spinner-xl': '48px'
+            };
+
+            for (const [className, expectedSize] of Object.entries(sizes)) {
+                const spinner = document.createElement('span');
+                spinner.className = `spinner ${className}`;
+                document.body.appendChild(spinner);
+
+                const styles = window.getComputedStyle(spinner);
+                assertEqual(styles.width, expectedSize, `${className} should have width ${expectedSize}`);
+                assertEqual(styles.height, expectedSize, `${className} should have height ${expectedSize}`);
+
+                document.body.removeChild(spinner);
+            }
+        });
+
+        it('spinner color variants apply correct border colors', () => {
+            const colorVariants = ['spinner-accent', 'spinner-success', 'spinner-error', 'spinner-warning', 'spinner-white'];
+
+            for (const variant of colorVariants) {
+                const spinner = document.createElement('span');
+                spinner.className = `spinner ${variant}`;
+                document.body.appendChild(spinner);
+
+                const styles = window.getComputedStyle(spinner);
+                assertTrue(styles.borderTopColor !== '', `${variant} should have border-top-color`);
+
+                document.body.removeChild(spinner);
+            }
+        });
+
+        it('spinner container with label renders correctly', () => {
+            const container = document.createElement('div');
+            container.className = 'spinner-container';
+            container.innerHTML = `
+                <span class="spinner"></span>
+                <span class="spinner-label">Loading...</span>
+            `;
+            document.body.appendChild(container);
+
+            const styles = window.getComputedStyle(container);
+            assertEqual(styles.display, 'inline-flex', 'Spinner container should be inline-flex');
+
+            const label = container.querySelector('.spinner-label');
+            assertDefined(label, 'Spinner label should exist');
+            assertEqual(label.textContent, 'Loading...', 'Spinner label should have correct text');
+
+            document.body.removeChild(container);
+        });
+
+        it('spinner container vertical variant stacks content', () => {
+            const container = document.createElement('div');
+            container.className = 'spinner-container spinner-container-vertical';
+            container.innerHTML = `
+                <span class="spinner spinner-lg"></span>
+                <span class="spinner-label">Processing...</span>
+            `;
+            document.body.appendChild(container);
+
+            const styles = window.getComputedStyle(container);
+            assertEqual(styles.flexDirection, 'column', 'Vertical spinner container should have column direction');
+
+            document.body.removeChild(container);
+        });
+
+        it('spinner overlay renders with correct positioning', () => {
+            const parent = document.createElement('div');
+            parent.style.position = 'relative';
+            parent.style.width = '200px';
+            parent.style.height = '200px';
+            parent.innerHTML = `<div class="spinner-overlay"><span class="spinner"></span></div>`;
+            document.body.appendChild(parent);
+
+            const overlay = parent.querySelector('.spinner-overlay');
+            const styles = window.getComputedStyle(overlay);
+            assertEqual(styles.position, 'absolute', 'Spinner overlay should be absolute positioned');
+            assertEqual(styles.display, 'flex', 'Spinner overlay should be flex');
+
+            document.body.removeChild(parent);
+        });
+
+        it('button with spinner hides text when loading', () => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-loading';
+            button.innerHTML = `Submit<span class="spinner spinner-white"></span>`;
+            document.body.appendChild(button);
+
+            const styles = window.getComputedStyle(button);
+            assertEqual(styles.color, 'rgba(0, 0, 0, 0)', 'Loading button text should be transparent');
+            assertEqual(styles.pointerEvents, 'none', 'Loading button should not be clickable');
+
+            document.body.removeChild(button);
+        });
+
+        it('spinner has animation applied', () => {
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner';
+            document.body.appendChild(spinner);
+
+            const styles = window.getComputedStyle(spinner);
+            assertTrue(styles.animationName.includes('spinner-rotate') || styles.animation.includes('spinner-rotate'),
+                'Spinner should have rotation animation');
+
+            document.body.removeChild(spinner);
+        });
+
+        it('fullpage spinner covers entire viewport', () => {
+            const fullpage = document.createElement('div');
+            fullpage.className = 'spinner-fullpage';
+            fullpage.innerHTML = `
+                <span class="spinner"></span>
+                <span class="spinner-label">Loading application...</span>
+            `;
+            document.body.appendChild(fullpage);
+
+            const styles = window.getComputedStyle(fullpage);
+            assertEqual(styles.position, 'fixed', 'Fullpage spinner should be fixed positioned');
+            assertTrue(parseInt(styles.zIndex) >= 9999, 'Fullpage spinner should have high z-index');
+
+            document.body.removeChild(fullpage);
+        });
+
+        it('spinner in button has appropriate size', () => {
+            const button = document.createElement('button');
+            button.className = 'btn';
+            button.innerHTML = `<span class="spinner"></span> Loading`;
+            document.body.appendChild(button);
+
+            const spinner = button.querySelector('.spinner');
+            const styles = window.getComputedStyle(spinner);
+            assertEqual(styles.width, '14px', 'Spinner in button should be 14px');
+            assertEqual(styles.height, '14px', 'Spinner in button should be 14px');
+
+            document.body.removeChild(button);
+        });
+    });
+
+    describe('Spinner CSS', () => {
+        function getCssText() {
+            let cssText = '';
+            for (const sheet of document.styleSheets) {
+                try {
+                    for (const rule of sheet.cssRules) {
+                        cssText += rule.cssText + '\n';
+                    }
+                } catch (e) {
+                    // CORS may block access
+                }
+            }
+            return cssText;
+        }
+
+        it('spinner base class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.spinner'), 'CSS should have .spinner rule');
+        });
+
+        it('spinner-rotate animation should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('spinner-rotate'), 'CSS should have spinner-rotate animation');
+        });
+
+        it('spinner size variants should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.spinner-xs') || css.includes('.spinner.spinner-xs'), 'CSS should have spinner-xs');
+            assertTrue(css.includes('.spinner-sm') || css.includes('.spinner.spinner-sm'), 'CSS should have spinner-sm');
+            assertTrue(css.includes('.spinner-md') || css.includes('.spinner.spinner-md'), 'CSS should have spinner-md');
+            assertTrue(css.includes('.spinner-lg') || css.includes('.spinner.spinner-lg'), 'CSS should have spinner-lg');
+            assertTrue(css.includes('.spinner-xl') || css.includes('.spinner.spinner-xl'), 'CSS should have spinner-xl');
+        });
+
+        it('spinner color variants should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('spinner-accent'), 'CSS should have spinner-accent');
+            assertTrue(css.includes('spinner-success'), 'CSS should have spinner-success');
+            assertTrue(css.includes('spinner-error'), 'CSS should have spinner-error');
+            assertTrue(css.includes('spinner-warning'), 'CSS should have spinner-warning');
+            assertTrue(css.includes('spinner-white'), 'CSS should have spinner-white');
+        });
+
+        it('spinner container classes should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.spinner-container'), 'CSS should have spinner-container');
+            assertTrue(css.includes('.spinner-label'), 'CSS should have spinner-label');
+        });
+
+        it('spinner overlay class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.spinner-overlay'), 'CSS should have spinner-overlay');
+        });
+
+        it('spinner fullpage class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.spinner-fullpage'), 'CSS should have spinner-fullpage');
+        });
+
+        it('btn-loading class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.btn-loading') || css.includes('.btn.btn-loading'), 'CSS should have btn-loading');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
