@@ -67,6 +67,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/keys/encode", s.api.HandleKeyEncode)
 	mux.HandleFunc("/api/nak", s.api.HandleNak)
 	mux.HandleFunc("/api/profile/lookup", s.api.HandleProfileLookup)
+	mux.HandleFunc("/api/profile/", s.api.HandleProfile)
 
 	// WebSocket
 	mux.HandleFunc("/ws", s.handleWebSocket)

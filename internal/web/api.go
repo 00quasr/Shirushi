@@ -323,6 +323,27 @@ func (a *API) HandleNak(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"output": output})
 }
 
+// HandleProfile looks up a Nostr profile by pubkey from URL path.
+// Path: /api/profile/{pubkey}
+func (a *API) HandleProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Extract pubkey from URL path: /api/profile/{pubkey}
+	path := strings.TrimPrefix(r.URL.Path, "/api/profile/")
+	pubkey := strings.TrimSpace(path)
+
+	if pubkey == "" {
+		writeError(w, http.StatusBadRequest, "pubkey is required in path")
+		return
+	}
+
+	// Delegate to the common profile lookup logic
+	a.lookupProfile(w, pubkey)
+}
+
 // HandleProfileLookup looks up a Nostr profile by pubkey or NIP-19 identifier.
 func (a *API) HandleProfileLookup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -337,6 +358,12 @@ func (a *API) HandleProfileLookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Delegate to the common profile lookup logic
+	a.lookupProfile(w, pubkey)
+}
+
+// lookupProfile is the shared logic for looking up a profile by pubkey.
+func (a *API) lookupProfile(w http.ResponseWriter, pubkey string) {
 	// If input starts with "npub" or "nprofile", decode it first
 	if strings.HasPrefix(pubkey, "npub") || strings.HasPrefix(pubkey, "nprofile") {
 		if a.nak == nil {
