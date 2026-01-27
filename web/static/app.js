@@ -1725,12 +1725,38 @@ class Shirushi {
             }
         }
 
+        // Build example events section
+        let exampleEventsHtml = '';
+        if (nip.exampleEvents && nip.exampleEvents.length > 0) {
+            const examplesContent = nip.exampleEvents.map((example, index) => `
+                <div class="example-event">
+                    <div class="example-event-header">
+                        <span class="example-event-description">${example.description}</span>
+                        <button class="btn small copy-btn" data-example-index="${index}" title="Copy to clipboard">Copy</button>
+                    </div>
+                    <pre class="example-event-json"><code>${this.escapeHtml(example.json)}</code></pre>
+                </div>
+            `).join('');
+
+            exampleEventsHtml = `
+                <details class="example-events-section">
+                    <summary class="example-events-toggle">
+                        <span>Example Events (${nip.exampleEvents.length})</span>
+                    </summary>
+                    <div class="example-events-content">
+                        ${examplesContent}
+                    </div>
+                </details>
+            `;
+        }
+
         container.innerHTML = `
             <h3>${nip.name}: ${nip.title}</h3>
             ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
             <p class="nip-description">${nip.description}</p>
             ${eventKindsHtml}
             ${relatedNIPsHtml}
+            ${exampleEventsHtml}
             <a href="${nip.specUrl}" target="_blank" class="spec-link">View Specification</a>
             ${signingModeFields}
             ${formFields}
@@ -1745,6 +1771,21 @@ class Shirushi {
         container.querySelectorAll('.related-nip-link').forEach(link => {
             link.addEventListener('click', () => {
                 this.selectNip(link.dataset.nip);
+            });
+        });
+
+        // Setup example event copy buttons
+        container.querySelectorAll('.example-event .copy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.exampleIndex, 10);
+                if (nip.exampleEvents && nip.exampleEvents[index]) {
+                    navigator.clipboard.writeText(nip.exampleEvents[index].json).then(() => {
+                        btn.textContent = 'Copied!';
+                        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+                    }).catch(() => {
+                        this.showToast('error', 'Failed to copy to clipboard');
+                    });
+                }
             });
         });
 

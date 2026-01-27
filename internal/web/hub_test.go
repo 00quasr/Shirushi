@@ -591,3 +591,260 @@ func TestGetNIPList_CategoryDistribution(t *testing.T) {
 		t.Error("expected at least one NIP in 'core' category")
 	}
 }
+
+func TestGetNIPList_ExampleEvents(t *testing.T) {
+	nips := GetNIPList()
+
+	// Build a map for easy lookup
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	// Test NIP-01 has example events
+	nip01 := nipMap["nip01"]
+	if len(nip01.ExampleEvents) == 0 {
+		t.Error("expected NIP-01 to have example events")
+	}
+
+	// Check that example events have description and JSON
+	for i, example := range nip01.ExampleEvents {
+		if example.Description == "" {
+			t.Errorf("NIP-01 example %d has empty description", i)
+		}
+		if example.JSON == "" {
+			t.Errorf("NIP-01 example %d has empty JSON", i)
+		}
+	}
+}
+
+func TestGetNIPList_ExampleEventsForAllNIPs(t *testing.T) {
+	nips := GetNIPList()
+
+	for _, nip := range nips {
+		if len(nip.ExampleEvents) == 0 {
+			t.Errorf("NIP %s is missing example events", nip.ID)
+		}
+	}
+}
+
+func TestGetNIPList_ExampleEventsNIP01(t *testing.T) {
+	nips := GetNIPList()
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	nip01 := nipMap["nip01"]
+
+	// NIP-01 should have at least 2 examples (Kind 0 metadata and Kind 1 text note)
+	if len(nip01.ExampleEvents) < 2 {
+		t.Errorf("expected NIP-01 to have at least 2 example events, got %d", len(nip01.ExampleEvents))
+	}
+
+	// Check for Kind 0 metadata example
+	foundKind0 := false
+	foundKind1 := false
+	for _, example := range nip01.ExampleEvents {
+		if example.Description == "User Metadata (Kind 0)" {
+			foundKind0 = true
+		}
+		if example.Description == "Text Note (Kind 1)" {
+			foundKind1 = true
+		}
+	}
+	if !foundKind0 {
+		t.Error("expected NIP-01 to have User Metadata (Kind 0) example")
+	}
+	if !foundKind1 {
+		t.Error("expected NIP-01 to have Text Note (Kind 1) example")
+	}
+}
+
+func TestGetNIPList_ExampleEventsNIP02(t *testing.T) {
+	nips := GetNIPList()
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	nip02 := nipMap["nip02"]
+
+	// NIP-02 should have at least 1 example (Follow List Kind 3)
+	if len(nip02.ExampleEvents) < 1 {
+		t.Errorf("expected NIP-02 to have at least 1 example event, got %d", len(nip02.ExampleEvents))
+	}
+
+	// Check for Follow List example
+	foundFollowList := false
+	for _, example := range nip02.ExampleEvents {
+		if example.Description == "Follow List (Kind 3)" {
+			foundFollowList = true
+			break
+		}
+	}
+	if !foundFollowList {
+		t.Error("expected NIP-02 to have Follow List (Kind 3) example")
+	}
+}
+
+func TestGetNIPList_ExampleEventsNIP19(t *testing.T) {
+	nips := GetNIPList()
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	nip19 := nipMap["nip19"]
+
+	// NIP-19 should have encoding examples (npub, note, nprofile, nevent)
+	if len(nip19.ExampleEvents) < 2 {
+		t.Errorf("expected NIP-19 to have at least 2 example events, got %d", len(nip19.ExampleEvents))
+	}
+
+	// Check for npub example
+	foundNpub := false
+	for _, example := range nip19.ExampleEvents {
+		if example.Description == "npub (public key)" {
+			foundNpub = true
+			break
+		}
+	}
+	if !foundNpub {
+		t.Error("expected NIP-19 to have npub (public key) example")
+	}
+}
+
+func TestGetNIPList_ExampleEventsNIP57(t *testing.T) {
+	nips := GetNIPList()
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	nip57 := nipMap["nip57"]
+
+	// NIP-57 should have zap examples (Zap Request and Zap Receipt)
+	if len(nip57.ExampleEvents) < 2 {
+		t.Errorf("expected NIP-57 to have at least 2 example events, got %d", len(nip57.ExampleEvents))
+	}
+
+	// Check for zap request and receipt examples
+	foundZapRequest := false
+	foundZapReceipt := false
+	for _, example := range nip57.ExampleEvents {
+		if example.Description == "Zap Request (Kind 9734)" {
+			foundZapRequest = true
+		}
+		if example.Description == "Zap Receipt (Kind 9735)" {
+			foundZapReceipt = true
+		}
+	}
+	if !foundZapRequest {
+		t.Error("expected NIP-57 to have Zap Request (Kind 9734) example")
+	}
+	if !foundZapReceipt {
+		t.Error("expected NIP-57 to have Zap Receipt (Kind 9735) example")
+	}
+}
+
+func TestGetNIPList_ExampleEventsNIP90(t *testing.T) {
+	nips := GetNIPList()
+	nipMap := make(map[string]types.NIPInfo)
+	for _, nip := range nips {
+		nipMap[nip.ID] = nip
+	}
+
+	nip90 := nipMap["nip90"]
+
+	// NIP-90 should have DVM examples (Job Request, Job Result, Job Feedback)
+	if len(nip90.ExampleEvents) < 3 {
+		t.Errorf("expected NIP-90 to have at least 3 example events, got %d", len(nip90.ExampleEvents))
+	}
+
+	// Check for DVM examples
+	foundJobRequest := false
+	foundJobResult := false
+	foundJobFeedback := false
+	for _, example := range nip90.ExampleEvents {
+		if example.Description == "Job Request - Text Extraction (Kind 5000)" {
+			foundJobRequest = true
+		}
+		if example.Description == "Job Result (Kind 6000)" {
+			foundJobResult = true
+		}
+		if example.Description == "Job Feedback (Kind 7000)" {
+			foundJobFeedback = true
+		}
+	}
+	if !foundJobRequest {
+		t.Error("expected NIP-90 to have Job Request example")
+	}
+	if !foundJobResult {
+		t.Error("expected NIP-90 to have Job Result example")
+	}
+	if !foundJobFeedback {
+		t.Error("expected NIP-90 to have Job Feedback example")
+	}
+}
+
+func TestGetNIPList_ExampleEventsJSONSerialization(t *testing.T) {
+	nips := GetNIPList()
+
+	// Test that NIPInfo with ExampleEvents serializes correctly to JSON
+	msg := Message{
+		Type: "init",
+		Data: InitData{
+			NIPs: nips,
+		},
+	}
+
+	jsonData, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("failed to marshal message with example events: %v", err)
+	}
+
+	// Parse to verify structure
+	var parsed struct {
+		Type string `json:"type"`
+		Data struct {
+			NIPs []struct {
+				ID            string `json:"id"`
+				ExampleEvents []struct {
+					Description string `json:"description"`
+					JSON        string `json:"json"`
+				} `json:"exampleEvents"`
+			} `json:"nips"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(jsonData, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal message: %v", err)
+	}
+
+	if parsed.Type != "init" {
+		t.Errorf("expected type 'init', got '%s'", parsed.Type)
+	}
+
+	if len(parsed.Data.NIPs) == 0 {
+		t.Error("expected non-empty NIPs in parsed data")
+	}
+
+	// Find NIP-01 and verify it has example events
+	for _, nip := range parsed.Data.NIPs {
+		if nip.ID == "nip01" {
+			if len(nip.ExampleEvents) == 0 {
+				t.Error("expected NIP-01 to have example events in serialized form")
+			}
+			for i, example := range nip.ExampleEvents {
+				if example.Description == "" {
+					t.Errorf("NIP-01 serialized example %d has empty description", i)
+				}
+				if example.JSON == "" {
+					t.Errorf("NIP-01 serialized example %d has empty JSON", i)
+				}
+			}
+			break
+		}
+	}
+}

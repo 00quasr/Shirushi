@@ -188,8 +188,37 @@ func GetNIPList() []types.NIPInfo {
 			Category:    "core",
 			RelatedNIPs: []string{"nip02", "nip05", "nip19"},
 			EventKinds:  []int{0, 1},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/01.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "User Metadata (Kind 0)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1704067200,
+  "kind": 0,
+  "tags": [],
+  "content": "{\"name\":\"alice\",\"about\":\"Bitcoin enthusiast\",\"picture\":\"https://example.com/alice.jpg\"}",
+  "sig": "..."
+}`,
+				},
+				{
+					Description: "Text Note (Kind 1)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1704067200,
+  "kind": 1,
+  "tags": [
+    ["e", "5c83da..."],
+    ["p", "f7234bd..."]
+  ],
+  "content": "Hello, Nostr!",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/01.md",
+			HasTest: true,
 		},
 		{
 			ID:          "nip02",
@@ -199,8 +228,26 @@ func GetNIPList() []types.NIPInfo {
 			Category:    "core",
 			RelatedNIPs: []string{"nip01", "nip05"},
 			EventKinds:  []int{3},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/02.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "Follow List (Kind 3)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1704067200,
+  "kind": 3,
+  "tags": [
+    ["p", "91cf9a...", "wss://relay1.example.com", "alice"],
+    ["p", "14aeb...", "wss://relay2.example.com", "bob"],
+    ["p", "612ae...", "", "carol"]
+  ],
+  "content": "",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/02.md",
+			HasTest: true,
 		},
 		{
 			ID:          "nip05",
@@ -210,8 +257,22 @@ func GetNIPList() []types.NIPInfo {
 			Category:    "identity",
 			RelatedNIPs: []string{"nip01", "nip02"},
 			EventKinds:  []int{0},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/05.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "Metadata with NIP-05 identifier",
+					JSON: `{
+  "id": "...",
+  "pubkey": "b0635d...",
+  "created_at": 1704067200,
+  "kind": 0,
+  "tags": [],
+  "content": "{\"name\":\"bob\",\"nip05\":\"bob@example.com\"}",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/05.md",
+			HasTest: true,
 		},
 		{
 			ID:          "nip19",
@@ -220,8 +281,26 @@ func GetNIPList() []types.NIPInfo {
 			Description: "bech32-encoded entities (npub, nsec, note, etc.)",
 			Category:    "encoding",
 			RelatedNIPs: []string{"nip01"},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/19.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "npub (public key)",
+					JSON:        `npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsutcpk7`,
+				},
+				{
+					Description: "note (event id)",
+					JSON:        `note1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsdxmwd6`,
+				},
+				{
+					Description: "nprofile (with relay hints)",
+					JSON:        `nprofile1qqsrhuxx8l9ex335q7he0f09aej04zpazpl0ne2cgukyawd24mayt8gpp4mhxue69uhhytnc9e3k7mgpz4mhxue69uhkg6nzv9ejuumpv34kytnrdaksjlyr9p`,
+				},
+				{
+					Description: "nevent (event with hints)",
+					JSON:        `nevent1qqsqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzfhxc4`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/19.md",
+			HasTest: true,
 		},
 		{
 			ID:          "nip44",
@@ -231,8 +310,36 @@ func GetNIPList() []types.NIPInfo {
 			Category:    "encryption",
 			RelatedNIPs: []string{"nip01"},
 			EventKinds:  []int{1059},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/44.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "Gift Wrap (Kind 1059)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "ephemeral_pubkey...",
+  "created_at": 1704067200,
+  "kind": 1059,
+  "tags": [
+    ["p", "recipient_pubkey..."]
+  ],
+  "content": "encrypted_seal_using_nip44...",
+  "sig": "..."
+}`,
+				},
+				{
+					Description: "Seal (Kind 13)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "sender_real_pubkey...",
+  "created_at": 1704067200,
+  "kind": 13,
+  "tags": [],
+  "content": "encrypted_rumor_using_nip44...",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/44.md",
+			HasTest: true,
 		},
 		{
 			ID:          "nip57",
@@ -242,8 +349,45 @@ func GetNIPList() []types.NIPInfo {
 			Category:    "payments",
 			RelatedNIPs: []string{"nip01"},
 			EventKinds:  []int{9734, 9735},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/57.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "Zap Request (Kind 9734)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "sender_pubkey...",
+  "created_at": 1704067200,
+  "kind": 9734,
+  "tags": [
+    ["p", "recipient_pubkey..."],
+    ["amount", "21000"],
+    ["relays", "wss://relay1.example.com", "wss://relay2.example.com"],
+    ["e", "event_to_zap_id..."]
+  ],
+  "content": "Great post! ⚡",
+  "sig": "..."
+}`,
+				},
+				{
+					Description: "Zap Receipt (Kind 9735)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "lnurl_provider_pubkey...",
+  "created_at": 1704067200,
+  "kind": 9735,
+  "tags": [
+    ["p", "recipient_pubkey..."],
+    ["P", "sender_pubkey..."],
+    ["e", "event_zapped_id..."],
+    ["bolt11", "lnbc210n1..."],
+    ["description", "{\"kind\":9734,...}"]
+  ],
+  "content": "",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/57.md",
+			HasTest: true,
 		},
 		{
 			ID:          "nip90",
@@ -253,8 +397,57 @@ func GetNIPList() []types.NIPInfo {
 			Category:    "dvms",
 			RelatedNIPs: []string{"nip01"},
 			EventKinds:  []int{5000, 5001, 6000, 6001, 7000},
-			SpecURL:     "https://github.com/nostr-protocol/nips/blob/master/90.md",
-			HasTest:     true,
+			ExampleEvents: []types.ExampleEvent{
+				{
+					Description: "Job Request - Text Extraction (Kind 5000)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "customer_pubkey...",
+  "created_at": 1704067200,
+  "kind": 5000,
+  "tags": [
+    ["i", "https://example.com/document.pdf", "url"],
+    ["output", "text/plain"]
+  ],
+  "content": "",
+  "sig": "..."
+}`,
+				},
+				{
+					Description: "Job Result (Kind 6000)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "service_provider_pubkey...",
+  "created_at": 1704067200,
+  "kind": 6000,
+  "tags": [
+    ["e", "job_request_id...", "", "job"],
+    ["p", "customer_pubkey..."],
+    ["amount", "1000", "lnbc10n1..."]
+  ],
+  "content": "Extracted text content here...",
+  "sig": "..."
+}`,
+				},
+				{
+					Description: "Job Feedback (Kind 7000)",
+					JSON: `{
+  "id": "...",
+  "pubkey": "service_provider_pubkey...",
+  "created_at": 1704067200,
+  "kind": 7000,
+  "tags": [
+    ["e", "job_request_id...", "", "job"],
+    ["p", "customer_pubkey..."],
+    ["status", "processing", "25%"]
+  ],
+  "content": "Processing document...",
+  "sig": "..."
+}`,
+				},
+			},
+			SpecURL: "https://github.com/nostr-protocol/nips/blob/master/90.md",
+			HasTest: true,
 		},
 	}
 }
