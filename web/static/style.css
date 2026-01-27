@@ -4986,3 +4986,156 @@ main {
     width: 2px;
     background: var(--border-light);
 }
+
+/* Lightning Bolt Animation for Zaps */
+.zap-lightning {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+.zap-lightning svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--warning);
+    filter: drop-shadow(0 0 2px var(--warning));
+}
+
+/* Lightning bolt strike animation */
+@keyframes zap-strike {
+    0% {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.5);
+        filter: drop-shadow(0 0 0px var(--warning));
+    }
+    20% {
+        opacity: 1;
+        transform: translateY(0) scale(1.2);
+        filter: drop-shadow(0 0 8px var(--warning));
+    }
+    40% {
+        transform: scale(0.9);
+        filter: drop-shadow(0 0 12px var(--warning));
+    }
+    60% {
+        transform: scale(1.1);
+        filter: drop-shadow(0 0 6px var(--warning));
+    }
+    80% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 4px var(--warning));
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px var(--warning));
+    }
+}
+
+/* Glow pulse animation for sustained effect */
+@keyframes zap-glow {
+    0%, 100% {
+        filter: drop-shadow(0 0 2px var(--warning));
+    }
+    50% {
+        filter: drop-shadow(0 0 6px var(--warning));
+    }
+}
+
+/* Flash effect for the zap card background */
+@keyframes zap-card-flash {
+    0% {
+        background: var(--bg-2);
+        box-shadow: none;
+    }
+    15% {
+        background: rgba(245, 158, 11, 0.15);
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), inset 0 0 10px rgba(245, 158, 11, 0.1);
+    }
+    100% {
+        background: var(--bg-2);
+        box-shadow: none;
+    }
+}
+
+/* Animation classes */
+.zap-lightning.animate svg {
+    animation: zap-strike 0.5s ease-out forwards;
+}
+
+.zap-lightning.animate-glow svg {
+    animation: zap-glow 2s ease-in-out infinite;
+}
+
+.zap-card.zap-animate {
+    animation: zap-card-flash 0.8s ease-out forwards;
+}
+
+/* Staggered animation for zap list */
+.zap-card.zap-stagger:nth-child(1) { animation-delay: 0ms; }
+.zap-card.zap-stagger:nth-child(2) { animation-delay: 50ms; }
+.zap-card.zap-stagger:nth-child(3) { animation-delay: 100ms; }
+.zap-card.zap-stagger:nth-child(4) { animation-delay: 150ms; }
+.zap-card.zap-stagger:nth-child(5) { animation-delay: 200ms; }
+.zap-card.zap-stagger:nth-child(6) { animation-delay: 250ms; }
+.zap-card.zap-stagger:nth-child(7) { animation-delay: 300ms; }
+.zap-card.zap-stagger:nth-child(8) { animation-delay: 350ms; }
+.zap-card.zap-stagger:nth-child(9) { animation-delay: 400ms; }
+.zap-card.zap-stagger:nth-child(10) { animation-delay: 450ms; }
+
+/* Real-time zap event animation for events tab */
+.event-card.zap-event {
+    position: relative;
+    overflow: hidden;
+}
+
+.event-card.zap-event.zap-new {
+    animation: zap-card-flash 0.8s ease-out forwards;
+}
+
+.event-card.zap-event::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.event-card.zap-event.zap-new::before {
+    animation: zap-overlay-flash 0.6s ease-out forwards;
+}
+
+@keyframes zap-overlay-flash {
+    0% {
+        opacity: 0;
+        background: radial-gradient(circle at 20% 50%, rgba(245, 158, 11, 0.4) 0%, transparent 50%);
+    }
+    30% {
+        opacity: 1;
+        background: radial-gradient(circle at 20% 50%, rgba(245, 158, 11, 0.4) 0%, transparent 50%);
+    }
+    100% {
+        opacity: 0;
+        background: radial-gradient(circle at 20% 50%, rgba(245, 158, 11, 0) 0%, transparent 50%);
+    }
+}
+
+/* Inline lightning bolt for zap amounts */
+.zap-amount .zap-lightning {
+    width: 16px;
+    height: 16px;
+    margin-right: 2px;
+}
+
+.zap-amount .zap-lightning svg {
+    width: 14px;
+    height: 14px;
+}

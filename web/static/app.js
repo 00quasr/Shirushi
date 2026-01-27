@@ -685,14 +685,22 @@ class Shirushi {
                 return;
             }
 
-            container.innerHTML = parsedZaps.map(zap => `
-                <div class="zap-card">
-                    <span class="zap-amount">⚡ ${zap.amount.toLocaleString()} sats</span>
+            container.innerHTML = parsedZaps.map((zap, index) => `
+                <div class="zap-card zap-animate zap-stagger">
+                    <span class="zap-amount">${this.renderLightningBolt(true)} ${zap.amount.toLocaleString()} sats</span>
                     <span class="zap-sender">${zap.sender ? zap.sender.substring(0, 16) + '...' : 'Anonymous'}</span>
                     <span class="zap-time">${this.formatTime(zap.created_at)}</span>
                     ${zap.content ? `<span class="zap-message">${this.escapeHtml(zap.content)}</span>` : ''}
                 </div>
             `).join('');
+
+            // Add glow animation after initial strike animation completes
+            setTimeout(() => {
+                container.querySelectorAll('.zap-lightning').forEach(bolt => {
+                    bolt.classList.remove('animate');
+                    bolt.classList.add('animate-glow');
+                });
+            }, 600);
         } catch (error) {
             this.hideSkeleton('profile-zaps-skeleton');
             container.innerHTML = `<p class="error">Failed to load zaps: ${this.escapeHtml(error.message)}</p>`;
@@ -750,11 +758,18 @@ class Shirushi {
     }
 
     addEvent(event) {
+        // Mark as new for animation purposes
+        event._isNew = true;
         this.events.unshift(event);
         if (this.events.length > 100) {
             this.events.pop();
         }
         this.renderEvents();
+
+        // Clear the _isNew flag after animation completes
+        setTimeout(() => {
+            event._isNew = false;
+        }, 1000);
 
         if (document.getElementById('auto-scroll').checked) {
             const container = document.getElementById('event-list');
@@ -769,10 +784,19 @@ class Shirushi {
             return;
         }
 
-        container.innerHTML = this.events.map(event => `
-            <div class="event-card">
+        container.innerHTML = this.events.map(event => {
+            const isZapEvent = event.kind === 9734 || event.kind === 9735;
+            const isNewZap = isZapEvent && event._isNew;
+            const zapClass = isZapEvent ? 'zap-event' : '';
+            const newZapClass = isNewZap ? 'zap-new' : '';
+            const kindLabel = isZapEvent
+                ? `${this.renderLightningBolt(isNewZap)} kind:${event.kind}`
+                : `kind:${event.kind}`;
+
+            return `
+            <div class="event-card ${zapClass} ${newZapClass}">
                 <div class="event-header">
-                    <span class="event-kind">kind:${event.kind}</span>
+                    <span class="event-kind">${kindLabel}</span>
                     <span class="event-time">${this.formatTime(event.created_at)}</span>
                 </div>
                 <div class="event-id">
@@ -792,7 +816,7 @@ class Shirushi {
                     <button class="btn small" onclick="app.exploreProfileByPubkey('${event.pubkey}')">View Profile</button>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
         // Attach copy handlers for event IDs
         container.querySelectorAll('[data-copy-event-id]').forEach(btn => {
@@ -856,6 +880,22 @@ class Shirushi {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Generate lightning bolt SVG for zap animations
+     * @param {boolean} animate - Whether to animate the lightning bolt
+     * @returns {string} - HTML string for the lightning bolt
+     */
+    renderLightningBolt(animate = false) {
+        const animateClass = animate ? 'animate' : '';
+        return `
+            <span class="zap-lightning ${animateClass}">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+            </span>
+        `;
     }
 
     /**
