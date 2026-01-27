@@ -4183,6 +4183,227 @@
         });
     });
 
+    describe('Collapsible Tags Section', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('renderTagsSection method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.renderTagsSection, 'renderTagsSection method should exist');
+            assertEqual(typeof appInstance.renderTagsSection, 'function', 'renderTagsSection should be a function');
+        });
+
+        it('getTagClass method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.getTagClass, 'getTagClass method should exist');
+            assertEqual(typeof appInstance.getTagClass, 'function', 'getTagClass should be a function');
+        });
+
+        it('truncateTagValue method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.truncateTagValue, 'truncateTagValue method should exist');
+            assertEqual(typeof appInstance.truncateTagValue, 'function', 'truncateTagValue should be a function');
+        });
+
+        it('toggleTagsSection method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.toggleTagsSection, 'toggleTagsSection method should exist');
+            assertEqual(typeof appInstance.toggleTagsSection, 'function', 'toggleTagsSection should be a function');
+        });
+
+        it('renderTagsSection should return empty string for events with no tags', () => {
+            const appInstance = getApp();
+            const eventNoTags = { id: 'test123', tags: [] };
+            const result = appInstance.renderTagsSection(eventNoTags);
+            assertEqual(result, '', 'Should return empty string for event with empty tags');
+
+            const eventNullTags = { id: 'test456', tags: null };
+            const result2 = appInstance.renderTagsSection(eventNullTags);
+            assertEqual(result2, '', 'Should return empty string for event with null tags');
+
+            const eventUndefinedTags = { id: 'test789' };
+            const result3 = appInstance.renderTagsSection(eventUndefinedTags);
+            assertEqual(result3, '', 'Should return empty string for event with undefined tags');
+        });
+
+        it('renderTagsSection should return HTML for events with tags', () => {
+            const appInstance = getApp();
+            const eventWithTags = {
+                id: 'event123',
+                tags: [
+                    ['e', 'abc123'],
+                    ['p', 'pubkey456'],
+                    ['t', 'nostr']
+                ]
+            };
+            const result = appInstance.renderTagsSection(eventWithTags);
+            assertTrue(result.includes('event-tags-section'), 'Should include tags section class');
+            assertTrue(result.includes('Tags (3)'), 'Should show correct tag count');
+            assertTrue(result.includes('tags-toggle-btn'), 'Should include toggle button');
+            assertTrue(result.includes('tags-content'), 'Should include tags content area');
+        });
+
+        it('renderTagsSection should escape HTML in tag values', () => {
+            const appInstance = getApp();
+            const eventWithSpecialChars = {
+                id: 'event789',
+                tags: [
+                    ['t', '<script>alert("xss")</script>']
+                ]
+            };
+            const result = appInstance.renderTagsSection(eventWithSpecialChars);
+            assertFalse(result.includes('<script>'), 'Should escape script tags');
+            assertTrue(result.includes('&lt;script'), 'Should contain escaped script tag');
+        });
+
+        it('getTagClass should return correct class for known tag types', () => {
+            const appInstance = getApp();
+            assertEqual(appInstance.getTagClass('e'), 'tag-event-ref', 'Should return tag-event-ref for e tag');
+            assertEqual(appInstance.getTagClass('p'), 'tag-pubkey-ref', 'Should return tag-pubkey-ref for p tag');
+            assertEqual(appInstance.getTagClass('t'), 'tag-hashtag', 'Should return tag-hashtag for t tag');
+            assertEqual(appInstance.getTagClass('a'), 'tag-address', 'Should return tag-address for a tag');
+            assertEqual(appInstance.getTagClass('d'), 'tag-identifier', 'Should return tag-identifier for d tag');
+            assertEqual(appInstance.getTagClass('r'), 'tag-reference', 'Should return tag-reference for r tag');
+            assertEqual(appInstance.getTagClass('bolt11'), 'tag-lightning', 'Should return tag-lightning for bolt11 tag');
+            assertEqual(appInstance.getTagClass('relay'), 'tag-relay', 'Should return tag-relay for relay tag');
+        });
+
+        it('getTagClass should return tag-default for unknown tag types', () => {
+            const appInstance = getApp();
+            assertEqual(appInstance.getTagClass('unknown'), 'tag-default', 'Should return tag-default for unknown tags');
+            assertEqual(appInstance.getTagClass('custom'), 'tag-default', 'Should return tag-default for custom tags');
+            assertEqual(appInstance.getTagClass(''), 'tag-default', 'Should return tag-default for empty tag name');
+        });
+
+        it('truncateTagValue should not truncate short values', () => {
+            const appInstance = getApp();
+            assertEqual(appInstance.truncateTagValue('short'), 'short', 'Should not truncate short values');
+            assertEqual(appInstance.truncateTagValue('exactly24characters!!!'), 'exactly24characters!!!', 'Should not truncate 24 char values');
+        });
+
+        it('truncateTagValue should truncate long values with ellipsis', () => {
+            const appInstance = getApp();
+            const longValue = 'abcdefghijklmnopqrstuvwxyz1234567890';
+            const result = appInstance.truncateTagValue(longValue);
+            assertTrue(result.includes('...'), 'Should include ellipsis');
+            assertTrue(result.length < longValue.length, 'Should be shorter than original');
+            assertTrue(result.startsWith('abcdefghijkl'), 'Should start with first 12 chars');
+            assertTrue(result.endsWith('67890'), 'Should end with last 8 chars');
+        });
+
+        it('toggleTagsSection should toggle expanded class on tags section', () => {
+            const appInstance = getApp();
+
+            // Create a test tags section element
+            const container = document.getElementById('event-list');
+            container.innerHTML = `
+                <div class="event-tags-section" data-event-id="test-event-toggle">
+                    <button class="tags-toggle-btn" data-tags-toggle="test-event-toggle">
+                        <span class="tags-toggle-icon">▶</span>
+                        <span class="tags-toggle-label">Tags (2)</span>
+                    </button>
+                    <div class="tags-content" data-tags-content="test-event-toggle">
+                        <div class="tag-item">Test tag</div>
+                    </div>
+                </div>
+            `;
+
+            const section = container.querySelector('[data-event-id="test-event-toggle"]');
+            assertFalse(section.classList.contains('expanded'), 'Section should not be expanded initially');
+
+            // Toggle to expanded
+            appInstance.toggleTagsSection('test-event-toggle');
+            assertTrue(section.classList.contains('expanded'), 'Section should be expanded after first toggle');
+
+            // Toggle back to collapsed
+            appInstance.toggleTagsSection('test-event-toggle');
+            assertFalse(section.classList.contains('expanded'), 'Section should be collapsed after second toggle');
+
+            // Clean up
+            container.innerHTML = '';
+        });
+
+        it('event card should render tags section when event has tags', () => {
+            const appInstance = getApp();
+
+            // Add an event with tags
+            appInstance.events = [{
+                id: 'test-event-with-tags',
+                kind: 1,
+                pubkey: 'testpubkey1234567890123456789012345678901234567890123456789012',
+                created_at: Math.floor(Date.now() / 1000),
+                content: 'Test content',
+                tags: [['e', 'abc123'], ['p', 'pubkey456']]
+            }];
+
+            // Render the event stream
+            appInstance.renderEvents();
+
+            const container = document.getElementById('event-list');
+            const tagsSection = container.querySelector('.event-tags-section');
+            assertDefined(tagsSection, 'Tags section should be rendered');
+            assertTrue(tagsSection.innerHTML.includes('Tags (2)'), 'Should show correct tag count');
+
+            // Clean up
+            appInstance.events = [];
+            container.innerHTML = '';
+        });
+
+        it('event card should not render tags section when event has no tags', () => {
+            const appInstance = getApp();
+
+            // Add an event without tags
+            appInstance.events = [{
+                id: 'test-event-no-tags',
+                kind: 1,
+                pubkey: 'testpubkey1234567890123456789012345678901234567890123456789012',
+                created_at: Math.floor(Date.now() / 1000),
+                content: 'Test content without tags',
+                tags: []
+            }];
+
+            // Render the event stream
+            appInstance.renderEvents();
+
+            const container = document.getElementById('event-list');
+            const tagsSection = container.querySelector('.event-tags-section');
+            assertTrue(tagsSection === null, 'Tags section should not be rendered for event without tags');
+
+            // Clean up
+            appInstance.events = [];
+            container.innerHTML = '';
+        });
+
+        it('tag copy buttons should have correct data attribute', () => {
+            const appInstance = getApp();
+
+            // Add an event with tags
+            appInstance.events = [{
+                id: 'test-event-copy',
+                kind: 1,
+                pubkey: 'testpubkey1234567890123456789012345678901234567890123456789012',
+                created_at: Math.floor(Date.now() / 1000),
+                content: 'Test content',
+                tags: [['t', 'nostr']]
+            }];
+
+            // Render the event stream
+            appInstance.renderEvents();
+
+            const container = document.getElementById('event-list');
+            const copyBtn = container.querySelector('[data-tag-copy]');
+            assertDefined(copyBtn, 'Tag copy button should exist');
+            const tagData = copyBtn.getAttribute('data-tag-copy');
+            assertTrue(tagData.includes('t'), 'Copy data should include tag name');
+            assertTrue(tagData.includes('nostr'), 'Copy data should include tag value');
+
+            // Clean up
+            appInstance.events = [];
+            container.innerHTML = '';
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

@@ -689,6 +689,7 @@ class Shirushi {
                 </div>
                 <div class="event-content">${this.escapeHtml(event.content.substring(0, 200))}${event.content.length > 200 ? '...' : ''}</div>
                 ${event.relay ? `<div class="event-relay">via ${this.escapeHtml(event.relay)}</div>` : ''}
+                ${this.renderTagsSection(event)}
                 <div class="event-actions">
                     <button class="btn small" onclick="app.showEventJson('${event.id}')">Raw JSON</button>
                     <button class="btn small" onclick="app.exploreProfileByPubkey('${event.pubkey}')">View Profile</button>
@@ -711,6 +712,42 @@ class Shirushi {
                 this.copyToClipboard(btn.dataset.copyAuthor, btn, 'Copy');
             });
         });
+
+        // Attach toggle handlers for collapsible tag sections
+        container.querySelectorAll('[data-tags-toggle]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleTagsSection(btn.dataset.tagsToggle);
+            });
+        });
+
+        // Attach copy handlers for individual tags
+        container.querySelectorAll('[data-tag-copy]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.tagCopy, btn, 'Copy');
+            });
+        });
+    }
+
+    /**
+     * Toggle the visibility of a tags section
+     * @param {string} eventId - The event ID whose tags to toggle
+     */
+    toggleTagsSection(eventId) {
+        const section = document.querySelector(`[data-event-id="${eventId}"]`);
+        if (!section) return;
+
+        const content = section.querySelector('[data-tags-content]');
+        const toggleBtn = section.querySelector('[data-tags-toggle]');
+        const icon = toggleBtn?.querySelector('.tags-toggle-icon');
+
+        if (content && toggleBtn) {
+            const isExpanded = section.classList.toggle('expanded');
+            if (icon) {
+                icon.textContent = isExpanded ? '\u25BE' : '\u25B6';
+            }
+        }
     }
 
     formatTime(timestamp) {
@@ -722,6 +759,80 @@ class Shirushi {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Render collapsible tags section for an event
+     * @param {Object} event - The Nostr event object
+     * @returns {string} - HTML string for the tags section
+     */
+    renderTagsSection(event) {
+        if (!event.tags || event.tags.length === 0) {
+            return '';
+        }
+
+        const tagCount = event.tags.length;
+        const tagsHtml = event.tags.map((tag, index) => {
+            const tagName = tag[0] || '';
+            const tagValues = tag.slice(1);
+            const tagClass = this.getTagClass(tagName);
+
+            return `
+                <div class="tag-item ${tagClass}">
+                    <span class="tag-name">${this.escapeHtml(tagName)}</span>
+                    ${tagValues.map(val => `<span class="tag-value" title="${this.escapeHtml(val)}">${this.escapeHtml(this.truncateTagValue(val))}</span>`).join('')}
+                    <button class="btn small copy-btn tag-copy-btn" data-tag-copy='${this.escapeHtml(JSON.stringify(tag))}' title="Copy tag">Copy</button>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="event-tags-section" data-event-id="${event.id}">
+                <button class="tags-toggle-btn" data-tags-toggle="${event.id}">
+                    <span class="tags-toggle-icon">&#9656;</span>
+                    <span class="tags-toggle-label">Tags (${tagCount})</span>
+                </button>
+                <div class="tags-content" data-tags-content="${event.id}">
+                    ${tagsHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Get CSS class for a tag based on its type
+     * @param {string} tagName - The tag name (first element)
+     * @returns {string} - CSS class name
+     */
+    getTagClass(tagName) {
+        const tagClasses = {
+            'e': 'tag-event-ref',
+            'p': 'tag-pubkey-ref',
+            't': 'tag-hashtag',
+            'a': 'tag-address',
+            'd': 'tag-identifier',
+            'r': 'tag-reference',
+            'bolt11': 'tag-lightning',
+            'amount': 'tag-amount',
+            'relay': 'tag-relay',
+            'expiration': 'tag-expiration',
+            'subject': 'tag-subject',
+            'content-warning': 'tag-warning',
+            'client': 'tag-client'
+        };
+        return tagClasses[tagName] || 'tag-default';
+    }
+
+    /**
+     * Truncate long tag values for display
+     * @param {string} value - The tag value
+     * @returns {string} - Truncated value
+     */
+    truncateTagValue(value) {
+        if (value.length > 24) {
+            return value.substring(0, 12) + '...' + value.substring(value.length - 8);
+        }
+        return value;
     }
 
     /**
