@@ -1488,6 +1488,98 @@ class Shirushi {
         return labels[category] || category;
     }
 
+    /**
+     * Get description for an event kind
+     */
+    getEventKindDescription(kind) {
+        const descriptions = {
+            0: 'User Metadata',
+            1: 'Short Text Note',
+            2: 'Recommend Relay (deprecated)',
+            3: 'Follow List',
+            4: 'Encrypted Direct Message (deprecated)',
+            5: 'Event Deletion Request',
+            6: 'Repost',
+            7: 'Reaction',
+            8: 'Badge Award',
+            9: 'Group Chat Message',
+            10: 'Group Chat Threaded Reply',
+            11: 'Group Thread',
+            12: 'Group Thread Reply',
+            13: 'Seal',
+            14: 'Direct Message',
+            16: 'Generic Repost',
+            17: 'Reaction to Website',
+            40: 'Channel Creation',
+            41: 'Channel Metadata',
+            42: 'Channel Message',
+            43: 'Channel Hide Message',
+            44: 'Channel Mute User',
+            1059: 'Gift Wrap',
+            1063: 'File Metadata',
+            1311: 'Live Chat Message',
+            1971: 'Problem Tracker',
+            1984: 'Report',
+            1985: 'Label',
+            4550: 'Community Post Approval',
+            5000: 'DVM Job Request (Text)',
+            5001: 'DVM Job Request (Image)',
+            6000: 'DVM Job Result (Text)',
+            6001: 'DVM Job Result (Image)',
+            7000: 'DVM Job Feedback',
+            9734: 'Zap Request',
+            9735: 'Zap Receipt',
+            10000: 'Mute List',
+            10001: 'Pin List',
+            10002: 'Relay List Metadata',
+            10003: 'Bookmark List',
+            10004: 'Communities List',
+            10005: 'Public Chats List',
+            10006: 'Blocked Relays List',
+            10007: 'Search Relays List',
+            10009: 'User Groups List',
+            10015: 'Interests List',
+            10030: 'User Emoji List',
+            10050: 'DM Relays List',
+            10096: 'File Storage Servers List',
+            13194: 'Wallet Info',
+            21000: 'Lightning Pub RPC',
+            22242: 'Client Authentication',
+            23194: 'Wallet Request',
+            23195: 'Wallet Response',
+            24133: 'Nostr Connect',
+            27235: 'HTTP Auth',
+            30000: 'Follow Sets',
+            30001: 'Generic Lists',
+            30002: 'Relay Sets',
+            30003: 'Bookmark Sets',
+            30004: 'Curation Sets',
+            30008: 'Profile Badges',
+            30009: 'Badge Definition',
+            30015: 'Interest Sets',
+            30017: 'Stall',
+            30018: 'Product',
+            30023: 'Long-form Content',
+            30024: 'Draft Long-form Content',
+            30030: 'User Emoji Sets',
+            30078: 'App-specific Data',
+            30311: 'Live Event',
+            30315: 'User Status',
+            30402: 'Classified Listing',
+            30403: 'Draft Classified Listing',
+            31922: 'Date Event',
+            31923: 'Time Event',
+            31924: 'Calendar',
+            31925: 'Calendar RSVP',
+            31989: 'Handler Recommendation',
+            31990: 'Handler Information',
+            34235: 'Video Event',
+            34236: 'Short-form Video',
+            34237: 'Video View'
+        };
+        return descriptions[kind] || `Event Kind ${kind}`;
+    }
+
     renderNipList() {
         const container = document.getElementById('nip-test-list');
         container.innerHTML = this.nips.map(nip => `
@@ -1597,6 +1689,21 @@ class Shirushi {
             `;
         }
 
+        // Build event kinds section
+        let eventKindsHtml = '';
+        if (nip.eventKinds && nip.eventKinds.length > 0) {
+            const kindBadges = nip.eventKinds.map(kind =>
+                `<span class="event-kind-badge" title="${this.getEventKindDescription(kind)}">Kind ${kind}</span>`
+            ).join('');
+
+            eventKindsHtml = `
+                <div class="event-kinds">
+                    <span class="event-kinds-label">Event Kinds:</span>
+                    ${kindBadges}
+                </div>
+            `;
+        }
+
         // Build related NIPs section
         let relatedNIPsHtml = '';
         if (nip.relatedNIPs && nip.relatedNIPs.length > 0) {
@@ -1622,6 +1729,7 @@ class Shirushi {
             <h3>${nip.name}: ${nip.title}</h3>
             ${nip.category ? `<span class="category-badge ${nip.category}">${this.getCategoryLabel(nip.category)}</span>` : ''}
             <p class="nip-description">${nip.description}</p>
+            ${eventKindsHtml}
             ${relatedNIPsHtml}
             <a href="${nip.specUrl}" target="_blank" class="spec-link">View Specification</a>
             ${signingModeFields}

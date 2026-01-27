@@ -480,6 +480,33 @@ func TestGetNIPList_EventKinds(t *testing.T) {
 	if len(nip19.EventKinds) != 0 {
 		t.Error("expected NIP-19 to have no event kinds (it's an encoding standard)")
 	}
+
+	// Test NIP-90 has DVM event kinds
+	nip90 := nipMap["nip90"]
+	if len(nip90.EventKinds) == 0 {
+		t.Error("expected NIP-90 to have event kinds")
+	}
+	hasKind5000, hasKind6000, hasKind7000 := false, false, false
+	for _, kind := range nip90.EventKinds {
+		if kind == 5000 {
+			hasKind5000 = true
+		}
+		if kind == 6000 {
+			hasKind6000 = true
+		}
+		if kind == 7000 {
+			hasKind7000 = true
+		}
+	}
+	if !hasKind5000 {
+		t.Error("expected NIP-90 to include kind 5000 (DVM job request)")
+	}
+	if !hasKind6000 {
+		t.Error("expected NIP-90 to include kind 6000 (DVM job result)")
+	}
+	if !hasKind7000 {
+		t.Error("expected NIP-90 to include kind 7000 (DVM feedback)")
+	}
 }
 
 func TestGetNIPList_AllNIPsHaveCategory(t *testing.T) {
