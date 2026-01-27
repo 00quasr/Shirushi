@@ -1277,3 +1277,196 @@ func TestHandleEventPublish_NakUnavailable(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
 	}
 }
+
+// Tests for Profile Explorer integration with well-known npub
+
+func TestHandleProfile_WithNIP05Fields(t *testing.T) {
+	// Test profile with NIP-05 and lightning address fields
+	profileContent := `{"name":"testuser","display_name":"Test User","about":"A test profile","nip05":"user@example.com","lud16":"user@wallet.com","picture":"https://example.com/pic.jpg","banner":"https://example.com/banner.jpg","website":"https://example.com"}`
+
+	pool := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "event123",
+				Kind:      0,
+				PubKey:    "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Content:   profileContent,
+				CreatedAt: 1700000000,
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/profile/1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleProfile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var profile types.Profile
+	if err := json.NewDecoder(w.Body).Decode(&profile); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if profile.NIP05 != "user@example.com" {
+		t.Errorf("expected nip05 'user@example.com', got '%s'", profile.NIP05)
+	}
+	if profile.LUD16 != "user@wallet.com" {
+		t.Errorf("expected lud16 'user@wallet.com', got '%s'", profile.LUD16)
+	}
+	if profile.Picture != "https://example.com/pic.jpg" {
+		t.Errorf("expected picture 'https://example.com/pic.jpg', got '%s'", profile.Picture)
+	}
+	if profile.Banner != "https://example.com/banner.jpg" {
+		t.Errorf("expected banner 'https://example.com/banner.jpg', got '%s'", profile.Banner)
+	}
+	if profile.Website != "https://example.com" {
+		t.Errorf("expected website 'https://example.com', got '%s'", profile.Website)
+	}
+}
+
+func TestHandleProfile_LowercaseHex(t *testing.T) {
+	// Test that lowercase hex pubkey works correctly
+	profileContent := `{"name":"testuser"}`
+
+	pool := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "event123",
+				Kind:      0,
+				PubKey:    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+				Content:   profileContent,
+				CreatedAt: 1700000000,
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/profile/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleProfile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var profile types.Profile
+	if err := json.NewDecoder(w.Body).Decode(&profile); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if profile.Name != "testuser" {
+		t.Errorf("expected name 'testuser', got '%s'", profile.Name)
+	}
+}
+
+func TestHandleProfile_EmptyContent(t *testing.T) {
+	// Test profile with empty content (valid JSON but no fields)
+	pool := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "event123",
+				Kind:      0,
+				PubKey:    "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Content:   "{}",
+				CreatedAt: 1700000000,
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/profile/1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleProfile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var profile types.Profile
+	if err := json.NewDecoder(w.Body).Decode(&profile); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// All fields should be empty except pubkey and created_at
+	if profile.PubKey != "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" {
+		t.Errorf("pubkey should still be set")
+	}
+	if profile.Name != "" {
+		t.Errorf("expected empty name, got '%s'", profile.Name)
+	}
+}
+
+func TestHandleProfile_MixedCasePubkey(t *testing.T) {
+	// Test that mixed case hex pubkey works
+	profileContent := `{"name":"testuser"}`
+
+	pool := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "event123",
+				Kind:      0,
+				PubKey:    "ABCDef1234567890ABCDef1234567890ABCDef1234567890ABCDef1234567890",
+				Content:   profileContent,
+				CreatedAt: 1700000000,
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/profile/ABCDef1234567890ABCDef1234567890ABCDef1234567890ABCDef1234567890", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleProfile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
+
+func TestHandleProfile_SpecialCharactersInContent(t *testing.T) {
+	// Test profile with special characters in about field
+	profileContent := `{"name":"testuser","about":"Hello! 👋 This is a test with \"quotes\" and <html> & symbols"}`
+
+	pool := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "event123",
+				Kind:      0,
+				PubKey:    "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Content:   profileContent,
+				CreatedAt: 1700000000,
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/profile/1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleProfile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var profile types.Profile
+	if err := json.NewDecoder(w.Body).Decode(&profile); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	expectedAbout := "Hello! 👋 This is a test with \"quotes\" and <html> & symbols"
+	if profile.About != expectedAbout {
+		t.Errorf("expected about '%s', got '%s'", expectedAbout, profile.About)
+	}
+}
