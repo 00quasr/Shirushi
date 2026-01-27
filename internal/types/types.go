@@ -14,11 +14,38 @@ type Event struct {
 
 // RelayStatus represents the status of a relay.
 type RelayStatus struct {
-	URL       string  `json:"url"`
-	Connected bool    `json:"connected"`
-	Latency   int64   `json:"latency_ms"`
-	EventsPS  float64 `json:"events_per_sec"`
-	Error     string  `json:"error,omitempty"`
+	URL           string     `json:"url"`
+	Connected     bool       `json:"connected"`
+	Latency       int64      `json:"latency_ms"`
+	EventsPS      float64    `json:"events_per_sec"`
+	Error         string     `json:"error,omitempty"`
+	SupportedNIPs []int      `json:"supported_nips,omitempty"`
+	RelayInfo     *RelayInfo `json:"relay_info,omitempty"`
+}
+
+// RelayInfo represents NIP-11 relay information document.
+type RelayInfo struct {
+	Name          string           `json:"name,omitempty"`
+	Description   string           `json:"description,omitempty"`
+	PubKey        string           `json:"pubkey,omitempty"`
+	Contact       string           `json:"contact,omitempty"`
+	SupportedNIPs []int            `json:"supported_nips,omitempty"`
+	Software      string           `json:"software,omitempty"`
+	Version       string           `json:"version,omitempty"`
+	Icon          string           `json:"icon,omitempty"`
+	Limitation    *RelayLimitation `json:"limitation,omitempty"`
+}
+
+// RelayLimitation represents the limitation section of NIP-11.
+type RelayLimitation struct {
+	MaxMessageLength int  `json:"max_message_length,omitempty"`
+	MaxSubscriptions int  `json:"max_subscriptions,omitempty"`
+	MaxLimit         int  `json:"max_limit,omitempty"`
+	MaxEventTags     int  `json:"max_event_tags,omitempty"`
+	MaxContentLength int  `json:"max_content_length,omitempty"`
+	MinPOWDifficulty int  `json:"min_pow_difficulty,omitempty"`
+	AuthRequired     bool `json:"auth_required,omitempty"`
+	PaymentRequired  bool `json:"payment_required,omitempty"`
 }
 
 // RelayStats represents statistics for a relay.

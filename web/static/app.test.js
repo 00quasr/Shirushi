@@ -7861,6 +7861,192 @@
         });
     });
 
+    describe('Relay NIP Detection (NIP-11)', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('relay cards should display supported NIPs when available', async () => {
+            const container = createMockDOM();
+            const appInstance = getApp();
+
+            // Set up mock relay data with NIP support
+            appInstance.relays = [
+                {
+                    url: 'wss://relay.damus.io',
+                    connected: true,
+                    latency_ms: 150,
+                    events_per_sec: 2.5,
+                    supported_nips: [1, 2, 4, 9, 11, 22, 28, 40, 70, 77],
+                    relay_info: {
+                        name: 'damus.io',
+                        description: 'Damus strfry relay',
+                        supported_nips: [1, 2, 4, 9, 11, 22, 28, 40, 70, 77]
+                    }
+                }
+            ];
+
+            // Render relays
+            appInstance.renderRelays();
+
+            // Check for NIP badges
+            const nipContainer = document.querySelector('.relay-nips');
+            assertDefined(nipContainer, 'NIP container should exist');
+
+            const nipBadges = document.querySelectorAll('.nip-badge');
+            assertTrue(nipBadges.length > 0, 'NIP badges should be rendered');
+
+            // Check for relay name
+            const relayName = document.querySelector('.relay-name');
+            assertDefined(relayName, 'Relay name should be displayed');
+            assertEqual(relayName.textContent, 'damus.io', 'Relay name should match');
+
+            removeMockDOM(container);
+        });
+
+        it('relay cards should show loading state when NIPs are not yet fetched', async () => {
+            const container = createMockDOM();
+            const appInstance = getApp();
+
+            // Set up relay without NIP info
+            appInstance.relays = [
+                {
+                    url: 'wss://relay.unknown.com',
+                    connected: true,
+                    latency_ms: 100,
+                    events_per_sec: 1.0
+                    // supported_nips is not set
+                }
+            ];
+
+            appInstance.renderRelays();
+
+            // Check for loading indicator
+            const loadingIndicator = document.querySelector('.relay-nips-loading');
+            assertDefined(loadingIndicator, 'Loading indicator should be shown when NIPs not available');
+            assertEqual(loadingIndicator.textContent, 'Loading...', 'Loading text should be displayed');
+
+            removeMockDOM(container);
+        });
+
+        it('relay cards should have Info button', async () => {
+            const container = createMockDOM();
+            const appInstance = getApp();
+
+            appInstance.relays = [
+                {
+                    url: 'wss://relay.test.com',
+                    connected: true,
+                    latency_ms: 50,
+                    events_per_sec: 1.5,
+                    supported_nips: [1, 11],
+                    relay_info: { name: 'Test Relay' }
+                }
+            ];
+
+            appInstance.renderRelays();
+
+            const infoBtn = document.querySelector('[data-show-info]');
+            assertDefined(infoBtn, 'Info button should exist');
+            assertEqual(infoBtn.dataset.showInfo, 'wss://relay.test.com', 'Info button should have relay URL');
+
+            removeMockDOM(container);
+        });
+
+        it('renderSupportedNIPs should sort NIPs numerically', () => {
+            const appInstance = getApp();
+
+            // Test with unsorted NIPs
+            const html = appInstance.renderSupportedNIPs([40, 1, 11, 2]);
+
+            // Check that NIPs appear in order
+            const expectedOrder = ['1', '2', '11', '40'];
+            expectedOrder.forEach((nip, index) => {
+                assertTrue(
+                    html.indexOf(`>${nip}<`) !== -1,
+                    `NIP ${nip} should be present in the output`
+                );
+            });
+        });
+
+        it('renderSupportedNIPs should show +N badge for many NIPs', () => {
+            const appInstance = getApp();
+
+            // Test with more than 10 NIPs
+            const manyNips = [1, 2, 4, 9, 11, 22, 28, 40, 45, 50, 70, 77, 90];
+            const html = appInstance.renderSupportedNIPs(manyNips);
+
+            // Should show +3 badge (13 total - 10 shown = 3 more)
+            assertTrue(html.includes('+3'), 'Should show +3 for remaining NIPs');
+            assertTrue(html.includes('class="nip-badge more"'), 'Should have "more" class on extra badge');
+        });
+
+        it('renderSupportedNIPs should handle empty NIPs array', () => {
+            const appInstance = getApp();
+
+            const html = appInstance.renderSupportedNIPs([]);
+
+            assertTrue(html.includes('Loading...'), 'Should show loading for empty NIPs');
+        });
+
+        it('renderSupportedNIPs should handle null NIPs', () => {
+            const appInstance = getApp();
+
+            const html = appInstance.renderSupportedNIPs(null);
+
+            assertTrue(html.includes('Loading...'), 'Should show loading for null NIPs');
+        });
+
+        it('showRelayInfo should display modal with relay information', async () => {
+            const container = createMockDOM();
+            const appInstance = getApp();
+
+            // Set up relay with full info
+            appInstance.relays = [
+                {
+                    url: 'wss://relay.example.com',
+                    connected: true,
+                    latency_ms: 150,
+                    events_per_sec: 2.5,
+                    supported_nips: [1, 2, 4, 9, 11],
+                    relay_info: {
+                        name: 'Example Relay',
+                        description: 'A test relay for testing',
+                        contact: 'admin@example.com',
+                        software: 'strfry',
+                        version: '1.0.0',
+                        limitation: {
+                            max_message_length: 131072,
+                            max_subscriptions: 20
+                        }
+                    }
+                }
+            ];
+
+            // Mock showModal
+            let modalOptions = null;
+            const originalShowModal = appInstance.showModal;
+            appInstance.showModal = (options) => {
+                modalOptions = options;
+            };
+
+            await appInstance.showRelayInfo('wss://relay.example.com');
+
+            assertDefined(modalOptions, 'showModal should be called with options');
+            assertEqual(modalOptions.title, 'Relay Information', 'Modal title should be "Relay Information"');
+            assertTrue(modalOptions.body.includes('Example Relay'), 'Modal should include relay name');
+            assertTrue(modalOptions.body.includes('A test relay for testing'), 'Modal should include description');
+            assertTrue(modalOptions.body.includes('strfry'), 'Modal should include software');
+            assertTrue(modalOptions.body.includes('1.0.0'), 'Modal should include version');
+            assertTrue(modalOptions.body.includes('NIP-01'), 'Modal should list supported NIPs');
+            assertTrue(modalOptions.body.includes('131,072'), 'Modal should show limitations');
+
+            // Restore original
+            appInstance.showModal = originalShowModal;
+            removeMockDOM(container);
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

@@ -383,6 +383,139 @@ main {
     gap: 8px;
 }
 
+.relay-name {
+    font-size: 12px;
+    color: var(--text-1);
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+/* Relay NIP badges */
+.relay-nips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.relay-nips-label {
+    font-size: 11px;
+    color: var(--text-2);
+    flex-shrink: 0;
+}
+
+.relay-nips-list {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.relay-nips-loading {
+    font-size: 11px;
+    color: var(--text-3);
+    font-style: italic;
+}
+
+.nip-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-family: 'Geist Mono', monospace;
+    font-weight: 500;
+}
+
+.nip-badge.more {
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+}
+
+/* Relay Info Modal */
+.relay-info-modal {
+    max-width: 500px;
+}
+
+.relay-info-modal h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    color: var(--text-0);
+}
+
+.relay-description {
+    font-size: 13px;
+    color: var(--text-2);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.relay-info-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.relay-info-section:last-of-type {
+    border-bottom: none;
+}
+
+.relay-info-section h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: var(--text-1);
+    font-weight: 600;
+}
+
+.relay-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 12px;
+}
+
+.relay-info-grid .label {
+    color: var(--text-2);
+}
+
+.relay-info-grid .value {
+    color: var(--text-1);
+}
+
+.relay-info-grid .value.success {
+    color: var(--success);
+}
+
+.relay-info-grid .value.error {
+    color: var(--error);
+}
+
+.relay-info-grid code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    background: var(--bg-3);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.relay-nips-full {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.relay-nips-full .nip-badge {
+    font-size: 11px;
+    padding: 4px 8px;
+}
+
+.relay-info-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
 /* Presets */
 .presets {
     display: flex;

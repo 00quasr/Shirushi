@@ -58,6 +58,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/relays", s.api.HandleRelays)
 	mux.HandleFunc("/api/relays/stats", s.api.HandleRelayStats)
 	mux.HandleFunc("/api/relays/presets", s.api.HandleRelayPresets)
+	mux.HandleFunc("/api/relays/info", s.api.HandleRelayInfo)
 	mux.HandleFunc("/api/monitoring/history", s.api.HandleMonitoringHistory)
 	mux.HandleFunc("/api/monitoring/health", s.api.HandleMonitoringHealth)
 	mux.HandleFunc("/api/events", s.api.HandleEvents)

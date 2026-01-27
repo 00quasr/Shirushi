@@ -27,6 +27,8 @@ type RelayPool interface {
 	QueryEventReplies(eventID string) ([]types.Event, error)
 	Subscribe(kinds []int, authors []string, callback func(types.Event)) string
 	MonitoringData() *types.MonitoringData
+	GetRelayInfo(url string) *types.RelayInfo
+	RefreshRelayInfo(url string) error
 }
 
 // TestRunner defines the interface for running NIP tests
@@ -181,6 +183,37 @@ func (a *API) HandleRelayPresets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, config.RelayPresets)
+}
+
+// HandleRelayInfo returns NIP-11 info for a specific relay.
+// Path: /api/relays/info?url=wss://...
+func (a *API) HandleRelayInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	url := r.URL.Query().Get("url")
+	if url == "" {
+		writeError(w, http.StatusBadRequest, "url query parameter required")
+		return
+	}
+
+	// POST refreshes the info, GET just returns cached info
+	if r.Method == http.MethodPost {
+		if err := a.relayPool.RefreshRelayInfo(url); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
+	info := a.relayPool.GetRelayInfo(url)
+	if info == nil {
+		writeError(w, http.StatusNotFound, "relay info not available")
+		return
+	}
+
+	writeJSON(w, info)
 }
 
 // HandleEvents handles event queries.

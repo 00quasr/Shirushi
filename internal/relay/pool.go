@@ -11,6 +11,7 @@ import (
 
 	"github.com/keanuklestil/shirushi/internal/types"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip11"
 )
 
 // Pool manages connections to multiple Nostr relays.
@@ -27,11 +28,13 @@ type Pool struct {
 
 // RelayConn represents a connection to a single relay.
 type RelayConn struct {
-	URL       string
-	Relay     *nostr.Relay
-	Connected bool
-	Error     string
-	AddedAt   time.Time
+	URL           string
+	Relay         *nostr.Relay
+	Connected     bool
+	Error         string
+	AddedAt       time.Time
+	Info          *types.RelayInfo
+	SupportedNIPs []int
 }
 
 // NewPool creates a new relay pool.
@@ -86,10 +89,9 @@ func (p *Pool) connect(url string) {
 	relay, err := nostr.RelayConnect(ctx, url)
 
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	conn, exists := p.relays[url]
 	if !exists {
+		p.mu.Unlock()
 		return // Was removed while connecting
 	}
 
@@ -97,6 +99,7 @@ func (p *Pool) connect(url string) {
 		conn.Connected = false
 		conn.Error = err.Error()
 		log.Printf("[Relay] Failed to connect to %s: %v", url, err)
+		p.mu.Unlock()
 		return
 	}
 
@@ -104,6 +107,60 @@ func (p *Pool) connect(url string) {
 	conn.Connected = true
 	conn.Error = ""
 	log.Printf("[Relay] Connected to %s", url)
+	p.mu.Unlock()
+
+	// Fetch NIP-11 relay info in background
+	go p.fetchRelayInfo(url)
+}
+
+// fetchRelayInfo fetches NIP-11 relay information document.
+func (p *Pool) fetchRelayInfo(url string) {
+	ctx, cancel := context.WithTimeout(p.ctx, 7*time.Second)
+	defer cancel()
+
+	info, err := nip11.Fetch(ctx, url)
+	if err != nil {
+		log.Printf("[Relay] Failed to fetch NIP-11 info for %s: %v", url, err)
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	conn, exists := p.relays[url]
+	if !exists {
+		return
+	}
+
+	// Convert nip11.RelayInformationDocument to types.RelayInfo
+	conn.Info = &types.RelayInfo{
+		Name:          info.Name,
+		Description:   info.Description,
+		PubKey:        info.PubKey,
+		Contact:       info.Contact,
+		SupportedNIPs: info.SupportedNIPs,
+		Software:      info.Software,
+		Version:       info.Version,
+		Icon:          info.Icon,
+	}
+
+	// Copy limitation info if available
+	if info.Limitation != nil {
+		conn.Info.Limitation = &types.RelayLimitation{
+			MaxMessageLength: info.Limitation.MaxMessageLength,
+			MaxSubscriptions: info.Limitation.MaxSubscriptions,
+			MaxLimit:         info.Limitation.MaxLimit,
+			MaxEventTags:     info.Limitation.MaxEventTags,
+			MaxContentLength: info.Limitation.MaxContentLength,
+			MinPOWDifficulty: info.Limitation.MinPowDifficulty,
+			AuthRequired:     info.Limitation.AuthRequired,
+			PaymentRequired:  info.Limitation.PaymentRequired,
+		}
+	}
+
+	conn.SupportedNIPs = info.SupportedNIPs
+
+	log.Printf("[Relay] Fetched NIP-11 info for %s: %s (supports %d NIPs)", url, info.Name, len(info.SupportedNIPs))
 }
 
 // Remove removes a relay from the pool.
@@ -133,9 +190,11 @@ func (p *Pool) List() []types.RelayStatus {
 	var list []types.RelayStatus
 	for url, conn := range p.relays {
 		status := types.RelayStatus{
-			URL:       url,
-			Connected: conn.Connected,
-			Error:     conn.Error,
+			URL:           url,
+			Connected:     conn.Connected,
+			Error:         conn.Error,
+			SupportedNIPs: conn.SupportedNIPs,
+			RelayInfo:     conn.Info,
 		}
 		if s, ok := stats[url]; ok {
 			status.Latency = s.Latency
@@ -357,6 +416,73 @@ func (p *Pool) QueryEventReplies(eventID string) ([]types.Event, error) {
 	}
 
 	return events, nil
+}
+
+// GetRelayInfo returns the NIP-11 info for a specific relay.
+func (p *Pool) GetRelayInfo(url string) *types.RelayInfo {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if conn, exists := p.relays[url]; exists {
+		return conn.Info
+	}
+	return nil
+}
+
+// RefreshRelayInfo refreshes the NIP-11 info for a specific relay.
+func (p *Pool) RefreshRelayInfo(url string) error {
+	p.mu.RLock()
+	_, exists := p.relays[url]
+	p.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("relay not found: %s", url)
+	}
+
+	// Fetch in foreground for immediate result
+	ctx, cancel := context.WithTimeout(p.ctx, 7*time.Second)
+	defer cancel()
+
+	info, err := nip11.Fetch(ctx, url)
+	if err != nil {
+		return fmt.Errorf("failed to fetch NIP-11 info: %w", err)
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	conn, exists := p.relays[url]
+	if !exists {
+		return fmt.Errorf("relay removed during fetch")
+	}
+
+	conn.Info = &types.RelayInfo{
+		Name:          info.Name,
+		Description:   info.Description,
+		PubKey:        info.PubKey,
+		Contact:       info.Contact,
+		SupportedNIPs: info.SupportedNIPs,
+		Software:      info.Software,
+		Version:       info.Version,
+		Icon:          info.Icon,
+	}
+
+	if info.Limitation != nil {
+		conn.Info.Limitation = &types.RelayLimitation{
+			MaxMessageLength: info.Limitation.MaxMessageLength,
+			MaxSubscriptions: info.Limitation.MaxSubscriptions,
+			MaxLimit:         info.Limitation.MaxLimit,
+			MaxEventTags:     info.Limitation.MaxEventTags,
+			MaxContentLength: info.Limitation.MaxContentLength,
+			MinPOWDifficulty: info.Limitation.MinPowDifficulty,
+			AuthRequired:     info.Limitation.AuthRequired,
+			PaymentRequired:  info.Limitation.PaymentRequired,
+		}
+	}
+
+	conn.SupportedNIPs = info.SupportedNIPs
+
+	return nil
 }
 
 // Close closes all relay connections.

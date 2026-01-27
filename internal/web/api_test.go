@@ -91,11 +91,18 @@ type mockRelayPool struct {
 	repliesMap     map[string][]types.Event
 	err            error
 	monitoringData *types.MonitoringData
+	relayList      []types.RelayStatus
+	relayInfoMap   map[string]*types.RelayInfo
 }
 
-func (m *mockRelayPool) Add(url string) error               { return nil }
-func (m *mockRelayPool) Remove(url string)                  {}
-func (m *mockRelayPool) List() []types.RelayStatus          { return nil }
+func (m *mockRelayPool) Add(url string) error { return nil }
+func (m *mockRelayPool) Remove(url string)    {}
+func (m *mockRelayPool) List() []types.RelayStatus {
+	if m.relayList != nil {
+		return m.relayList
+	}
+	return nil
+}
 func (m *mockRelayPool) Stats() map[string]types.RelayStats { return nil }
 func (m *mockRelayPool) Count() int                         { return 0 }
 func (m *mockRelayPool) Subscribe(kinds []int, authors []string, callback func(types.Event)) string {
@@ -127,6 +134,15 @@ func (m *mockRelayPool) QueryEventReplies(eventID string) ([]types.Event, error)
 }
 func (m *mockRelayPool) MonitoringData() *types.MonitoringData {
 	return m.monitoringData
+}
+func (m *mockRelayPool) GetRelayInfo(url string) *types.RelayInfo {
+	if m.relayInfoMap != nil {
+		return m.relayInfoMap[url]
+	}
+	return nil
+}
+func (m *mockRelayPool) RefreshRelayInfo(url string) error {
+	return nil
 }
 
 func TestHandleProfileLookup_Success(t *testing.T) {
@@ -1837,5 +1853,323 @@ func TestParseNIP10Tags_MixedMarkers(t *testing.T) {
 	// No reply marker, so replyID should be empty
 	if replyID != "" {
 		t.Errorf("expected empty replyID, got '%s'", replyID)
+	}
+}
+
+// Tests for HandleRelayInfo endpoint (NIP-11)
+
+func TestHandleRelayInfo_GetSuccess(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://relay.example.com": {
+				Name:          "Example Relay",
+				Description:   "A test relay",
+				PubKey:        "abcd1234",
+				Contact:       "admin@example.com",
+				SupportedNIPs: []int{1, 2, 4, 9, 11, 22, 28, 40},
+				Software:      "https://github.com/example/relay",
+				Version:       "1.0.0",
+				Limitation: &types.RelayLimitation{
+					MaxMessageLength: 131072,
+					MaxSubscriptions: 20,
+					MaxLimit:         500,
+					AuthRequired:     false,
+					PaymentRequired:  false,
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://relay.example.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if info.Name != "Example Relay" {
+		t.Errorf("expected name 'Example Relay', got '%s'", info.Name)
+	}
+	if info.Description != "A test relay" {
+		t.Errorf("expected description 'A test relay', got '%s'", info.Description)
+	}
+	if len(info.SupportedNIPs) != 8 {
+		t.Errorf("expected 8 supported NIPs, got %d", len(info.SupportedNIPs))
+	}
+	if info.Software != "https://github.com/example/relay" {
+		t.Errorf("expected software 'https://github.com/example/relay', got '%s'", info.Software)
+	}
+	if info.Version != "1.0.0" {
+		t.Errorf("expected version '1.0.0', got '%s'", info.Version)
+	}
+	if info.Limitation == nil {
+		t.Error("expected limitation to be set")
+	} else {
+		if info.Limitation.MaxMessageLength != 131072 {
+			t.Errorf("expected max_message_length 131072, got %d", info.Limitation.MaxMessageLength)
+		}
+		if info.Limitation.MaxSubscriptions != 20 {
+			t.Errorf("expected max_subscriptions 20, got %d", info.Limitation.MaxSubscriptions)
+		}
+	}
+}
+
+func TestHandleRelayInfo_MissingURL(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "url query parameter required" {
+		t.Errorf("expected error about missing URL, got '%s'", resp["error"])
+	}
+}
+
+func TestHandleRelayInfo_NotFound(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{}, // Empty map
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://unknown.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "relay info not available" {
+		t.Errorf("expected error 'relay info not available', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleRelayInfo_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/relays/info?url=wss://relay.example.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleRelayInfo_POSTRefreshSuccess(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://relay.example.com": {
+				Name:          "Refreshed Relay",
+				SupportedNIPs: []int{1, 11},
+			},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/relays/info?url=wss://relay.example.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if info.Name != "Refreshed Relay" {
+		t.Errorf("expected name 'Refreshed Relay', got '%s'", info.Name)
+	}
+}
+
+func TestHandleRelayInfo_MinimalInfo(t *testing.T) {
+	// Test with minimal relay info (only name and supported NIPs)
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://minimal.relay.com": {
+				Name:          "Minimal Relay",
+				SupportedNIPs: []int{1},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://minimal.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if info.Name != "Minimal Relay" {
+		t.Errorf("expected name 'Minimal Relay', got '%s'", info.Name)
+	}
+	if info.Description != "" {
+		t.Errorf("expected empty description, got '%s'", info.Description)
+	}
+	if info.Limitation != nil {
+		t.Error("expected nil limitation")
+	}
+}
+
+// Tests for RelayStatus with NIP support
+
+func TestRelayStatus_WithSupportedNIPs(t *testing.T) {
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{
+				URL:           "wss://relay.damus.io",
+				Connected:     true,
+				Latency:       150,
+				EventsPS:      2.5,
+				SupportedNIPs: []int{1, 2, 4, 9, 11, 22, 28, 40, 70, 77},
+				RelayInfo: &types.RelayInfo{
+					Name:          "damus.io",
+					Description:   "Damus strfry relay",
+					Contact:       "jb55@jb55.com",
+					SupportedNIPs: []int{1, 2, 4, 9, 11, 22, 28, 40, 70, 77},
+					Software:      "git+https://github.com/hoytech/strfry.git",
+					Version:       "1.0.4",
+				},
+			},
+			{
+				URL:           "wss://relay.nostr.band",
+				Connected:     true,
+				Latency:       200,
+				EventsPS:      5.0,
+				SupportedNIPs: []int{1, 11, 12, 15, 20, 33, 45, 50},
+				RelayInfo: &types.RelayInfo{
+					Name:          "Nostr.Band Relay",
+					SupportedNIPs: []int{1, 11, 12, 15, 20, 33, 45, 50},
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelays(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var relays []types.RelayStatus
+	if err := json.NewDecoder(w.Body).Decode(&relays); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(relays) != 2 {
+		t.Fatalf("expected 2 relays, got %d", len(relays))
+	}
+
+	// Check first relay
+	if relays[0].URL != "wss://relay.damus.io" {
+		t.Errorf("expected URL 'wss://relay.damus.io', got '%s'", relays[0].URL)
+	}
+	if len(relays[0].SupportedNIPs) != 10 {
+		t.Errorf("expected 10 supported NIPs for damus, got %d", len(relays[0].SupportedNIPs))
+	}
+	if relays[0].RelayInfo == nil {
+		t.Error("expected relay_info to be set")
+	} else {
+		if relays[0].RelayInfo.Name != "damus.io" {
+			t.Errorf("expected relay name 'damus.io', got '%s'", relays[0].RelayInfo.Name)
+		}
+	}
+
+	// Check second relay
+	if relays[1].URL != "wss://relay.nostr.band" {
+		t.Errorf("expected URL 'wss://relay.nostr.band', got '%s'", relays[1].URL)
+	}
+	if len(relays[1].SupportedNIPs) != 8 {
+		t.Errorf("expected 8 supported NIPs for nostr.band, got %d", len(relays[1].SupportedNIPs))
+	}
+}
+
+func TestRelayStatus_WithoutSupportedNIPs(t *testing.T) {
+	// Test relay that doesn't support NIP-11 or hasn't fetched info yet
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{
+				URL:       "wss://relay.unknown.com",
+				Connected: true,
+				Latency:   100,
+				EventsPS:  1.0,
+				// SupportedNIPs is nil
+				// RelayInfo is nil
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelays(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var relays []types.RelayStatus
+	if err := json.NewDecoder(w.Body).Decode(&relays); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(relays) != 1 {
+		t.Fatalf("expected 1 relay, got %d", len(relays))
+	}
+
+	if relays[0].SupportedNIPs != nil && len(relays[0].SupportedNIPs) != 0 {
+		t.Errorf("expected nil or empty supported_nips, got %v", relays[0].SupportedNIPs)
+	}
+	if relays[0].RelayInfo != nil {
+		t.Errorf("expected nil relay_info, got %+v", relays[0].RelayInfo)
 	}
 }

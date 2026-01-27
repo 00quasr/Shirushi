@@ -218,13 +218,16 @@ class Shirushi {
                         ${relay.connected ? 'Connected' : 'Disconnected'}
                     </span>
                 </div>
+                ${relay.relay_info?.name ? `<div class="relay-name">${this.escapeHtml(relay.relay_info.name)}</div>` : ''}
                 <div class="relay-stats">
                     <span>Latency: ${relay.latency_ms > 0 ? relay.latency_ms + 'ms' : 'N/A'}</span>
                     <span>Events: ${(relay.events_per_sec || 0).toFixed(1)}/sec</span>
                 </div>
+                ${this.renderSupportedNIPs(relay.supported_nips)}
                 ${relay.error ? `<div class="relay-error">${this.escapeHtml(relay.error)}</div>` : ''}
                 <div class="relay-actions">
                     <button class="btn small copy-btn" data-copy-relay="${this.escapeHtml(relay.url)}">Copy URL</button>
+                    <button class="btn small" data-show-info="${this.escapeHtml(relay.url)}">Info</button>
                     <button class="btn small" onclick="app.removeRelay('${this.escapeHtml(relay.url)}')">Remove</button>
                 </div>
             </div>
@@ -238,6 +241,144 @@ class Shirushi {
                 this.copyToClipboard(url, btn, 'Copy URL');
             });
         });
+
+        // Attach info button handlers
+        container.querySelectorAll('[data-show-info]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const url = btn.dataset.showInfo;
+                this.showRelayInfo(url);
+            });
+        });
+    }
+
+    renderSupportedNIPs(nips) {
+        if (!nips || nips.length === 0) {
+            return '<div class="relay-nips"><span class="relay-nips-label">NIPs:</span> <span class="relay-nips-loading">Loading...</span></div>';
+        }
+
+        // Sort NIPs numerically
+        const sortedNips = [...nips].sort((a, b) => a - b);
+
+        // Show first 10 NIPs, with "..." if more
+        const displayNips = sortedNips.slice(0, 10);
+        const hasMore = sortedNips.length > 10;
+
+        const nipBadges = displayNips.map(nip =>
+            `<span class="nip-badge" title="NIP-${String(nip).padStart(2, '0')}">${nip}</span>`
+        ).join('');
+
+        return `
+            <div class="relay-nips">
+                <span class="relay-nips-label">NIPs:</span>
+                <div class="relay-nips-list">
+                    ${nipBadges}
+                    ${hasMore ? `<span class="nip-badge more" title="${sortedNips.length} NIPs total">+${sortedNips.length - 10}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    async showRelayInfo(url) {
+        const relay = this.relays.find(r => r.url === url);
+        if (!relay) return;
+
+        const info = relay.relay_info || {};
+        const nips = relay.supported_nips || [];
+
+        // Build modal content
+        let content = `
+            <div class="relay-info-modal">
+                <h3>${this.escapeHtml(info.name || url)}</h3>
+                ${info.description ? `<p class="relay-description">${this.escapeHtml(info.description)}</p>` : ''}
+
+                <div class="relay-info-section">
+                    <h4>Connection</h4>
+                    <div class="relay-info-grid">
+                        <span class="label">URL:</span>
+                        <span class="value"><code>${this.escapeHtml(url)}</code></span>
+                        <span class="label">Status:</span>
+                        <span class="value ${relay.connected ? 'success' : 'error'}">${relay.connected ? 'Connected' : 'Disconnected'}</span>
+                    </div>
+                </div>
+
+                ${info.software || info.version ? `
+                <div class="relay-info-section">
+                    <h4>Software</h4>
+                    <div class="relay-info-grid">
+                        ${info.software ? `<span class="label">Software:</span><span class="value">${this.escapeHtml(info.software)}</span>` : ''}
+                        ${info.version ? `<span class="label">Version:</span><span class="value">${this.escapeHtml(info.version)}</span>` : ''}
+                    </div>
+                </div>
+                ` : ''}
+
+                ${info.contact || info.pubkey ? `
+                <div class="relay-info-section">
+                    <h4>Contact</h4>
+                    <div class="relay-info-grid">
+                        ${info.contact ? `<span class="label">Contact:</span><span class="value">${this.escapeHtml(info.contact)}</span>` : ''}
+                        ${info.pubkey ? `<span class="label">Pubkey:</span><span class="value"><code>${info.pubkey.substring(0, 16)}...</code></span>` : ''}
+                    </div>
+                </div>
+                ` : ''}
+
+                ${info.limitation ? `
+                <div class="relay-info-section">
+                    <h4>Limitations</h4>
+                    <div class="relay-info-grid">
+                        ${info.limitation.max_message_length ? `<span class="label">Max Message:</span><span class="value">${info.limitation.max_message_length.toLocaleString()} bytes</span>` : ''}
+                        ${info.limitation.max_subscriptions ? `<span class="label">Max Subscriptions:</span><span class="value">${info.limitation.max_subscriptions}</span>` : ''}
+                        ${info.limitation.max_limit ? `<span class="label">Max Limit:</span><span class="value">${info.limitation.max_limit}</span>` : ''}
+                        ${info.limitation.auth_required ? `<span class="label">Auth Required:</span><span class="value">Yes</span>` : ''}
+                        ${info.limitation.payment_required ? `<span class="label">Payment Required:</span><span class="value">Yes</span>` : ''}
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="relay-info-section">
+                    <h4>Supported NIPs (${nips.length})</h4>
+                    ${nips.length > 0 ? `
+                        <div class="relay-nips-full">
+                            ${[...nips].sort((a, b) => a - b).map(nip =>
+                                `<span class="nip-badge" title="NIP-${String(nip).padStart(2, '0')}">NIP-${String(nip).padStart(2, '0')}</span>`
+                            ).join('')}
+                        </div>
+                    ` : '<p class="hint">No NIP information available</p>'}
+                </div>
+
+                <div class="relay-info-actions">
+                    <button class="btn" onclick="app.refreshRelayInfo('${this.escapeHtml(url)}')">Refresh Info</button>
+                </div>
+            </div>
+        `;
+
+        this.showModal({
+            title: 'Relay Information',
+            body: content,
+            size: 'lg',
+            buttons: [
+                { text: 'Close', type: 'primary', value: null }
+            ]
+        });
+    }
+
+    async refreshRelayInfo(url) {
+        try {
+            const response = await fetch(`/api/relays/info?url=${encodeURIComponent(url)}`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to refresh relay info');
+            }
+
+            await this.loadRelays();
+            this.closeModal();
+            this.showRelayInfo(url);
+            this.toastSuccess('Relay Info Updated', `Refreshed info for ${url}`);
+        } catch (error) {
+            this.toastError('Refresh Failed', error.message);
+        }
     }
 
     async addRelay(url) {
