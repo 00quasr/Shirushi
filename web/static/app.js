@@ -1220,6 +1220,84 @@ class Shirushi {
         return result;
     }
 
+    /**
+     * Sign an event using NIP-07 browser extension
+     * @param {Object} event - Unsigned Nostr event (must have kind, content, tags, created_at)
+     * @returns {Promise<{success: boolean, event: Object|null, error: string|null}>}
+     */
+    async signWithExtension(event) {
+        const result = {
+            success: false,
+            event: null,
+            error: null
+        };
+
+        // Check if NIP-07 extension is available
+        if (typeof window === 'undefined' || !window.nostr) {
+            result.error = 'No NIP-07 extension detected. Please install Alby, nos2x, or another compatible extension.';
+            return result;
+        }
+
+        // Validate required event fields
+        if (!event || typeof event !== 'object') {
+            result.error = 'Invalid event: must be an object';
+            return result;
+        }
+
+        if (typeof event.kind !== 'number') {
+            result.error = 'Invalid event: kind must be a number';
+            return result;
+        }
+
+        if (typeof event.content !== 'string') {
+            result.error = 'Invalid event: content must be a string';
+            return result;
+        }
+
+        if (!Array.isArray(event.tags)) {
+            result.error = 'Invalid event: tags must be an array';
+            return result;
+        }
+
+        // Ensure created_at is set
+        const unsignedEvent = {
+            kind: event.kind,
+            content: event.content,
+            tags: event.tags,
+            created_at: event.created_at || Math.floor(Date.now() / 1000)
+        };
+
+        try {
+            // Check if signEvent method exists
+            if (typeof window.nostr.signEvent !== 'function') {
+                result.error = 'NIP-07 extension does not support signEvent';
+                return result;
+            }
+
+            // Request signature from extension (will prompt user)
+            const signedEvent = await window.nostr.signEvent(unsignedEvent);
+
+            // Validate the signed event has required fields
+            if (!signedEvent || !signedEvent.id || !signedEvent.pubkey || !signedEvent.sig) {
+                result.error = 'Extension returned invalid signed event';
+                return result;
+            }
+
+            result.success = true;
+            result.event = signedEvent;
+        } catch (error) {
+            // User rejected or extension error
+            if (error.message?.includes('rejected') || error.message?.includes('denied')) {
+                result.error = 'User rejected the signing request';
+            } else {
+                result.error = `Signing failed: ${error.message || 'Unknown error'}`;
+            }
+            console.warn('NIP-07: Signing failed:', error);
+        }
+
+        return result;
+    }
+
     // Keys Tab
     setupKeys() {
         document.getElementById('generate-key-btn').addEventListener('click', () => {

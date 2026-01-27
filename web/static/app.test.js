@@ -5502,6 +5502,334 @@
         });
     });
 
+    // NIP-07 Event Signing Tests
+    describe('signWithExtension (NIP-07)', () => {
+        let originalNostr;
+
+        function setupMockNostr(options = {}) {
+            originalNostr = window.nostr;
+            window.nostr = {
+                ...options
+            };
+        }
+
+        function restoreNostr() {
+            if (originalNostr !== undefined) {
+                window.nostr = originalNostr;
+            } else {
+                delete window.nostr;
+            }
+        }
+
+        function createValidEvent() {
+            return {
+                kind: 1,
+                content: 'Test message',
+                tags: [],
+                created_at: 1700000000
+            };
+        }
+
+        it('returns error when window.nostr is not present', async () => {
+            const savedNostr = window.nostr;
+            delete window.nostr;
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertEqual(result.event, null, 'event should be null');
+            assertTrue(result.error.includes('No NIP-07 extension'), 'error should mention missing extension');
+
+            if (savedNostr !== undefined) {
+                window.nostr = savedNostr;
+            }
+        });
+
+        it('returns error for null event', async () => {
+            setupMockNostr({ signEvent: async () => ({}) });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(null);
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('Invalid event'), 'error should mention invalid event');
+
+            restoreNostr();
+        });
+
+        it('returns error for non-object event', async () => {
+            setupMockNostr({ signEvent: async () => ({}) });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension('not an object');
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('Invalid event'), 'error should mention invalid event');
+
+            restoreNostr();
+        });
+
+        it('returns error when kind is not a number', async () => {
+            setupMockNostr({ signEvent: async () => ({}) });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension({
+                kind: 'text',
+                content: 'Test',
+                tags: []
+            });
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('kind must be a number'), 'error should mention kind must be a number');
+
+            restoreNostr();
+        });
+
+        it('returns error when content is not a string', async () => {
+            setupMockNostr({ signEvent: async () => ({}) });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension({
+                kind: 1,
+                content: 123,
+                tags: []
+            });
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('content must be a string'), 'error should mention content must be a string');
+
+            restoreNostr();
+        });
+
+        it('returns error when tags is not an array', async () => {
+            setupMockNostr({ signEvent: async () => ({}) });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension({
+                kind: 1,
+                content: 'Test',
+                tags: 'not an array'
+            });
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('tags must be an array'), 'error should mention tags must be an array');
+
+            restoreNostr();
+        });
+
+        it('returns error when signEvent is not a function', async () => {
+            setupMockNostr({});
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('does not support signEvent'), 'error should mention signEvent not supported');
+
+            restoreNostr();
+        });
+
+        it('successfully signs event with valid data', async () => {
+            const signedEvent = {
+                id: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+                pubkey: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test message',
+                sig: 'signature1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'
+            };
+
+            setupMockNostr({
+                signEvent: async () => signedEvent
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, true, 'success should be true');
+            assertEqual(result.event, signedEvent, 'event should match signed event');
+            assertEqual(result.error, null, 'error should be null');
+
+            restoreNostr();
+        });
+
+        it('adds created_at if not provided', async () => {
+            let receivedEvent = null;
+            const signedEvent = {
+                id: 'someid',
+                pubkey: 'somepubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'somesig'
+            };
+
+            setupMockNostr({
+                signEvent: async (event) => {
+                    receivedEvent = event;
+                    return signedEvent;
+                }
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            await mockApp.signWithExtension({
+                kind: 1,
+                content: 'Test',
+                tags: []
+            });
+
+            assertTrue(typeof receivedEvent.created_at === 'number', 'created_at should be added');
+            assertTrue(receivedEvent.created_at > 0, 'created_at should be a positive timestamp');
+
+            restoreNostr();
+        });
+
+        it('handles user rejection gracefully', async () => {
+            setupMockNostr({
+                signEvent: async () => { throw new Error('User rejected'); }
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('rejected'), 'error should mention rejection');
+            assertEqual(result.event, null, 'event should be null');
+
+            restoreNostr();
+        });
+
+        it('handles user denied gracefully', async () => {
+            setupMockNostr({
+                signEvent: async () => { throw new Error('User denied'); }
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('rejected'), 'error should mention rejection');
+
+            restoreNostr();
+        });
+
+        it('handles generic signing errors', async () => {
+            setupMockNostr({
+                signEvent: async () => { throw new Error('Network error'); }
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('Signing failed'), 'error should mention signing failed');
+            assertTrue(result.error.includes('Network error'), 'error should include original error message');
+
+            restoreNostr();
+        });
+
+        it('returns error when signed event is missing id', async () => {
+            setupMockNostr({
+                signEvent: async () => ({
+                    pubkey: 'somepubkey',
+                    sig: 'somesig'
+                })
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('invalid signed event'), 'error should mention invalid signed event');
+
+            restoreNostr();
+        });
+
+        it('returns error when signed event is missing pubkey', async () => {
+            setupMockNostr({
+                signEvent: async () => ({
+                    id: 'someid',
+                    sig: 'somesig'
+                })
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('invalid signed event'), 'error should mention invalid signed event');
+
+            restoreNostr();
+        });
+
+        it('returns error when signed event is missing sig', async () => {
+            setupMockNostr({
+                signEvent: async () => ({
+                    id: 'someid',
+                    pubkey: 'somepubkey'
+                })
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('invalid signed event'), 'error should mention invalid signed event');
+
+            restoreNostr();
+        });
+
+        it('returns error when signed event is null', async () => {
+            setupMockNostr({
+                signEvent: async () => null
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            const result = await mockApp.signWithExtension(createValidEvent());
+
+            assertEqual(result.success, false, 'success should be false');
+            assertTrue(result.error.includes('invalid signed event'), 'error should mention invalid signed event');
+
+            restoreNostr();
+        });
+
+        it('preserves tags from the original event', async () => {
+            let receivedEvent = null;
+            const tags = [['e', 'eventid'], ['p', 'pubkey']];
+            const signedEvent = {
+                id: 'someid',
+                pubkey: 'somepubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: tags,
+                content: 'Test',
+                sig: 'somesig'
+            };
+
+            setupMockNostr({
+                signEvent: async (event) => {
+                    receivedEvent = event;
+                    return signedEvent;
+                }
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            await mockApp.signWithExtension({
+                kind: 1,
+                content: 'Test',
+                tags: tags,
+                created_at: 1700000000
+            });
+
+            assertEqual(receivedEvent.tags, tags, 'tags should be preserved');
+
+            restoreNostr();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
