@@ -1518,6 +1518,27 @@
         });
     });
 
+    // Chart.js CDN Integration Tests
+    describe('Chart.js CDN Integration', () => {
+        it('should have Chart.js loaded globally', () => {
+            assertDefined(window.Chart, 'Chart.js should be available on window object');
+        });
+
+        it('should have Chart constructor available', () => {
+            assertEqual(typeof window.Chart, 'function', 'Chart should be a constructor function');
+        });
+
+        it('should have Chart.register method available', () => {
+            assertDefined(window.Chart.register, 'Chart.register should be available');
+            assertEqual(typeof window.Chart.register, 'function', 'Chart.register should be a function');
+        });
+
+        it('should have Chart.js version 4.x loaded', () => {
+            assertDefined(window.Chart.version, 'Chart.version should be defined');
+            assertTrue(window.Chart.version.startsWith('4'), 'Chart.js version should be 4.x');
+        });
+    });
+
     // Avatar and Banner CSS Rules Tests
     // These tests verify CSS rules are loaded correctly by checking stylesheet
     describe('Avatar and Banner CSS Rules', () => {
