@@ -2608,6 +2608,72 @@
             const css = getCssText();
             assertTrue(css.includes('toast-persistent'), 'CSS should have toast-persistent animation rules');
         });
+
+        // Toast Style Variant Tests (success, error, info with enhanced styling)
+        it('should have toast-success with gradient background', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast.toast-success'), 'CSS should have toast-success selector');
+            assertTrue(css.includes('rgba(34, 197, 94'), 'Success toast should use green rgba color');
+        });
+
+        it('should have toast-error with gradient background', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast.toast-error'), 'CSS should have toast-error selector');
+            assertTrue(css.includes('rgba(239, 68, 68'), 'Error toast should use red rgba color');
+        });
+
+        it('should have toast-info with gradient background', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast.toast-info'), 'CSS should have toast-info selector');
+            assertTrue(css.includes('rgba(59, 130, 246'), 'Info toast should use blue rgba color');
+        });
+
+        it('should have toast-warning with gradient background', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast.toast-warning'), 'CSS should have toast-warning selector');
+            assertTrue(css.includes('rgba(234, 179, 8'), 'Warning toast should use yellow rgba color');
+        });
+
+        it('should have toast-success title color styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-success .toast-title'), 'CSS should have success toast title styling');
+        });
+
+        it('should have toast-error title color styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-error .toast-title'), 'CSS should have error toast title styling');
+        });
+
+        it('should have toast-info title color styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-info .toast-title'), 'CSS should have info toast title styling');
+        });
+
+        it('should have toast icon with circular background', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-icon'), 'CSS should have toast-icon selector');
+            assertTrue(css.includes('border-radius: 50%'), 'Toast icon should have circular border-radius');
+        });
+
+        it('should have toast-success icon background styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-success .toast-icon'), 'CSS should have success toast icon styling');
+        });
+
+        it('should have toast-error icon background styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-error .toast-icon'), 'CSS should have error toast icon styling');
+        });
+
+        it('should have toast-info icon background styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-info .toast-icon'), 'CSS should have info toast icon styling');
+        });
+
+        it('should have toast-warning icon background styling', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.toast-warning .toast-icon'), 'CSS should have warning toast icon styling');
+        });
     });
 
     // ===================================
@@ -2883,6 +2949,98 @@
             setupToastTests();
             const toast = app.toastInfo('Info Title', 'Info message');
             assertTrue(toast.classList.contains('toast-info'), 'toastInfo should create info type');
+            app.dismissToast(toast);
+        });
+
+        // Enhanced Toast Style Tests (computed styles)
+        it('success toast should have green-tinted background', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'success', title: 'Test', duration: 0 });
+            const computedStyle = window.getComputedStyle(toast);
+            // Check that background contains gradient or rgba with green tint
+            const bg = computedStyle.background || computedStyle.backgroundImage;
+            assertTrue(bg.length > 0, 'Success toast should have background style');
+            app.dismissToast(toast);
+        });
+
+        it('error toast should have red-tinted background', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'error', title: 'Test', duration: 0 });
+            const computedStyle = window.getComputedStyle(toast);
+            const bg = computedStyle.background || computedStyle.backgroundImage;
+            assertTrue(bg.length > 0, 'Error toast should have background style');
+            app.dismissToast(toast);
+        });
+
+        it('info toast should have blue-tinted background', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', duration: 0 });
+            const computedStyle = window.getComputedStyle(toast);
+            const bg = computedStyle.background || computedStyle.backgroundImage;
+            assertTrue(bg.length > 0, 'Info toast should have background style');
+            app.dismissToast(toast);
+        });
+
+        it('success toast icon should have circular background', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'success', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertDefined(icon, 'Toast should have icon element');
+            const computedStyle = window.getComputedStyle(icon);
+            assertEqual(computedStyle.borderRadius, '50%', 'Icon should have circular border-radius');
+            app.dismissToast(toast);
+        });
+
+        it('error toast icon should have circular background', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'error', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertDefined(icon, 'Toast should have icon element');
+            const computedStyle = window.getComputedStyle(icon);
+            assertEqual(computedStyle.borderRadius, '50%', 'Icon should have circular border-radius');
+            app.dismissToast(toast);
+        });
+
+        it('info toast icon should have circular background', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test', duration: 0 });
+            const icon = toast.querySelector('.toast-icon');
+            assertDefined(icon, 'Toast should have icon element');
+            const computedStyle = window.getComputedStyle(icon);
+            assertEqual(computedStyle.borderRadius, '50%', 'Icon should have circular border-radius');
+            app.dismissToast(toast);
+        });
+
+        it('success toast title should have green color', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'success', title: 'Test Title', duration: 0 });
+            const title = toast.querySelector('.toast-title');
+            assertDefined(title, 'Toast should have title element');
+            const computedStyle = window.getComputedStyle(title);
+            // CSS variable --success is rgb(34, 197, 94) which becomes rgb(34, 197, 94) in computed style
+            assertTrue(computedStyle.color.includes('34') || computedStyle.color.includes('22c55e'), 'Success title should have green color');
+            app.dismissToast(toast);
+        });
+
+        it('error toast title should have red color', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'error', title: 'Test Title', duration: 0 });
+            const title = toast.querySelector('.toast-title');
+            assertDefined(title, 'Toast should have title element');
+            const computedStyle = window.getComputedStyle(title);
+            // CSS variable --error is rgb(239, 68, 68)
+            assertTrue(computedStyle.color.includes('239') || computedStyle.color.includes('ef4444'), 'Error title should have red color');
+            app.dismissToast(toast);
+        });
+
+        it('info toast title should have blue color', () => {
+            setupToastTests();
+            const toast = app.showToast({ type: 'info', title: 'Test Title', duration: 0 });
+            const title = toast.querySelector('.toast-title');
+            assertDefined(title, 'Toast should have title element');
+            const computedStyle = window.getComputedStyle(title);
+            // CSS variable --accent is rgb(59, 130, 246)
+            assertTrue(computedStyle.color.includes('59') || computedStyle.color.includes('3b82f6'), 'Info title should have blue color');
             app.dismissToast(toast);
         });
 
