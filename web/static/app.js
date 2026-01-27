@@ -30,6 +30,10 @@ class Shirushi {
         this.toastQueue = [];
         this.maxToasts = 5;
 
+        // Loading state management
+        this.loadingStates = new Map();
+        this.loadingCallbacks = new Map();
+
         this.init();
     }
 
@@ -205,28 +209,46 @@ class Shirushi {
     }
 
     async addRelay(url) {
-        try {
-            await fetch('/api/relays', {
+        const addBtn = document.getElementById('add-relay-btn');
+
+        await this.withLoading('add-relay', async () => {
+            const response = await fetch('/api/relays', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url })
             });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Failed to add relay' }));
+                throw new Error(error.error || 'Failed to add relay');
+            }
+
             document.getElementById('relay-url').value = '';
             await this.loadRelays();
-        } catch (error) {
-            console.error('Failed to add relay:', error);
-        }
+            this.toastSuccess('Relay Added', `Connected to ${url}`);
+        }, {
+            button: addBtn,
+            buttonText: 'Adding...',
+            showErrorToast: true
+        });
     }
 
     async removeRelay(url) {
-        try {
-            await fetch(`/api/relays?url=${encodeURIComponent(url)}`, {
+        await this.withLoading('remove-relay', async () => {
+            const response = await fetch(`/api/relays?url=${encodeURIComponent(url)}`, {
                 method: 'DELETE'
             });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Failed to remove relay' }));
+                throw new Error(error.error || 'Failed to remove relay');
+            }
+
             await this.loadRelays();
-        } catch (error) {
-            console.error('Failed to remove relay:', error);
-        }
+            this.toastSuccess('Relay Removed', `Disconnected from ${url}`);
+        }, {
+            showErrorToast: true
+        });
     }
 
     async loadPreset(presetName) {
@@ -1081,20 +1103,31 @@ class Shirushi {
     async runTest(nipId) {
         const params = this.getTestParams(nipId);
         const resultsContainer = document.getElementById('test-results');
+        const runBtn = document.getElementById('run-test-btn');
 
-        resultsContainer.innerHTML = '<p class="loading">Running test...</p>';
-
-        try {
+        await this.withLoading(`test-${nipId}`, async () => {
             const response = await fetch(`/api/test/${nipId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params)
             });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Test request failed' }));
+                throw new Error(error.error || 'Test request failed');
+            }
+
             const result = await response.json();
             this.showTestResult(result);
-        } catch (error) {
-            resultsContainer.innerHTML = `<p class="error">Test failed: ${error.message}</p>`;
-        }
+        }, {
+            button: runBtn,
+            buttonText: 'Running...',
+            container: resultsContainer,
+            containerMessage: 'Running test...',
+            showErrorToast: false
+        }).catch(error => {
+            resultsContainer.innerHTML = `<p class="error">Test failed: ${this.escapeHtml(error.message)}</p>`;
+        });
     }
 
     getTestParams(nipId) {
@@ -1181,22 +1214,26 @@ class Shirushi {
     }
 
     async generateKeys() {
-        try {
+        const generateBtn = document.getElementById('generate-key-btn');
+
+        await this.withLoading('generate-keys', async () => {
             const response = await fetch('/api/keys/generate', { method: 'POST' });
             const keypair = await response.json();
 
             if (keypair.error) {
-                this.toastError('Key Generation Error', keypair.error);
-                return;
+                throw new Error(keypair.error);
             }
 
             document.getElementById('nsec-value').value = keypair.private_key;
             document.getElementById('npub-value').value = keypair.public_key;
             document.getElementById('hex-pubkey-value').value = keypair.hex_pubkey;
             document.getElementById('keypair-result').classList.remove('hidden');
-        } catch (error) {
-            this.toastError('Key Generation Failed', error.message);
-        }
+            this.toastSuccess('Keys Generated', 'New keypair generated successfully');
+        }, {
+            button: generateBtn,
+            buttonText: 'Generating...',
+            showErrorToast: true
+        });
     }
 
     async decodeNip19() {
@@ -1289,12 +1326,12 @@ class Shirushi {
         this.renderCommandHistory();
 
         const output = document.getElementById('nak-output');
-        output.textContent = 'Running...';
+        const runBtn = document.getElementById('run-nak-btn');
 
         // Store last output for copy functionality
         this.lastNakOutput = null;
 
-        try {
+        await this.withLoading('nak-command', async () => {
             const args = command.split(' ').filter(s => s);
             const response = await fetch('/api/nak', {
                 method: 'POST',
@@ -1319,11 +1356,15 @@ class Shirushi {
 
             // Update copy button state
             this.updateNakCopyButton();
-        } catch (error) {
+        }, {
+            button: runBtn,
+            buttonText: 'Running...',
+            showErrorToast: false
+        }).catch(error => {
             output.textContent = `Error: ${error.message}`;
             this.lastNakOutput = `Error: ${error.message}`;
             this.updateNakCopyButton();
-        }
+        });
 
         input.value = '';
     }
@@ -2397,6 +2438,280 @@ class Shirushi {
                 }
             }, 0);
         });
+    }
+
+    // Loading State Management
+    /**
+     * Check if a specific loading key is currently loading
+     * @param {string} key - The loading state key
+     * @returns {boolean} True if loading
+     */
+    isLoading(key) {
+        return this.loadingStates.get(key) === true;
+    }
+
+    /**
+     * Set loading state for a key
+     * @param {string} key - The loading state key
+     * @param {boolean} isLoading - Whether loading is active
+     */
+    setLoading(key, isLoading) {
+        const wasLoading = this.loadingStates.get(key);
+        this.loadingStates.set(key, isLoading);
+
+        // Notify callbacks if state changed
+        if (wasLoading !== isLoading) {
+            const callbacks = this.loadingCallbacks.get(key);
+            if (callbacks) {
+                callbacks.forEach(callback => {
+                    try {
+                        callback(isLoading);
+                    } catch (e) {
+                        console.error('Loading callback error:', e);
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Subscribe to loading state changes for a key
+     * @param {string} key - The loading state key
+     * @param {Function} callback - Function called with (isLoading) when state changes
+     * @returns {Function} Unsubscribe function
+     */
+    onLoadingChange(key, callback) {
+        if (!this.loadingCallbacks.has(key)) {
+            this.loadingCallbacks.set(key, new Set());
+        }
+        this.loadingCallbacks.get(key).add(callback);
+
+        // Call immediately with current state
+        callback(this.isLoading(key));
+
+        // Return unsubscribe function
+        return () => {
+            const callbacks = this.loadingCallbacks.get(key);
+            if (callbacks) {
+                callbacks.delete(callback);
+            }
+        };
+    }
+
+    /**
+     * Clear all loading states
+     */
+    clearAllLoadingStates() {
+        this.loadingStates.forEach((_, key) => {
+            this.setLoading(key, false);
+        });
+    }
+
+    /**
+     * Set a button to loading state
+     * @param {HTMLButtonElement|string} button - Button element or ID
+     * @param {boolean} isLoading - Whether to show loading state
+     * @param {string} [loadingText] - Text to show while loading
+     * @returns {string|null} Original button text (if loading) or null
+     */
+    setButtonLoading(button, isLoading, loadingText = 'Loading...') {
+        const btn = typeof button === 'string' ? document.getElementById(button) : button;
+        if (!btn) return null;
+
+        if (isLoading) {
+            // Store original state
+            const originalText = btn.textContent;
+            btn.dataset.originalText = originalText;
+            btn.dataset.wasDisabled = btn.disabled;
+
+            // Apply loading state
+            btn.disabled = true;
+            btn.classList.add('btn-loading');
+            btn.textContent = loadingText;
+
+            return originalText;
+        } else {
+            // Restore original state
+            if (btn.dataset.originalText !== undefined) {
+                btn.textContent = btn.dataset.originalText;
+                delete btn.dataset.originalText;
+            }
+            if (btn.dataset.wasDisabled !== undefined) {
+                btn.disabled = btn.dataset.wasDisabled === 'true';
+                delete btn.dataset.wasDisabled;
+            }
+            btn.classList.remove('btn-loading');
+
+            return null;
+        }
+    }
+
+    /**
+     * Show loading overlay on a container
+     * @param {HTMLElement|string} container - Container element or ID
+     * @param {boolean} show - Whether to show the overlay
+     * @param {string} [message] - Optional loading message
+     */
+    setContainerLoading(container, show, message = '') {
+        const el = typeof container === 'string' ? document.getElementById(container) : container;
+        if (!el) return;
+
+        // Look for existing overlay
+        let overlay = el.querySelector('.loading-overlay');
+
+        if (show) {
+            // Create overlay if needed
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.className = 'loading-overlay';
+                overlay.innerHTML = `
+                    <div class="loading-spinner"></div>
+                    ${message ? `<div class="loading-message">${this.escapeHtml(message)}</div>` : ''}
+                `;
+
+                // Ensure container is positioned for overlay
+                const position = window.getComputedStyle(el).position;
+                if (position === 'static') {
+                    el.style.position = 'relative';
+                    el.dataset.wasStatic = 'true';
+                }
+
+                el.appendChild(overlay);
+            } else if (message) {
+                // Update message if overlay exists
+                let msgEl = overlay.querySelector('.loading-message');
+                if (!msgEl) {
+                    msgEl = document.createElement('div');
+                    msgEl.className = 'loading-message';
+                    overlay.appendChild(msgEl);
+                }
+                msgEl.textContent = message;
+            }
+
+            el.classList.add('is-loading');
+        } else {
+            // Remove overlay
+            if (overlay) {
+                overlay.remove();
+            }
+
+            // Restore position if we changed it
+            if (el.dataset.wasStatic) {
+                el.style.position = '';
+                delete el.dataset.wasStatic;
+            }
+
+            el.classList.remove('is-loading');
+        }
+    }
+
+    /**
+     * Execute an async operation with loading state management
+     * @param {string} key - Loading state key
+     * @param {Function} operation - Async function to execute
+     * @param {Object} [options] - Options
+     * @param {HTMLElement|string} [options.button] - Button to show loading on
+     * @param {string} [options.buttonText] - Loading text for button
+     * @param {HTMLElement|string} [options.container] - Container to show overlay on
+     * @param {string} [options.containerMessage] - Message for container overlay
+     * @param {string} [options.skeletonId] - Skeleton element ID to show
+     * @param {boolean} [options.showErrorToast=true] - Show toast on error
+     * @returns {Promise<*>} Result of the operation
+     */
+    async withLoading(key, operation, options = {}) {
+        const {
+            button,
+            buttonText = 'Loading...',
+            container,
+            containerMessage = '',
+            skeletonId,
+            showErrorToast = true
+        } = options;
+
+        // Start loading
+        this.setLoading(key, true);
+
+        if (button) {
+            this.setButtonLoading(button, true, buttonText);
+        }
+
+        if (container) {
+            this.setContainerLoading(container, true, containerMessage);
+        }
+
+        if (skeletonId) {
+            this.showSkeleton(skeletonId);
+        }
+
+        try {
+            const result = await operation();
+            return result;
+        } catch (error) {
+            if (showErrorToast) {
+                this.toastError('Error', error.message || 'An error occurred');
+            }
+            throw error;
+        } finally {
+            // End loading
+            this.setLoading(key, false);
+
+            if (button) {
+                this.setButtonLoading(button, false);
+            }
+
+            if (container) {
+                this.setContainerLoading(container, false);
+            }
+
+            if (skeletonId) {
+                this.hideSkeleton(skeletonId);
+            }
+        }
+    }
+
+    /**
+     * Create a loading indicator element
+     * @param {string} [size='md'] - Size: 'sm', 'md', 'lg'
+     * @param {string} [message] - Optional message
+     * @returns {HTMLElement} Loading indicator element
+     */
+    createLoadingIndicator(size = 'md', message = '') {
+        const indicator = document.createElement('div');
+        indicator.className = `loading-indicator loading-indicator-${size}`;
+        indicator.innerHTML = `
+            <div class="loading-spinner"></div>
+            ${message ? `<span class="loading-text">${this.escapeHtml(message)}</span>` : ''}
+        `;
+        return indicator;
+    }
+
+    /**
+     * Show inline loading state in an element
+     * @param {HTMLElement|string} element - Element or ID to show loading in
+     * @param {boolean} show - Whether to show loading
+     * @param {string} [message='Loading...'] - Loading message
+     */
+    setInlineLoading(element, show, message = 'Loading...') {
+        const el = typeof element === 'string' ? document.getElementById(element) : element;
+        if (!el) return;
+
+        if (show) {
+            // Store original content
+            if (!el.dataset.originalContent) {
+                el.dataset.originalContent = el.innerHTML;
+            }
+
+            el.innerHTML = '';
+            el.appendChild(this.createLoadingIndicator('sm', message));
+            el.classList.add('inline-loading');
+        } else {
+            // Restore original content
+            if (el.dataset.originalContent) {
+                el.innerHTML = el.dataset.originalContent;
+                delete el.dataset.originalContent;
+            }
+            el.classList.remove('inline-loading');
+        }
     }
 
     // Skeleton Loader Helpers

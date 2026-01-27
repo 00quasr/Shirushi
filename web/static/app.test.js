@@ -4628,6 +4628,504 @@
         });
     });
 
+    // Loading State Handler Tests
+    describe('Loading State Handlers', () => {
+        it('should have isLoading method', () => {
+            assertDefined(Shirushi.prototype.isLoading, 'isLoading method should exist');
+        });
+
+        it('should have setLoading method', () => {
+            assertDefined(Shirushi.prototype.setLoading, 'setLoading method should exist');
+        });
+
+        it('should have onLoadingChange method', () => {
+            assertDefined(Shirushi.prototype.onLoadingChange, 'onLoadingChange method should exist');
+        });
+
+        it('should have clearAllLoadingStates method', () => {
+            assertDefined(Shirushi.prototype.clearAllLoadingStates, 'clearAllLoadingStates method should exist');
+        });
+
+        it('should have setButtonLoading method', () => {
+            assertDefined(Shirushi.prototype.setButtonLoading, 'setButtonLoading method should exist');
+        });
+
+        it('should have setContainerLoading method', () => {
+            assertDefined(Shirushi.prototype.setContainerLoading, 'setContainerLoading method should exist');
+        });
+
+        it('should have withLoading method', () => {
+            assertDefined(Shirushi.prototype.withLoading, 'withLoading method should exist');
+        });
+
+        it('should have createLoadingIndicator method', () => {
+            assertDefined(Shirushi.prototype.createLoadingIndicator, 'createLoadingIndicator method should exist');
+        });
+
+        it('should have setInlineLoading method', () => {
+            assertDefined(Shirushi.prototype.setInlineLoading, 'setInlineLoading method should exist');
+        });
+    });
+
+    describe('Loading State - isLoading and setLoading', () => {
+        let container;
+
+        it('should return false for unset loading state', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            assertFalse(mockApp.isLoading('test-key'), 'isLoading should return false for unset key');
+        });
+
+        it('should set and get loading state correctly', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            mockApp.setLoading('test-key', true);
+            assertTrue(mockApp.isLoading('test-key'), 'isLoading should return true after setLoading(key, true)');
+
+            mockApp.setLoading('test-key', false);
+            assertFalse(mockApp.isLoading('test-key'), 'isLoading should return false after setLoading(key, false)');
+        });
+
+        it('should call callbacks when loading state changes', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            let callbackCalled = false;
+            let lastCallbackValue = null;
+
+            mockApp.onLoadingChange('test-key', (isLoading) => {
+                callbackCalled = true;
+                lastCallbackValue = isLoading;
+            });
+
+            // Initial callback should be called with false (not loading)
+            assertTrue(callbackCalled, 'Callback should be called immediately on subscribe');
+            assertFalse(lastCallbackValue, 'Initial callback value should be false');
+
+            // Change to loading
+            mockApp.setLoading('test-key', true);
+            assertTrue(lastCallbackValue, 'Callback should receive true when loading starts');
+
+            // Change back
+            mockApp.setLoading('test-key', false);
+            assertFalse(lastCallbackValue, 'Callback should receive false when loading ends');
+        });
+
+        it('should return unsubscribe function from onLoadingChange', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            let callCount = 0;
+            const unsubscribe = mockApp.onLoadingChange('test-key', () => {
+                callCount++;
+            });
+
+            assertEqual(callCount, 1, 'Callback should be called once on subscribe');
+
+            mockApp.setLoading('test-key', true);
+            assertEqual(callCount, 2, 'Callback should be called on state change');
+
+            // Unsubscribe
+            unsubscribe();
+
+            mockApp.setLoading('test-key', false);
+            assertEqual(callCount, 2, 'Callback should not be called after unsubscribe');
+        });
+
+        it('should clear all loading states', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            mockApp.setLoading('key1', true);
+            mockApp.setLoading('key2', true);
+            mockApp.setLoading('key3', true);
+
+            assertTrue(mockApp.isLoading('key1'), 'key1 should be loading');
+            assertTrue(mockApp.isLoading('key2'), 'key2 should be loading');
+            assertTrue(mockApp.isLoading('key3'), 'key3 should be loading');
+
+            mockApp.clearAllLoadingStates();
+
+            assertFalse(mockApp.isLoading('key1'), 'key1 should not be loading after clear');
+            assertFalse(mockApp.isLoading('key2'), 'key2 should not be loading after clear');
+            assertFalse(mockApp.isLoading('key3'), 'key3 should not be loading after clear');
+        });
+    });
+
+    describe('Loading State - setButtonLoading', () => {
+        it('should set button to loading state', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-btn">Click Me</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const btn = document.getElementById('test-btn');
+            const originalText = mockApp.setButtonLoading(btn, true, 'Loading...');
+
+            assertEqual(originalText, 'Click Me', 'Should return original text');
+            assertTrue(btn.disabled, 'Button should be disabled');
+            assertTrue(btn.classList.contains('btn-loading'), 'Button should have btn-loading class');
+            assertEqual(btn.textContent, 'Loading...', 'Button text should be loading text');
+
+            document.body.removeChild(container);
+        });
+
+        it('should restore button from loading state', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-btn2">Click Me</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const btn = document.getElementById('test-btn2');
+
+            // Set to loading
+            mockApp.setButtonLoading(btn, true, 'Loading...');
+
+            // Restore
+            mockApp.setButtonLoading(btn, false);
+
+            assertFalse(btn.disabled, 'Button should not be disabled');
+            assertFalse(btn.classList.contains('btn-loading'), 'Button should not have btn-loading class');
+            assertEqual(btn.textContent, 'Click Me', 'Button text should be restored');
+
+            document.body.removeChild(container);
+        });
+
+        it('should handle button by ID', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="test-btn3">Original</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const result = mockApp.setButtonLoading('test-btn3', true, 'Please wait...');
+
+            assertEqual(result, 'Original', 'Should return original text');
+            const btn = document.getElementById('test-btn3');
+            assertTrue(btn.classList.contains('btn-loading'), 'Button should have loading class');
+
+            document.body.removeChild(container);
+        });
+
+        it('should return null for non-existent button', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+
+            const result = mockApp.setButtonLoading('non-existent', true);
+            assertEqual(result, null, 'Should return null for non-existent button');
+        });
+    });
+
+    describe('Loading State - setContainerLoading', () => {
+        it('should add loading overlay to container', () => {
+            const container = document.createElement('div');
+            container.id = 'test-container-loading';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            mockApp.setContainerLoading(container, true, 'Please wait...');
+
+            const overlay = container.querySelector('.loading-overlay');
+            assertDefined(overlay, 'Overlay should be added');
+            assertTrue(container.classList.contains('is-loading'), 'Container should have is-loading class');
+
+            const message = overlay.querySelector('.loading-message');
+            assertDefined(message, 'Loading message should exist');
+            assertEqual(message.textContent, 'Please wait...', 'Message should match');
+
+            document.body.removeChild(container);
+        });
+
+        it('should remove loading overlay from container', () => {
+            const container = document.createElement('div');
+            container.id = 'test-container-loading2';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            // Add overlay
+            mockApp.setContainerLoading(container, true);
+
+            // Remove overlay
+            mockApp.setContainerLoading(container, false);
+
+            const overlay = container.querySelector('.loading-overlay');
+            assertEqual(overlay, null, 'Overlay should be removed');
+            assertFalse(container.classList.contains('is-loading'), 'Container should not have is-loading class');
+
+            document.body.removeChild(container);
+        });
+
+        it('should handle container by ID', () => {
+            const container = document.createElement('div');
+            container.id = 'test-container-loading3';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            mockApp.setContainerLoading('test-container-loading3', true);
+
+            assertTrue(container.classList.contains('is-loading'), 'Container should have is-loading class');
+
+            document.body.removeChild(container);
+        });
+    });
+
+    describe('Loading State - createLoadingIndicator', () => {
+        it('should create loading indicator element', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            const indicator = mockApp.createLoadingIndicator('md', 'Loading...');
+
+            assertTrue(indicator instanceof HTMLElement, 'Should return an HTMLElement');
+            assertTrue(indicator.classList.contains('loading-indicator'), 'Should have loading-indicator class');
+            assertTrue(indicator.classList.contains('loading-indicator-md'), 'Should have size class');
+
+            const spinner = indicator.querySelector('.loading-spinner');
+            assertDefined(spinner, 'Should have spinner element');
+
+            const text = indicator.querySelector('.loading-text');
+            assertDefined(text, 'Should have text element');
+            assertEqual(text.textContent, 'Loading...', 'Text should match');
+        });
+
+        it('should create indicator without message', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            const indicator = mockApp.createLoadingIndicator('sm');
+
+            const text = indicator.querySelector('.loading-text');
+            assertEqual(text, null, 'Should not have text element when no message provided');
+        });
+
+        it('should support different sizes', () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            const small = mockApp.createLoadingIndicator('sm');
+            assertTrue(small.classList.contains('loading-indicator-sm'), 'Should have small size class');
+
+            const large = mockApp.createLoadingIndicator('lg');
+            assertTrue(large.classList.contains('loading-indicator-lg'), 'Should have large size class');
+        });
+    });
+
+    describe('Loading State - setInlineLoading', () => {
+        it('should set inline loading state', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<div id="inline-test">Original Content</div>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+            mockApp.createLoadingIndicator = Shirushi.prototype.createLoadingIndicator;
+
+            const el = document.getElementById('inline-test');
+            mockApp.setInlineLoading(el, true, 'Loading data...');
+
+            assertTrue(el.classList.contains('inline-loading'), 'Should have inline-loading class');
+            assertEqual(el.dataset.originalContent, 'Original Content', 'Should store original content');
+
+            const indicator = el.querySelector('.loading-indicator');
+            assertDefined(indicator, 'Should have loading indicator');
+
+            document.body.removeChild(container);
+        });
+
+        it('should restore inline content', () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<div id="inline-test2">Original Text</div>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+            mockApp.createLoadingIndicator = Shirushi.prototype.createLoadingIndicator;
+
+            const el = document.getElementById('inline-test2');
+
+            // Set loading
+            mockApp.setInlineLoading(el, true, 'Loading...');
+
+            // Restore
+            mockApp.setInlineLoading(el, false);
+
+            assertFalse(el.classList.contains('inline-loading'), 'Should not have inline-loading class');
+            assertEqual(el.innerHTML, 'Original Text', 'Should restore original content');
+
+            document.body.removeChild(container);
+        });
+    });
+
+    describe('Loading State - withLoading', () => {
+        it('should execute async operation with loading state', async () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.setLoading = Shirushi.prototype.setLoading;
+            mockApp.isLoading = Shirushi.prototype.isLoading;
+            mockApp.setButtonLoading = Shirushi.prototype.setButtonLoading;
+            mockApp.setContainerLoading = Shirushi.prototype.setContainerLoading;
+            mockApp.showSkeleton = Shirushi.prototype.showSkeleton;
+            mockApp.hideSkeleton = Shirushi.prototype.hideSkeleton;
+            mockApp.toastError = () => {}; // Mock toast
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            let operationExecuted = false;
+            let wasLoadingDuringOperation = false;
+
+            const result = await mockApp.withLoading('test-op', async () => {
+                operationExecuted = true;
+                wasLoadingDuringOperation = mockApp.isLoading('test-op');
+                return 'success';
+            });
+
+            assertTrue(operationExecuted, 'Operation should be executed');
+            assertTrue(wasLoadingDuringOperation, 'Should be in loading state during operation');
+            assertEqual(result, 'success', 'Should return operation result');
+            assertFalse(mockApp.isLoading('test-op'), 'Should not be loading after completion');
+        });
+
+        it('should handle errors in async operation', async () => {
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.setLoading = Shirushi.prototype.setLoading;
+            mockApp.isLoading = Shirushi.prototype.isLoading;
+            mockApp.setButtonLoading = Shirushi.prototype.setButtonLoading;
+            mockApp.setContainerLoading = Shirushi.prototype.setContainerLoading;
+            mockApp.showSkeleton = Shirushi.prototype.showSkeleton;
+            mockApp.hideSkeleton = Shirushi.prototype.hideSkeleton;
+
+            let toastCalled = false;
+            mockApp.toastError = () => { toastCalled = true; };
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            let errorCaught = false;
+
+            try {
+                await mockApp.withLoading('test-error', async () => {
+                    throw new Error('Test error');
+                });
+            } catch (e) {
+                errorCaught = true;
+            }
+
+            assertTrue(errorCaught, 'Error should be re-thrown');
+            assertTrue(toastCalled, 'Toast should be called on error');
+            assertFalse(mockApp.isLoading('test-error'), 'Should not be loading after error');
+        });
+
+        it('should manage button loading state', async () => {
+            const container = document.createElement('div');
+            container.innerHTML = '<button id="with-loading-btn">Submit</button>';
+            document.body.appendChild(container);
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.loadingStates = new Map();
+            mockApp.loadingCallbacks = new Map();
+            mockApp.setLoading = Shirushi.prototype.setLoading;
+            mockApp.isLoading = Shirushi.prototype.isLoading;
+            mockApp.setButtonLoading = Shirushi.prototype.setButtonLoading;
+            mockApp.setContainerLoading = Shirushi.prototype.setContainerLoading;
+            mockApp.showSkeleton = Shirushi.prototype.showSkeleton;
+            mockApp.hideSkeleton = Shirushi.prototype.hideSkeleton;
+            mockApp.toastError = () => {};
+            mockApp.escapeHtml = Shirushi.prototype.escapeHtml;
+
+            const btn = document.getElementById('with-loading-btn');
+            let wasLoadingDuringOperation = false;
+
+            await mockApp.withLoading('btn-test', async () => {
+                wasLoadingDuringOperation = btn.classList.contains('btn-loading');
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }, {
+                button: btn,
+                buttonText: 'Submitting...'
+            });
+
+            assertTrue(wasLoadingDuringOperation, 'Button should be in loading state during operation');
+            assertFalse(btn.classList.contains('btn-loading'), 'Button should not be loading after');
+            assertEqual(btn.textContent, 'Submit', 'Button text should be restored');
+
+            document.body.removeChild(container);
+        });
+    });
+
+    describe('Loading State CSS Classes', () => {
+        // Helper to get all CSS text
+        function getCssText() {
+            let cssText = '';
+            for (let i = 0; i < document.styleSheets.length; i++) {
+                try {
+                    const sheet = document.styleSheets[i];
+                    for (let j = 0; j < sheet.cssRules.length; j++) {
+                        cssText += sheet.cssRules[j].cssText + '\n';
+                    }
+                } catch (e) {
+                    // Some stylesheets may not be accessible
+                }
+            }
+            return cssText;
+        }
+
+        it('loading-overlay class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.loading-overlay'), 'CSS should have loading-overlay class');
+        });
+
+        it('loading-spinner class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.loading-spinner'), 'CSS should have loading-spinner class');
+        });
+
+        it('loading-indicator classes should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.loading-indicator'), 'CSS should have loading-indicator class');
+        });
+
+        it('is-loading class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.is-loading'), 'CSS should have is-loading class');
+        });
+
+        it('inline-loading class should be defined', () => {
+            const css = getCssText();
+            assertTrue(css.includes('.inline-loading'), 'CSS should have inline-loading class');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
