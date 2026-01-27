@@ -10,6 +10,9 @@ import (
 	"github.com/keanuklestil/shirushi/internal/dvm"
 )
 
+// TaskHandler is called when a task is submitted via WebSocket
+type TaskHandler func(input string)
+
 // Client represents a connected WebSocket client.
 type Client struct {
 	hub  *Hub
@@ -19,11 +22,12 @@ type Client struct {
 
 // Hub maintains the set of active clients and broadcasts messages.
 type Hub struct {
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
-	mu         sync.RWMutex
+	clients     map[*Client]bool
+	broadcast   chan []byte
+	register    chan *Client
+	unregister  chan *Client
+	mu          sync.RWMutex
+	taskHandler TaskHandler
 }
 
 // NewHub creates a new Hub.
@@ -34,6 +38,11 @@ func NewHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
+}
+
+// SetTaskHandler sets the callback for task submissions
+func (h *Hub) SetTaskHandler(handler TaskHandler) {
+	h.taskHandler = handler
 }
 
 // Run starts the hub's main loop.
@@ -73,13 +82,33 @@ func (h *Hub) Run() {
 	}
 }
 
+// HandleClientMessage processes incoming messages from clients
+func (h *Hub) HandleClientMessage(data []byte) {
+	var msg struct {
+		Type string `json:"type"`
+		Data struct {
+			Input string `json:"input"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(data, &msg); err != nil {
+		log.Printf("[Hub] Error parsing client message: %v", err)
+		return
+	}
+
+	if msg.Type == "submit_task" && h.taskHandler != nil {
+		log.Printf("[Hub] Received task: %s", truncateStr(msg.Data.Input, 50))
+		h.taskHandler(msg.Data.Input)
+	}
+}
+
 // sendInitialState sends the initial agent configuration to a new client.
 func (h *Hub) sendInitialState(client *Client) {
 	agents := []AgentInfo{
-		{ID: "coordinator", Name: "Shihaisha", Role: "Coordinator", Kind: dvm.KindJobRequestCoordinator, Color: "#ff6b6b"},
-		{ID: "researcher", Name: "Kenkyusha", Role: "Researcher", Kind: dvm.KindJobRequestResearcher, Color: "#4ecdc4"},
-		{ID: "writer", Name: "Sakka", Role: "Writer", Kind: dvm.KindJobRequestWriter, Color: "#45b7d1"},
-		{ID: "critic", Name: "Hihyoka", Role: "Critic", Kind: dvm.KindJobRequestCritic, Color: "#96ceb4"},
+		{ID: "coordinator", Name: "Shihaisha", Role: "Coordinator", Kind: dvm.KindJobRequestCoordinator},
+		{ID: "researcher", Name: "Kenkyusha", Role: "Researcher", Kind: dvm.KindJobRequestResearcher},
+		{ID: "writer", Name: "Sakka", Role: "Writer", Kind: dvm.KindJobRequestWriter},
+		{ID: "critic", Name: "Hihyoka", Role: "Critic", Kind: dvm.KindJobRequestCritic},
 	}
 
 	msg := Message{
@@ -134,6 +163,13 @@ func (h *Hub) ClientCount() int {
 	return len(h.clients)
 }
 
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}
+
 // Message represents a WebSocket message.
 type Message struct {
 	Type string      `json:"type"`
@@ -142,11 +178,10 @@ type Message struct {
 
 // AgentInfo describes an agent for visualization.
 type AgentInfo struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Role  string `json:"role"`
-	Kind  int    `json:"kind"`
-	Color string `json:"color"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Role string `json:"role"`
+	Kind int    `json:"kind"`
 }
 
 // LinkInfo describes a connection between agents.
