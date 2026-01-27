@@ -914,6 +914,243 @@
         });
     });
 
+    describe('switchProfileTab', () => {
+        let container;
+
+        function createTabMockDOM() {
+            const el = document.createElement('div');
+            el.id = 'profile-tab-test-container';
+            el.innerHTML = `
+                <button class="profile-tab active" data-profile-tab="notes"></button>
+                <button class="profile-tab" data-profile-tab="following"></button>
+                <button class="profile-tab" data-profile-tab="zaps"></button>
+                <div id="profile-notes-tab" class="profile-tab-content active"></div>
+                <div id="profile-following-tab" class="profile-tab-content"></div>
+                <div id="profile-zaps-tab" class="profile-tab-content"></div>
+                <div id="profile-notes-list"></div>
+                <div id="profile-following-list"></div>
+                <div id="profile-zaps-list"></div>
+                <div id="profile-follow-count">0</div>
+                <div id="zap-total-count">0</div>
+                <div id="zap-total-sats">0</div>
+                <div id="zap-avg-sats">0</div>
+                <div id="zap-top-zap">0</div>
+            `;
+            document.body.appendChild(el);
+            return el;
+        }
+
+        it('should switch to notes tab and update active states', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: testNotes });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.escapeHtml = Shirushi.prototype.escapeHtml;
+            instance.formatTime = Shirushi.prototype.formatTime;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function() {};
+
+            instance.switchProfileTab('notes');
+
+            const notesTab = document.querySelector('[data-profile-tab="notes"]');
+            const notesContent = document.getElementById('profile-notes-tab');
+
+            assertTrue(notesTab.classList.contains('active'), 'Notes tab button should be active');
+            assertTrue(notesContent.classList.contains('active'), 'Notes tab content should be active');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should switch to following tab and update active states', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: [testContactList] });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.escapeHtml = Shirushi.prototype.escapeHtml;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function() {};
+
+            instance.switchProfileTab('following');
+
+            const followingTab = document.querySelector('[data-profile-tab="following"]');
+            const followingContent = document.getElementById('profile-following-tab');
+            const notesTab = document.querySelector('[data-profile-tab="notes"]');
+            const notesContent = document.getElementById('profile-notes-tab');
+
+            assertTrue(followingTab.classList.contains('active'), 'Following tab button should be active');
+            assertTrue(followingContent.classList.contains('active'), 'Following tab content should be active');
+            assertFalse(notesTab.classList.contains('active'), 'Notes tab button should not be active');
+            assertFalse(notesContent.classList.contains('active'), 'Notes tab content should not be active');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should switch to zaps tab and update active states', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: [] });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.escapeHtml = Shirushi.prototype.escapeHtml;
+            instance.formatTime = Shirushi.prototype.formatTime;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function() {};
+
+            instance.switchProfileTab('zaps');
+
+            const zapsTab = document.querySelector('[data-profile-tab="zaps"]');
+            const zapsContent = document.getElementById('profile-zaps-tab');
+
+            assertTrue(zapsTab.classList.contains('active'), 'Zaps tab button should be active');
+            assertTrue(zapsContent.classList.contains('active'), 'Zaps tab content should be active');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should call loadProfileNotes when switching to notes tab', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: testNotes });
+
+            let notesCalled = false;
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.loadProfileNotes = function(pubkey) {
+                notesCalled = true;
+                assertEqual(pubkey, testProfile.pubkey, 'Should pass correct pubkey');
+            };
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function() {};
+
+            instance.switchProfileTab('notes');
+
+            assertTrue(notesCalled, 'loadProfileNotes should be called');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should call loadProfileFollowing when switching to following tab', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: [testContactList] });
+
+            let followingCalled = false;
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function(pubkey) {
+                followingCalled = true;
+                assertEqual(pubkey, testProfile.pubkey, 'Should pass correct pubkey');
+            };
+            instance.loadProfileZaps = function() {};
+
+            instance.switchProfileTab('following');
+
+            assertTrue(followingCalled, 'loadProfileFollowing should be called');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should call loadProfileZaps when switching to zaps tab', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: [] });
+
+            let zapsCalled = false;
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function(pubkey) {
+                zapsCalled = true;
+                assertEqual(pubkey, testProfile.pubkey, 'Should pass correct pubkey');
+            };
+
+            instance.switchProfileTab('zaps');
+
+            assertTrue(zapsCalled, 'loadProfileZaps should be called');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should not call data loaders when no profile is set', () => {
+            container = createTabMockDOM();
+
+            let anyCalled = false;
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = null;
+            instance.loadProfileNotes = function() { anyCalled = true; };
+            instance.loadProfileFollowing = function() { anyCalled = true; };
+            instance.loadProfileZaps = function() { anyCalled = true; };
+
+            instance.switchProfileTab('notes');
+
+            assertFalse(anyCalled, 'No data loader should be called when profile is null');
+
+            removeMockDOM(container);
+        });
+
+        it('should remove active class from all tabs when switching', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: [] });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function() {};
+
+            // Switch to following tab
+            instance.switchProfileTab('following');
+
+            // Check only following tab is active
+            const allTabs = document.querySelectorAll('[data-profile-tab]');
+            let activeCount = 0;
+            allTabs.forEach(tab => {
+                if (tab.classList.contains('active')) activeCount++;
+            });
+
+            assertEqual(activeCount, 1, 'Only one tab should be active at a time');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+
+        it('should remove active class from all tab contents when switching', () => {
+            container = createTabMockDOM();
+            setMockFetch({ data: [] });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.currentProfile = testProfile;
+            instance.loadProfileNotes = function() {};
+            instance.loadProfileFollowing = function() {};
+            instance.loadProfileZaps = function() {};
+
+            // Switch to zaps tab
+            instance.switchProfileTab('zaps');
+
+            // Check only zaps content is active
+            const allContents = document.querySelectorAll('.profile-tab-content');
+            let activeCount = 0;
+            allContents.forEach(content => {
+                if (content.classList.contains('active')) activeCount++;
+            });
+
+            assertEqual(activeCount, 1, 'Only one tab content should be active at a time');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+    });
+
     describe('escapeHtml', () => {
         it('should escape HTML special characters', () => {
             const instance = Object.create(Shirushi.prototype);
