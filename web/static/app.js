@@ -108,7 +108,7 @@ class Shirushi {
         if (result.available) {
             dot.classList.add('detected');
             const name = result.name || 'NIP-07';
-            text.textContent = name;
+            text.textContent = 'Connected via Extension';
             container.title = result.pubkey
                 ? `${name} extension detected\nPublic key: ${result.pubkey.slice(0, 8)}...`
                 : `${name} extension detected`;

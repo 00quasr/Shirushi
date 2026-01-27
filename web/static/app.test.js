@@ -5888,7 +5888,7 @@
             removeExtensionStatusDOM();
         });
 
-        it('should show extension name when NIP-07 extension is detected', async () => {
+        it('should show "Connected via Extension" when NIP-07 extension is detected', async () => {
             createExtensionStatusDOM();
             setupMockNostr({
                 _name: 'Alby'
@@ -5902,13 +5902,13 @@
             const text = document.getElementById('extension-status-text');
 
             assertTrue(dot.classList.contains('detected'), 'dot should have detected class');
-            assertEqual(text.textContent, 'Alby', 'text should show extension name');
+            assertEqual(text.textContent, 'Connected via Extension', 'text should show Connected via Extension');
 
             restoreNostr();
             removeExtensionStatusDOM();
         });
 
-        it('should show "NIP-07" when extension has no name property', async () => {
+        it('should show "Connected via Extension" when extension has no name property', async () => {
             createExtensionStatusDOM();
             setupMockNostr({});
 
@@ -5920,7 +5920,7 @@
             const text = document.getElementById('extension-status-text');
 
             assertTrue(dot.classList.contains('detected'), 'dot should have detected class');
-            assertEqual(text.textContent, 'NIP-07', 'text should say NIP-07');
+            assertEqual(text.textContent, 'Connected via Extension', 'text should say Connected via Extension');
 
             restoreNostr();
             removeExtensionStatusDOM();
