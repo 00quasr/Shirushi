@@ -5830,6 +5830,158 @@
         });
     });
 
+    // Extension Status Indicator Tests
+    describe('updateExtensionStatus', () => {
+        let originalNostr;
+        let container;
+
+        function setupMockNostr(options = {}) {
+            originalNostr = window.nostr;
+            window.nostr = options;
+        }
+
+        function restoreNostr() {
+            if (originalNostr !== undefined) {
+                window.nostr = originalNostr;
+            } else {
+                delete window.nostr;
+            }
+        }
+
+        function createExtensionStatusDOM() {
+            container = document.createElement('div');
+            container.id = 'extension-status-container';
+            container.innerHTML = `
+                <div class="status" id="extension-status" title="">
+                    <span id="extension-status-dot" class="status-dot"></span>
+                    <span id="extension-status-text">Checking...</span>
+                </div>
+            `;
+            document.body.appendChild(container);
+            return container;
+        }
+
+        function removeExtensionStatusDOM() {
+            if (container && container.parentNode) {
+                container.parentNode.removeChild(container);
+            }
+        }
+
+        it('should have updateExtensionStatus method', () => {
+            assertDefined(Shirushi.prototype.updateExtensionStatus, 'updateExtensionStatus method should exist');
+        });
+
+        it('should show "No Extension" when no NIP-07 extension is present', async () => {
+            createExtensionStatusDOM();
+            delete window.nostr;
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.detectExtension = Shirushi.prototype.detectExtension;
+            await mockApp.updateExtensionStatus();
+
+            const dot = document.getElementById('extension-status-dot');
+            const text = document.getElementById('extension-status-text');
+
+            assertTrue(dot.classList.contains('not-detected'), 'dot should have not-detected class');
+            assertEqual(text.textContent, 'No Extension', 'text should say No Extension');
+
+            removeExtensionStatusDOM();
+        });
+
+        it('should show extension name when NIP-07 extension is detected', async () => {
+            createExtensionStatusDOM();
+            setupMockNostr({
+                _name: 'Alby'
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.detectExtension = Shirushi.prototype.detectExtension;
+            await mockApp.updateExtensionStatus();
+
+            const dot = document.getElementById('extension-status-dot');
+            const text = document.getElementById('extension-status-text');
+
+            assertTrue(dot.classList.contains('detected'), 'dot should have detected class');
+            assertEqual(text.textContent, 'Alby', 'text should show extension name');
+
+            restoreNostr();
+            removeExtensionStatusDOM();
+        });
+
+        it('should show "NIP-07" when extension has no name property', async () => {
+            createExtensionStatusDOM();
+            setupMockNostr({});
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.detectExtension = Shirushi.prototype.detectExtension;
+            await mockApp.updateExtensionStatus();
+
+            const dot = document.getElementById('extension-status-dot');
+            const text = document.getElementById('extension-status-text');
+
+            assertTrue(dot.classList.contains('detected'), 'dot should have detected class');
+            assertEqual(text.textContent, 'NIP-07', 'text should say NIP-07');
+
+            restoreNostr();
+            removeExtensionStatusDOM();
+        });
+
+        it('should update title with pubkey info when available', async () => {
+            createExtensionStatusDOM();
+            const testPubkey = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
+            setupMockNostr({
+                _name: 'TestExt',
+                getPublicKey: async () => testPubkey
+            });
+
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.detectExtension = Shirushi.prototype.detectExtension;
+            await mockApp.updateExtensionStatus();
+
+            const statusContainer = document.getElementById('extension-status');
+            assertTrue(statusContainer.title.includes('abcdef12'), 'title should include truncated pubkey');
+            assertTrue(statusContainer.title.includes('TestExt'), 'title should include extension name');
+
+            restoreNostr();
+            removeExtensionStatusDOM();
+        });
+
+        it('should handle missing DOM elements gracefully', async () => {
+            // Don't create DOM elements
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.detectExtension = Shirushi.prototype.detectExtension;
+
+            // Should not throw
+            await mockApp.updateExtensionStatus();
+
+            // Test passes if no error is thrown
+            assertTrue(true, 'should not throw when DOM elements are missing');
+        });
+
+        it('should remove previous status classes when updating', async () => {
+            createExtensionStatusDOM();
+            const dot = document.getElementById('extension-status-dot');
+
+            // First, set up with no extension
+            delete window.nostr;
+            const mockApp = Object.create(Shirushi.prototype);
+            mockApp.detectExtension = Shirushi.prototype.detectExtension;
+            await mockApp.updateExtensionStatus();
+
+            assertTrue(dot.classList.contains('not-detected'), 'dot should have not-detected class initially');
+
+            // Now set up with extension
+            setupMockNostr({ _name: 'TestExt' });
+            await mockApp.updateExtensionStatus();
+
+            assertTrue(dot.classList.contains('detected'), 'dot should have detected class');
+            assertFalse(dot.classList.contains('not-detected'), 'dot should not have not-detected class anymore');
+
+            restoreNostr();
+            removeExtensionStatusDOM();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

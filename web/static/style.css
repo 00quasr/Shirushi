@@ -87,6 +87,29 @@ header {
     background: var(--error);
 }
 
+.header-status-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Extension Status */
+#extension-status {
+    cursor: help;
+}
+
+#extension-status-dot {
+    background: var(--text-3);
+}
+
+#extension-status-dot.detected {
+    background: var(--success);
+}
+
+#extension-status-dot.not-detected {
+    background: var(--warning);
+}
+
 /* Tabs */
 .tabs {
     display: flex;

@@ -50,6 +50,7 @@ class Shirushi {
         this.setupConsole();
         this.setupMonitoring();
         this.loadInitialData();
+        this.updateExtensionStatus();
     }
 
     // WebSocket Connection
@@ -90,6 +91,31 @@ class Shirushi {
             dot.classList.remove('connected');
             dot.classList.add('disconnected');
             text.textContent = 'Disconnected';
+        }
+    }
+
+    async updateExtensionStatus() {
+        const dot = document.getElementById('extension-status-dot');
+        const text = document.getElementById('extension-status-text');
+        const container = document.getElementById('extension-status');
+
+        if (!dot || !text || !container) return;
+
+        const result = await this.detectExtension();
+
+        dot.classList.remove('detected', 'not-detected');
+
+        if (result.available) {
+            dot.classList.add('detected');
+            const name = result.name || 'NIP-07';
+            text.textContent = name;
+            container.title = result.pubkey
+                ? `${name} extension detected\nPublic key: ${result.pubkey.slice(0, 8)}...`
+                : `${name} extension detected`;
+        } else {
+            dot.classList.add('not-detected');
+            text.textContent = 'No Extension';
+            container.title = 'No NIP-07 browser extension detected. Install Alby, nos2x, or another compatible extension to sign events.';
         }
     }
 
