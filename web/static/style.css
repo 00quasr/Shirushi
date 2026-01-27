@@ -1304,6 +1304,218 @@ main {
     font-size: 13px;
 }
 
+/* Monitoring Tab */
+.monitoring-header {
+    margin-bottom: 16px;
+}
+
+.monitoring-summary {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.monitoring-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.monitoring-stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-0);
+    font-family: 'Geist Mono', monospace;
+}
+
+.monitoring-stat-label {
+    font-size: 12px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.monitoring-charts {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.chart-panel {
+    min-height: 280px;
+}
+
+.chart-panel-full {
+    min-height: 320px;
+}
+
+.chart-container {
+    position: relative;
+    height: 220px;
+    width: 100%;
+}
+
+.chart-container-full {
+    position: relative;
+    height: 260px;
+    width: 100%;
+}
+
+.chart-container canvas,
+.chart-container-full canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Relay Health Grid */
+.relay-health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.relay-health-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    transition: border-color 0.2s;
+}
+
+.relay-health-card:hover {
+    border-color: var(--border-light);
+}
+
+.relay-health-card.healthy {
+    border-left: 3px solid var(--success);
+}
+
+.relay-health-card.degraded {
+    border-left: 3px solid var(--warning);
+}
+
+.relay-health-card.unhealthy {
+    border-left: 3px solid var(--error);
+}
+
+.relay-health-card.offline {
+    border-left: 3px solid var(--text-3);
+    opacity: 0.7;
+}
+
+.relay-health-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.relay-health-url {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 180px;
+}
+
+.relay-health-score {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.health-score-value {
+    font-family: 'Geist Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.health-score-value.good {
+    color: var(--success);
+}
+
+.health-score-value.medium {
+    color: var(--warning);
+}
+
+.health-score-value.poor {
+    color: var(--error);
+}
+
+.health-score-bar {
+    width: 60px;
+    height: 6px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.health-score-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.health-score-fill.good {
+    background: var(--success);
+}
+
+.health-score-fill.medium {
+    background: var(--warning);
+}
+
+.health-score-fill.poor {
+    background: var(--error);
+}
+
+.relay-health-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    font-size: 12px;
+}
+
+.relay-health-metric {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.relay-health-metric:last-child {
+    border-bottom: none;
+}
+
+.metric-label {
+    color: var(--text-3);
+}
+
+.metric-value {
+    color: var(--text-1);
+    font-family: 'Geist Mono', monospace;
+}
+
+.metric-value.connected {
+    color: var(--success);
+}
+
+.metric-value.disconnected {
+    color: var(--error);
+}
+
+.relay-health-error {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--error);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .testing-layout {
@@ -1393,5 +1605,21 @@ main {
     .follow-relay {
         margin-left: 0;
         width: 100%;
+    }
+
+    .monitoring-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .monitoring-summary {
+        gap: 16px;
+    }
+
+    .relay-health-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .relay-health-url {
+        max-width: 150px;
     }
 }

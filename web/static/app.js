@@ -13,6 +13,16 @@ class Shirushi {
 
         this.currentProfile = null;
 
+        // Monitoring state
+        this.monitoringData = null;
+        this.eventRateHistory = [];
+        this.healthScoreHistory = {};
+        this.charts = {
+            eventRate: null,
+            latency: null,
+            healthScore: null
+        };
+
         this.init();
     }
 
@@ -25,6 +35,7 @@ class Shirushi {
         this.setupTesting();
         this.setupKeys();
         this.setupConsole();
+        this.setupMonitoring();
         this.loadInitialData();
     }
 
@@ -83,6 +94,9 @@ class Shirushi {
                 break;
             case 'test_result':
                 this.showTestResult(data.data);
+                break;
+            case 'monitoring_update':
+                this.handleMonitoringUpdate(data.data);
                 break;
         }
     }
@@ -1019,6 +1033,483 @@ class Shirushi {
                 nak ${this.escapeHtml(cmd)}
             </div>
         `).join('');
+    }
+
+    // Monitoring Tab
+    setupMonitoring() {
+        // Initialize charts when tab is first shown
+        this.monitoringInitialized = false;
+
+        // Start polling for monitoring data
+        this.startMonitoringPolling();
+    }
+
+    startMonitoringPolling() {
+        // Load initial data
+        this.loadMonitoringData();
+
+        // Poll every 5 seconds
+        setInterval(() => {
+            if (document.getElementById('monitoring-tab').classList.contains('active')) {
+                this.loadMonitoringData();
+            }
+        }, 5000);
+    }
+
+    async loadMonitoringData() {
+        try {
+            const response = await fetch('/api/monitoring/history');
+            const data = await response.json();
+
+            if (data) {
+                this.monitoringData = data;
+                this.updateMonitoringUI(data);
+            }
+        } catch (error) {
+            console.error('Failed to load monitoring data:', error);
+        }
+    }
+
+    handleMonitoringUpdate(data) {
+        this.monitoringData = data;
+        this.updateMonitoringUI(data);
+    }
+
+    updateMonitoringUI(data) {
+        // Update summary stats
+        document.getElementById('monitoring-connected').textContent = data.connected_count || 0;
+        document.getElementById('monitoring-total').textContent = data.total_count || 0;
+        document.getElementById('monitoring-events-sec').textContent =
+            (data.events_per_sec || 0).toFixed(1);
+        document.getElementById('monitoring-total-events').textContent =
+            this.formatNumber(data.total_events || 0);
+
+        // Update relay health grid
+        this.renderRelayHealthGrid(data.relays || []);
+
+        // Initialize or update charts
+        if (!this.monitoringInitialized) {
+            this.initializeCharts();
+            this.monitoringInitialized = true;
+        }
+
+        // Update charts with new data
+        this.updateCharts(data);
+    }
+
+    formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
+    }
+
+    renderRelayHealthGrid(relays) {
+        const container = document.getElementById('relay-health-list');
+
+        if (relays.length === 0) {
+            container.innerHTML = '<p class="hint">No relays connected. Add relays from the Relays tab.</p>';
+            return;
+        }
+
+        container.innerHTML = relays.map(relay => {
+            const healthClass = this.getHealthClass(relay.health_score, relay.connected);
+            const scoreClass = this.getScoreClass(relay.health_score);
+
+            return `
+                <div class="relay-health-card ${healthClass}">
+                    <div class="relay-health-header">
+                        <span class="relay-health-url" title="${relay.url}">${relay.url}</span>
+                        <div class="relay-health-score">
+                            <span class="health-score-value ${scoreClass}">${Math.round(relay.health_score || 0)}%</span>
+                            <div class="health-score-bar">
+                                <div class="health-score-fill ${scoreClass}" style="width: ${relay.health_score || 0}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relay-health-metrics">
+                        <div class="relay-health-metric">
+                            <span class="metric-label">Status</span>
+                            <span class="metric-value ${relay.connected ? 'connected' : 'disconnected'}">
+                                ${relay.connected ? 'Connected' : 'Disconnected'}
+                            </span>
+                        </div>
+                        <div class="relay-health-metric">
+                            <span class="metric-label">Latency</span>
+                            <span class="metric-value">${relay.latency_ms > 0 ? relay.latency_ms + 'ms' : 'N/A'}</span>
+                        </div>
+                        <div class="relay-health-metric">
+                            <span class="metric-label">Events/sec</span>
+                            <span class="metric-value">${(relay.events_per_sec || 0).toFixed(1)}</span>
+                        </div>
+                        <div class="relay-health-metric">
+                            <span class="metric-label">Uptime</span>
+                            <span class="metric-value">${(relay.uptime_percent || 0).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                    ${relay.last_error ? `
+                        <div class="relay-health-error">
+                            ${this.escapeHtml(relay.last_error)}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    getHealthClass(score, connected) {
+        if (!connected) return 'offline';
+        if (score >= 80) return 'healthy';
+        if (score >= 50) return 'degraded';
+        return 'unhealthy';
+    }
+
+    getScoreClass(score) {
+        if (score >= 80) return 'good';
+        if (score >= 50) return 'medium';
+        return 'poor';
+    }
+
+    initializeCharts() {
+        // Event Rate Chart
+        const eventRateCanvas = document.getElementById('event-rate-chart');
+        if (eventRateCanvas) {
+            const ctx = eventRateCanvas.getContext('2d');
+            this.charts.eventRate = this.createLineChart(ctx, 'Event Rate', 'events/sec');
+        }
+
+        // Latency Distribution Chart
+        const latencyCanvas = document.getElementById('latency-chart');
+        if (latencyCanvas) {
+            const ctx = latencyCanvas.getContext('2d');
+            this.charts.latency = this.createBarChart(ctx, 'Latency Distribution');
+        }
+
+        // Health Score History Chart
+        const healthCanvas = document.getElementById('health-score-chart');
+        if (healthCanvas) {
+            const ctx = healthCanvas.getContext('2d');
+            this.charts.healthScore = this.createMultiLineChart(ctx, 'Health Score', '%');
+        }
+    }
+
+    createLineChart(ctx, label, unit) {
+        return {
+            ctx,
+            label,
+            unit,
+            data: [],
+            maxPoints: 60,
+            draw() {
+                const { width, height } = ctx.canvas;
+                ctx.clearRect(0, 0, width, height);
+
+                if (this.data.length < 2) {
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '13px Geist, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Collecting data...', width / 2, height / 2);
+                    return;
+                }
+
+                const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+                const chartWidth = width - padding.left - padding.right;
+                const chartHeight = height - padding.top - padding.bottom;
+
+                // Find data range
+                const values = this.data.map(d => d.value);
+                const maxValue = Math.max(...values, 1);
+                const minValue = 0;
+
+                // Draw grid lines
+                ctx.strokeStyle = '#222222';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + (chartHeight * i / 4);
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(width - padding.right, y);
+                    ctx.stroke();
+
+                    // Y-axis labels
+                    const labelValue = maxValue - (maxValue * i / 4);
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '11px Geist Mono, monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(labelValue.toFixed(1), padding.left - 8, y + 4);
+                }
+
+                // Draw line
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                this.data.forEach((point, i) => {
+                    const x = padding.left + (chartWidth * i / (this.data.length - 1));
+                    const y = padding.top + chartHeight - (chartHeight * (point.value - minValue) / (maxValue - minValue));
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                ctx.stroke();
+
+                // Draw area under line
+                ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+                ctx.lineTo(padding.left, padding.top + chartHeight);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+                ctx.fill();
+
+                // Draw unit label
+                ctx.fillStyle = '#666666';
+                ctx.font = '11px Geist, system-ui, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(this.unit, padding.left, padding.top - 8);
+            },
+            addPoint(value) {
+                this.data.push({ value, timestamp: Date.now() });
+                if (this.data.length > this.maxPoints) {
+                    this.data.shift();
+                }
+                this.draw();
+            },
+            setData(points) {
+                this.data = points.slice(-this.maxPoints);
+                this.draw();
+            }
+        };
+    }
+
+    createBarChart(ctx, label) {
+        return {
+            ctx,
+            label,
+            data: [],
+            draw() {
+                const { width, height } = ctx.canvas;
+                ctx.clearRect(0, 0, width, height);
+
+                if (this.data.length === 0) {
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '13px Geist, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No data available', width / 2, height / 2);
+                    return;
+                }
+
+                const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+                const chartWidth = width - padding.left - padding.right;
+                const chartHeight = height - padding.top - padding.bottom;
+
+                const maxValue = Math.max(...this.data.map(d => d.value), 1);
+                const barWidth = (chartWidth / this.data.length) * 0.7;
+                const barGap = (chartWidth / this.data.length) * 0.3;
+
+                // Draw bars
+                this.data.forEach((item, i) => {
+                    const barHeight = (item.value / maxValue) * chartHeight;
+                    const x = padding.left + (i * (barWidth + barGap)) + barGap / 2;
+                    const y = padding.top + chartHeight - barHeight;
+
+                    // Color based on latency value
+                    let color = '#22c55e'; // green for low latency
+                    if (item.value > 500) color = '#ef4444'; // red for high
+                    else if (item.value > 200) color = '#eab308'; // yellow for medium
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, barWidth, barHeight);
+
+                    // Draw label
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '10px Geist Mono, monospace';
+                    ctx.textAlign = 'center';
+                    ctx.save();
+                    ctx.translate(x + barWidth / 2, height - 5);
+                    ctx.rotate(-Math.PI / 4);
+                    ctx.fillText(item.label.substring(0, 15) + (item.label.length > 15 ? '...' : ''), 0, 0);
+                    ctx.restore();
+
+                    // Draw value on top
+                    ctx.fillStyle = '#a1a1a1';
+                    ctx.font = '10px Geist Mono, monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(item.value + 'ms', x + barWidth / 2, y - 4);
+                });
+
+                // Y-axis label
+                ctx.fillStyle = '#666666';
+                ctx.font = '11px Geist, system-ui, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('ms', padding.left, padding.top - 8);
+            },
+            setData(items) {
+                this.data = items;
+                this.draw();
+            }
+        };
+    }
+
+    createMultiLineChart(ctx, label, unit) {
+        return {
+            ctx,
+            label,
+            unit,
+            series: {},
+            colors: ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'],
+            maxPoints: 60,
+            draw() {
+                const { width, height } = ctx.canvas;
+                ctx.clearRect(0, 0, width, height);
+
+                const seriesNames = Object.keys(this.series);
+                if (seriesNames.length === 0) {
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '13px Geist, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Collecting data...', width / 2, height / 2);
+                    return;
+                }
+
+                const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+                const chartWidth = width - padding.left - padding.right;
+                const chartHeight = height - padding.top - padding.bottom;
+
+                // Draw grid
+                ctx.strokeStyle = '#222222';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + (chartHeight * i / 4);
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(width - padding.right, y);
+                    ctx.stroke();
+
+                    const labelValue = 100 - (100 * i / 4);
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '11px Geist Mono, monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(labelValue.toFixed(0) + '%', padding.left - 8, y + 4);
+                }
+
+                // Draw each series
+                seriesNames.forEach((name, seriesIndex) => {
+                    const data = this.series[name];
+                    if (data.length < 2) return;
+
+                    const color = this.colors[seriesIndex % this.colors.length];
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+
+                    data.forEach((point, i) => {
+                        const x = padding.left + (chartWidth * i / (data.length - 1));
+                        const y = padding.top + chartHeight - (chartHeight * point.value / 100);
+
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    });
+                    ctx.stroke();
+                });
+
+                // Draw legend
+                const legendY = height - 10;
+                let legendX = padding.left;
+                seriesNames.slice(0, 4).forEach((name, i) => {
+                    const color = this.colors[i % this.colors.length];
+                    ctx.fillStyle = color;
+                    ctx.fillRect(legendX, legendY - 8, 10, 10);
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '10px Geist, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    const shortName = name.replace('wss://', '').substring(0, 20);
+                    ctx.fillText(shortName, legendX + 14, legendY);
+                    legendX += ctx.measureText(shortName).width + 30;
+                });
+
+                if (seriesNames.length > 4) {
+                    ctx.fillText(`+${seriesNames.length - 4} more`, legendX, legendY);
+                }
+            },
+            addPoint(seriesName, value) {
+                if (!this.series[seriesName]) {
+                    this.series[seriesName] = [];
+                }
+                this.series[seriesName].push({ value, timestamp: Date.now() });
+                if (this.series[seriesName].length > this.maxPoints) {
+                    this.series[seriesName].shift();
+                }
+                this.draw();
+            },
+            setSeriesData(seriesName, points) {
+                this.series[seriesName] = points.slice(-this.maxPoints);
+                this.draw();
+            }
+        };
+    }
+
+    updateCharts(data) {
+        // Update event rate chart
+        if (this.charts.eventRate) {
+            if (data.event_rate_history && data.event_rate_history.length > 0) {
+                const points = data.event_rate_history.map(p => ({ value: p.value }));
+                this.charts.eventRate.setData(points);
+            } else {
+                this.charts.eventRate.addPoint(data.events_per_sec || 0);
+            }
+        }
+
+        // Update latency distribution chart
+        if (this.charts.latency && data.relays) {
+            const latencyData = data.relays
+                .filter(r => r.connected && r.latency_ms > 0)
+                .map(r => ({
+                    label: r.url.replace('wss://', ''),
+                    value: r.latency_ms
+                }))
+                .sort((a, b) => a.value - b.value)
+                .slice(0, 10);
+            this.charts.latency.setData(latencyData);
+        }
+
+        // Update health score history chart
+        if (this.charts.healthScore && data.relays) {
+            data.relays.forEach(relay => {
+                if (relay.latency_history && relay.latency_history.length > 0) {
+                    // Use health score if available, or derive from other metrics
+                    const healthPoints = relay.latency_history.map((p, i) => ({
+                        value: relay.health_score || this.calculateHealthScore(relay)
+                    }));
+                    this.charts.healthScore.setSeriesData(relay.url, healthPoints);
+                } else {
+                    this.charts.healthScore.addPoint(relay.url, relay.health_score || 0);
+                }
+            });
+        }
+    }
+
+    calculateHealthScore(relay) {
+        if (!relay.connected) return 0;
+        let score = 100;
+
+        // Penalize high latency
+        if (relay.latency_ms > 1000) score -= 40;
+        else if (relay.latency_ms > 500) score -= 20;
+        else if (relay.latency_ms > 200) score -= 10;
+
+        // Penalize errors
+        if (relay.error_count > 0) {
+            score -= Math.min(relay.error_count * 5, 30);
+        }
+
+        return Math.max(0, score);
     }
 }
 
