@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shirushi Tests</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #e0e0e0; }
+        .pass { color: #4caf50; }
+        .fail { color: #f44336; }
+        pre { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Shirushi App Tests</h1>
+    <pre id="output">Loading tests...</pre>
+    <script src="app.js"></script>
+    <script src="app.test.js"></script>
+    <script>
+        (async function() {
+            const output = document.getElementById('output');
+            const originalConsoleLog = console.log;
+            const originalConsoleError = console.error;
+            let logs = [];
+            
+            console.log = (...args) => {
+                logs.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '));
+                originalConsoleLog.apply(console, args);
+            };
+            console.error = (...args) => {
+                logs.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '));
+                originalConsoleError.apply(console, args);
+            };
+            
+            try {
+                const results = await window.runShirushiTests();
+                output.innerHTML = logs.join('\n');
+                
+                // Add summary with color
+                if (results.failed === 0) {
+                    output.innerHTML += '\n<span class="pass">All tests passed!</span>';
+                } else {
+                    output.innerHTML += '\n<span class="fail">' + results.failed + ' tests failed</span>';
+                }
+                
+                // Set data attribute for test runner to read
+                document.body.dataset.testsPassed = results.passed;
+                document.body.dataset.testsFailed = results.failed;
+            } catch (error) {
+                output.innerHTML = '<span class="fail">Error running tests: ' + error.message + '</span>';
+                document.body.dataset.testsFailed = 1;
+            }
+        })();
+    </script>
+</body>
+</html>

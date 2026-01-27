@@ -586,6 +586,280 @@
         });
     });
 
+    describe('renderProfile', () => {
+        let container;
+
+        function createProfileMockDOM() {
+            const el = document.createElement('div');
+            el.id = 'profile-test-container';
+            el.innerHTML = `
+                <div id="profile-card" class="hidden">
+                    <div id="profile-banner" class="profile-banner"></div>
+                    <div class="profile-header">
+                        <div id="profile-avatar" class="profile-avatar"></div>
+                        <div class="profile-info">
+                            <div class="profile-name-row">
+                                <span id="profile-display-name" class="profile-display-name"></span>
+                                <span id="profile-nip05-badge" class="nip05-badge hidden">
+                                    <span class="nip05-icon">✓</span>
+                                    <span id="profile-nip05"></span>
+                                </span>
+                            </div>
+                            <span id="profile-name" class="profile-username"></span>
+                            <span id="profile-pubkey" class="profile-pubkey"></span>
+                        </div>
+                        <div class="profile-actions">
+                            <button class="btn small" id="copy-npub-btn">Copy npub</button>
+                        </div>
+                    </div>
+                    <div class="profile-body">
+                        <p id="profile-about" class="profile-about"></p>
+                        <div class="profile-links">
+                            <a id="profile-website" class="profile-link hidden" target="_blank">
+                                <span class="link-icon">🌐</span>
+                                <span class="link-text"></span>
+                            </a>
+                            <span id="profile-lightning" class="profile-link hidden">
+                                <span class="link-icon">⚡</span>
+                                <span class="link-text"></span>
+                            </span>
+                        </div>
+                        <div class="profile-stats">
+                            <div class="stat">
+                                <span id="profile-follow-count" class="stat-value">0</span>
+                                <span class="stat-label">Following</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(el);
+            return el;
+        }
+
+        it('should render profile display name', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const displayName = document.getElementById('profile-display-name');
+            assertEqual(displayName.textContent, 'Test User', 'Display name should be rendered');
+
+            removeMockDOM(container);
+        });
+
+        it('should render username with @ prefix', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const username = document.getElementById('profile-name');
+            assertEqual(username.textContent, '@testuser', 'Username should have @ prefix');
+
+            removeMockDOM(container);
+        });
+
+        it('should render shortened pubkey', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const pubkeyEl = document.getElementById('profile-pubkey');
+            assertTrue(
+                pubkeyEl.textContent.includes('...'),
+                'Pubkey should be shortened with ellipsis'
+            );
+            assertTrue(
+                pubkeyEl.textContent.includes('12345678'),
+                'Pubkey should show first 8 chars'
+            );
+
+            removeMockDOM(container);
+        });
+
+        it('should show NIP-05 badge when nip05 is present', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const badge = document.getElementById('profile-nip05-badge');
+            assertFalse(badge.classList.contains('hidden'), 'NIP-05 badge should be visible');
+
+            const nip05Text = document.getElementById('profile-nip05');
+            assertEqual(nip05Text.textContent, 'test@example.com', 'NIP-05 address should be displayed');
+
+            removeMockDOM(container);
+        });
+
+        it('should hide NIP-05 badge when nip05 is not present', () => {
+            container = createProfileMockDOM();
+
+            const profileWithoutNip05 = { ...testProfile, nip05: null };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(profileWithoutNip05);
+
+            const badge = document.getElementById('profile-nip05-badge');
+            assertTrue(badge.classList.contains('hidden'), 'NIP-05 badge should be hidden');
+
+            removeMockDOM(container);
+        });
+
+        it('should render about text', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const about = document.getElementById('profile-about');
+            assertEqual(about.textContent, 'A test profile', 'About text should be rendered');
+
+            removeMockDOM(container);
+        });
+
+        it('should show website link when present', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const websiteEl = document.getElementById('profile-website');
+            assertFalse(websiteEl.classList.contains('hidden'), 'Website should be visible');
+            assertEqual(websiteEl.href, 'https://example.com/', 'Website href should be set');
+
+            removeMockDOM(container);
+        });
+
+        it('should hide website link when not present', () => {
+            container = createProfileMockDOM();
+
+            const profileWithoutWebsite = { ...testProfile, website: null };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(profileWithoutWebsite);
+
+            const websiteEl = document.getElementById('profile-website');
+            assertTrue(websiteEl.classList.contains('hidden'), 'Website should be hidden');
+
+            removeMockDOM(container);
+        });
+
+        it('should show lightning address when lud16 is present', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const lightningEl = document.getElementById('profile-lightning');
+            assertFalse(lightningEl.classList.contains('hidden'), 'Lightning address should be visible');
+            assertTrue(
+                lightningEl.querySelector('.link-text').textContent.includes('test@getalby.com'),
+                'Lightning address should be displayed'
+            );
+
+            removeMockDOM(container);
+        });
+
+        it('should hide lightning address when lud16 is not present', () => {
+            container = createProfileMockDOM();
+
+            const profileWithoutLud16 = { ...testProfile, lud16: null };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(profileWithoutLud16);
+
+            const lightningEl = document.getElementById('profile-lightning');
+            assertTrue(lightningEl.classList.contains('hidden'), 'Lightning address should be hidden');
+
+            removeMockDOM(container);
+        });
+
+        it('should render follow count', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const followCount = document.getElementById('profile-follow-count');
+            assertEqual(followCount.textContent, '42', 'Follow count should be rendered');
+
+            removeMockDOM(container);
+        });
+
+        it('should set banner background image when present', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const banner = document.getElementById('profile-banner');
+            assertTrue(
+                banner.style.backgroundImage.includes('banner.jpg'),
+                'Banner background image should be set'
+            );
+
+            removeMockDOM(container);
+        });
+
+        it('should set avatar background image when picture is present', () => {
+            container = createProfileMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const avatar = document.getElementById('profile-avatar');
+            assertTrue(
+                avatar.style.backgroundImage.includes('avatar.png'),
+                'Avatar background image should be set'
+            );
+
+            removeMockDOM(container);
+        });
+
+        it('should display initial letter when no picture is available', () => {
+            container = createProfileMockDOM();
+
+            const profileWithoutPicture = { ...testProfile, picture: null };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(profileWithoutPicture);
+
+            const avatar = document.getElementById('profile-avatar');
+            assertEqual(avatar.textContent, 'T', 'Avatar should show first letter of name');
+
+            removeMockDOM(container);
+        });
+
+        it('should handle profile with minimal data (Anonymous)', () => {
+            container = createProfileMockDOM();
+
+            const minimalProfile = {
+                pubkey: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'
+            };
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(minimalProfile);
+
+            const displayName = document.getElementById('profile-display-name');
+            assertEqual(displayName.textContent, 'Anonymous', 'Should show Anonymous for no name');
+
+            removeMockDOM(container);
+        });
+
+        it('should setup copy npub button click handler', () => {
+            container = createProfileMockDOM();
+            setMockFetch({ data: { encoded: 'npub1testencoded' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.renderProfile(testProfile);
+
+            const copyBtn = document.getElementById('copy-npub-btn');
+            assertDefined(copyBtn, 'Copy npub button should exist');
+
+            restoreFetch();
+            removeMockDOM(container);
+        });
+    });
+
     describe('escapeHtml', () => {
         it('should escape HTML special characters', () => {
             const instance = Object.create(Shirushi.prototype);
