@@ -13572,6 +13572,309 @@
         });
     });
 
+    // ==================== Export JSON Tests ====================
+    describe('exportEventsAsJson', () => {
+        it('should have exportEventsAsJson method', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            assertTrue(typeof instance.exportEventsAsJson === 'function', 'exportEventsAsJson should be a function');
+        });
+
+        it('should show error toast when no events to export', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let toastErrorCalled = false;
+            let toastTitle = '';
+            let toastMessage = '';
+            instance.toastError = function(title, message) {
+                toastErrorCalled = true;
+                toastTitle = title;
+                toastMessage = message;
+            };
+            instance.events = [];
+
+            instance.exportEventsAsJson();
+
+            assertTrue(toastErrorCalled, 'toastError should be called');
+            assertEqual(toastTitle, 'No Events', 'Toast title should be "No Events"');
+            assertEqual(toastMessage, 'No events to export', 'Toast message should indicate no events');
+        });
+
+        it('should create blob with correct content when events exist', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            const mockEvents = [
+                {
+                    id: 'abc123',
+                    pubkey: 'pubkey1',
+                    created_at: 1704067200,
+                    kind: 1,
+                    tags: [],
+                    content: 'Hello world',
+                    sig: 'sig123',
+                    _isNew: true,
+                    relay: 'wss://relay.example.com'
+                }
+            ];
+            instance.events = mockEvents;
+
+            let capturedBlobContent = null;
+            let capturedBlobType = null;
+            const originalBlob = window.Blob;
+            window.Blob = function(content, options) {
+                capturedBlobContent = content[0];
+                capturedBlobType = options.type;
+                return new originalBlob(content, options);
+            };
+
+            let capturedUrl = null;
+            const originalCreateObjectURL = URL.createObjectURL;
+            URL.createObjectURL = function(blob) {
+                capturedUrl = 'blob:test';
+                return capturedUrl;
+            };
+
+            let revokedUrl = null;
+            const originalRevokeObjectURL = URL.revokeObjectURL;
+            URL.revokeObjectURL = function(url) {
+                revokedUrl = url;
+            };
+
+            let clickedLink = null;
+            const originalAppendChild = document.body.appendChild;
+            const originalRemoveChild = document.body.removeChild;
+            document.body.appendChild = function(el) {
+                if (el.tagName === 'A') {
+                    clickedLink = el;
+                    el.click = function() {};
+                } else {
+                    originalAppendChild.call(document.body, el);
+                }
+            };
+            document.body.removeChild = function(el) {
+                if (el.tagName !== 'A') {
+                    originalRemoveChild.call(document.body, el);
+                }
+            };
+
+            instance.toastSuccess = function() {};
+
+            instance.exportEventsAsJson();
+
+            // Verify blob content
+            assertDefined(capturedBlobContent, 'Blob content should be captured');
+            assertEqual(capturedBlobType, 'application/json', 'Blob type should be application/json');
+
+            const parsedContent = JSON.parse(capturedBlobContent);
+            assertEqual(parsedContent.length, 1, 'Should have 1 event');
+            assertEqual(parsedContent[0].id, 'abc123', 'Event ID should be preserved');
+            assertEqual(parsedContent[0].content, 'Hello world', 'Event content should be preserved');
+            assertEqual(parsedContent[0]._relay, 'wss://relay.example.com', 'Relay should be preserved as _relay');
+            assertTrue(parsedContent[0]._isNew === undefined, '_isNew should be removed');
+
+            // Verify link
+            assertDefined(clickedLink, 'Download link should be created');
+            assertTrue(clickedLink.download.startsWith('nostr-events-'), 'Filename should start with nostr-events-');
+            assertTrue(clickedLink.download.endsWith('.json'), 'Filename should end with .json');
+
+            // Cleanup
+            window.Blob = originalBlob;
+            URL.createObjectURL = originalCreateObjectURL;
+            URL.revokeObjectURL = originalRevokeObjectURL;
+            document.body.appendChild = originalAppendChild;
+            document.body.removeChild = originalRemoveChild;
+        });
+
+        it('should call toastSuccess after successful export', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            const mockEvents = [
+                {
+                    id: 'abc123',
+                    pubkey: 'pubkey1',
+                    created_at: 1704067200,
+                    kind: 1,
+                    tags: [],
+                    content: 'Hello world',
+                    sig: 'sig123'
+                },
+                {
+                    id: 'def456',
+                    pubkey: 'pubkey2',
+                    created_at: 1704067201,
+                    kind: 1,
+                    tags: [],
+                    content: 'Another note',
+                    sig: 'sig456'
+                }
+            ];
+            instance.events = mockEvents;
+
+            let toastSuccessCalled = false;
+            let toastTitle = '';
+            let toastMessage = '';
+            instance.toastSuccess = function(title, message) {
+                toastSuccessCalled = true;
+                toastTitle = title;
+                toastMessage = message;
+            };
+
+            // Mock DOM methods
+            const originalAppendChild = document.body.appendChild;
+            const originalRemoveChild = document.body.removeChild;
+            document.body.appendChild = function(el) {
+                if (el.tagName === 'A') {
+                    el.click = function() {};
+                } else {
+                    originalAppendChild.call(document.body, el);
+                }
+            };
+            document.body.removeChild = function(el) {
+                if (el.tagName !== 'A') {
+                    originalRemoveChild.call(document.body, el);
+                }
+            };
+
+            instance.exportEventsAsJson();
+
+            assertTrue(toastSuccessCalled, 'toastSuccess should be called');
+            assertEqual(toastTitle, 'Exported', 'Toast title should be "Exported"');
+            assertTrue(toastMessage.includes('2 events'), 'Toast message should include event count');
+
+            // Cleanup
+            document.body.appendChild = originalAppendChild;
+            document.body.removeChild = originalRemoveChild;
+        });
+
+        it('should exclude internal _isNew property from exported events', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            instance.events = [
+                {
+                    id: 'test123',
+                    pubkey: 'pk1',
+                    created_at: 1704067200,
+                    kind: 1,
+                    tags: [],
+                    content: 'Test',
+                    sig: 'sig1',
+                    _isNew: true
+                }
+            ];
+
+            let capturedContent = null;
+            const originalBlob = window.Blob;
+            window.Blob = function(content, options) {
+                capturedContent = content[0];
+                return new originalBlob(content, options);
+            };
+
+            const originalAppendChild = document.body.appendChild;
+            const originalRemoveChild = document.body.removeChild;
+            document.body.appendChild = function(el) {
+                if (el.tagName === 'A') {
+                    el.click = function() {};
+                } else {
+                    originalAppendChild.call(document.body, el);
+                }
+            };
+            document.body.removeChild = function(el) {
+                if (el.tagName !== 'A') {
+                    originalRemoveChild.call(document.body, el);
+                }
+            };
+
+            instance.toastSuccess = function() {};
+
+            instance.exportEventsAsJson();
+
+            const parsed = JSON.parse(capturedContent);
+            assertFalse('_isNew' in parsed[0], '_isNew should not be in exported event');
+
+            // Cleanup
+            window.Blob = originalBlob;
+            document.body.appendChild = originalAppendChild;
+            document.body.removeChild = originalRemoveChild;
+        });
+
+        it('should preserve relay info as _relay in exported events', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            instance.events = [
+                {
+                    id: 'test123',
+                    pubkey: 'pk1',
+                    created_at: 1704067200,
+                    kind: 1,
+                    tags: [],
+                    content: 'Test',
+                    sig: 'sig1',
+                    relay: 'wss://relay.test.com'
+                }
+            ];
+
+            let capturedContent = null;
+            const originalBlob = window.Blob;
+            window.Blob = function(content, options) {
+                capturedContent = content[0];
+                return new originalBlob(content, options);
+            };
+
+            const originalAppendChild = document.body.appendChild;
+            const originalRemoveChild = document.body.removeChild;
+            document.body.appendChild = function(el) {
+                if (el.tagName === 'A') {
+                    el.click = function() {};
+                } else {
+                    originalAppendChild.call(document.body, el);
+                }
+            };
+            document.body.removeChild = function(el) {
+                if (el.tagName !== 'A') {
+                    originalRemoveChild.call(document.body, el);
+                }
+            };
+
+            instance.toastSuccess = function() {};
+
+            instance.exportEventsAsJson();
+
+            const parsed = JSON.parse(capturedContent);
+            assertEqual(parsed[0]._relay, 'wss://relay.test.com', '_relay should contain relay URL');
+            assertFalse('relay' in parsed[0], 'original relay key should not be in exported event');
+
+            // Cleanup
+            window.Blob = originalBlob;
+            document.body.appendChild = originalAppendChild;
+            document.body.removeChild = originalRemoveChild;
+        });
+
+        it('Export JSON button should exist in events tab', () => {
+            const btn = document.getElementById('export-json-btn');
+            assertDefined(btn, 'export-json-btn should exist');
+            assertEqual(btn.tagName, 'BUTTON', 'Should be a button element');
+            assertTrue(btn.textContent.includes('Export JSON'), 'Button should have "Export JSON" text');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

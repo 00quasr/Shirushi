@@ -1354,6 +1354,10 @@ class Shirushi {
             this.renderEvents();
         });
 
+        document.getElementById('export-json-btn').addEventListener('click', () => {
+            this.exportEventsAsJson();
+        });
+
         // Verify event handlers
         document.getElementById('verify-event-btn').addEventListener('click', () => {
             this.verifyEvent();
@@ -2457,6 +2461,43 @@ class Shirushi {
         const trimmed = str.trim();
         return (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
                (trimmed.startsWith('[') && trimmed.endsWith(']'));
+    }
+
+    /**
+     * Export all events as a JSON file download
+     */
+    exportEventsAsJson() {
+        if (this.events.length === 0) {
+            this.toastError('No Events', 'No events to export');
+            return;
+        }
+
+        // Create a clean copy of events without internal properties
+        const cleanEvents = this.events.map(event => {
+            const { _isNew, relay, ...cleanEvent } = event;
+            // Include relay in a metadata wrapper if present
+            if (relay) {
+                return { ...cleanEvent, _relay: relay };
+            }
+            return cleanEvent;
+        });
+
+        const jsonContent = JSON.stringify(cleanEvents, null, 2);
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `nostr-events-${timestamp}.json`;
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        this.toastSuccess('Exported', `${this.events.length} events saved to ${filename}`);
     }
 
     showEventJson(eventId) {
