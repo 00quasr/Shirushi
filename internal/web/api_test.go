@@ -106,7 +106,7 @@ func (m *mockRelayPool) List() []types.RelayStatus {
 func (m *mockRelayPool) Stats() map[string]types.RelayStats { return nil }
 func (m *mockRelayPool) Count() int                         { return 0 }
 func (m *mockRelayPool) Subscribe(kinds []int, authors []string, callback func(types.Event)) string {
-	return ""
+	return "test-subscription-id"
 }
 func (m *mockRelayPool) QueryEvents(kindStr, author, limitStr string) ([]types.Event, error) {
 	return m.events, m.err
@@ -2525,5 +2525,139 @@ func TestAddTestHistory_LimitsTo100Entries(t *testing.T) {
 
 	if len(api.testHistory) != 100 {
 		t.Errorf("expected history to be limited to 100, got %d", len(api.testHistory))
+	}
+}
+
+// Tests for HandleEventSubscribe
+
+func TestHandleEventSubscribe_EmptyBody(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Create a request with empty body
+	req := httptest.NewRequest("POST", "/api/events/subscribe", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventSubscribe(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if resp["subscription_id"] == "" {
+		t.Error("expected subscription_id in response")
+	}
+}
+
+func TestHandleEventSubscribe_EmptyJSONBody(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Create a request with empty JSON object
+	req := httptest.NewRequest("POST", "/api/events/subscribe", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSubscribe(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if resp["subscription_id"] == "" {
+		t.Error("expected subscription_id in response")
+	}
+}
+
+func TestHandleEventSubscribe_WithFilters(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Create a request with kinds and authors filters
+	body := `{"kinds":[1,4],"authors":["abc123"]}`
+	req := httptest.NewRequest("POST", "/api/events/subscribe", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSubscribe(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if resp["subscription_id"] == "" {
+		t.Error("expected subscription_id in response")
+	}
+}
+
+func TestHandleEventSubscribe_InvalidJSON(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Create a request with invalid JSON
+	req := httptest.NewRequest("POST", "/api/events/subscribe", strings.NewReader("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSubscribe(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestHandleEventSubscribe_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Test GET method
+	req := httptest.NewRequest("GET", "/api/events/subscribe", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventSubscribe(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventSubscribe_EmptyFilters(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Create a request with explicit empty arrays
+	body := `{"kinds":[],"authors":[]}`
+	req := httptest.NewRequest("POST", "/api/events/subscribe", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSubscribe(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if resp["subscription_id"] == "" {
+		t.Error("expected subscription_id in response")
 	}
 }

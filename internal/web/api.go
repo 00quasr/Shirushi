@@ -242,6 +242,8 @@ func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleEventSubscribe handles event subscription management.
+// Accepts an optional JSON body with kinds and authors filters.
+// If body is empty or missing, defaults to empty filters (subscribes to all events).
 func (a *API) HandleEventSubscribe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -252,10 +254,22 @@ func (a *API) HandleEventSubscribe(w http.ResponseWriter, r *http.Request) {
 		Kinds   []int    `json:"kinds"`
 		Authors []string `json:"authors"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+
+	// Read the body to check if it's empty
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
 		return
 	}
+
+	// Only decode if body is not empty
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+	}
+	// If body is empty, req stays with zero values (empty slices)
 
 	// Start subscription
 	subID := a.relayPool.Subscribe(req.Kinds, req.Authors, func(event types.Event) {
