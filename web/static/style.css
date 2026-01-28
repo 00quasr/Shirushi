@@ -919,7 +919,7 @@ a.nip-badge:hover {
     background: var(--bg-3);
 }
 
-/* Filters */
+/* Filters - Legacy */
 .filters {
     display: flex;
     gap: 8px;
@@ -940,6 +940,93 @@ a.nip-badge:hover {
 
 .filters input::placeholder {
     color: var(--text-3);
+}
+
+/* Query Builder */
+.query-builder {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.query-builder-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.query-builder-row:last-of-type {
+    margin-bottom: 16px;
+}
+
+.query-builder-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.query-builder-field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-2);
+    margin-bottom: 2px;
+}
+
+.query-builder-field .form-input {
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.query-builder-field .form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.query-builder-field .form-input::placeholder {
+    color: var(--text-3);
+}
+
+.query-builder-field .field-hint {
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.query-builder-field-limit {
+    max-width: 120px;
+}
+
+.query-builder-field input[type="datetime-local"] {
+    color-scheme: dark;
+}
+
+.query-builder-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
+.query-builder-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--text-2);
+    cursor: pointer;
+}
+
+.query-builder-checkbox input[type="checkbox"] {
+    cursor: pointer;
 }
 
 .event-controls {
@@ -5940,6 +6027,27 @@ a.nip-badge:hover {
 
     .filters input {
         width: 100%;
+    }
+
+    /* Query Builder mobile */
+    .query-builder-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .query-builder-field-limit {
+        max-width: none;
+    }
+
+    .query-builder-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .query-builder-checkbox {
+        margin-left: 0;
+        justify-content: flex-start;
     }
 
     /* Presets wrap better */

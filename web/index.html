@@ -409,22 +409,58 @@ nevent1xyz..."></textarea>
             </div>
             <div class="panel">
                 <h2>Event Stream</h2>
-                <div class="filters">
-                    <input type="number" id="filter-kind" placeholder="Kind (e.g., 1)">
-                    <input type="text" id="filter-author" placeholder="Author (npub or hex)">
-                    <button id="apply-filter-btn" class="btn primary">Apply</button>
-                    <button id="clear-filter-btn" class="btn">Clear</button>
+                <div class="query-builder">
+                    <div class="query-builder-row">
+                        <div class="query-builder-field">
+                            <label for="filter-kinds">Kinds</label>
+                            <input type="text" id="filter-kinds" class="form-input" placeholder="1, 7, 30023 (comma-separated)">
+                            <span class="field-hint">Event kinds to filter (e.g., 1 for notes, 0 for profiles)</span>
+                        </div>
+                        <div class="query-builder-field">
+                            <label for="filter-authors">Authors</label>
+                            <input type="text" id="filter-authors" class="form-input" placeholder="npub1... or hex (comma-separated)">
+                            <span class="field-hint">Public keys (npub or hex format)</span>
+                        </div>
+                    </div>
+                    <div class="query-builder-row">
+                        <div class="query-builder-field">
+                            <label for="filter-tags">Tags</label>
+                            <input type="text" id="filter-tags" class="form-input" placeholder="#e:abc..., #p:def..., #t:nostr">
+                            <span class="field-hint">Tag filters: #tagname:value (e.g., #t:nostr, #e:eventid)</span>
+                        </div>
+                        <div class="query-builder-field query-builder-field-limit">
+                            <label for="filter-limit">Limit</label>
+                            <input type="number" id="filter-limit" class="form-input" placeholder="20" min="1" max="500" value="20">
+                            <span class="field-hint">Max events (1-500)</span>
+                        </div>
+                    </div>
+                    <div class="query-builder-row">
+                        <div class="query-builder-field">
+                            <label for="filter-since">Since</label>
+                            <input type="datetime-local" id="filter-since" class="form-input">
+                            <span class="field-hint">Events created after this time</span>
+                        </div>
+                        <div class="query-builder-field">
+                            <label for="filter-until">Until</label>
+                            <input type="datetime-local" id="filter-until" class="form-input">
+                            <span class="field-hint">Events created before this time</span>
+                        </div>
+                    </div>
+                    <div class="query-builder-actions">
+                        <button id="apply-filter-btn" class="btn primary">Query Events</button>
+                        <button id="clear-filter-btn" class="btn">Clear Filters</button>
+                        <label class="query-builder-checkbox">
+                            <input type="checkbox" id="show-timing">
+                            Show fetch timing
+                        </label>
+                    </div>
                 </div>
                 <div class="event-controls">
                     <label>
                         <input type="checkbox" id="auto-scroll" checked>
                         Auto-scroll
                     </label>
-                    <label>
-                        <input type="checkbox" id="show-timing">
-                        Show fetch timing
-                    </label>
-                    <button id="clear-events-btn" class="btn small">Clear</button>
+                    <button id="clear-events-btn" class="btn small">Clear Events</button>
                 </div>
             </div>
             <div id="fetch-timing-panel" class="fetch-timing-panel hidden">

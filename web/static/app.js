@@ -1333,9 +1333,7 @@ class Shirushi {
         });
 
         document.getElementById('clear-filter-btn').addEventListener('click', () => {
-            document.getElementById('filter-kind').value = '';
-            document.getElementById('filter-author').value = '';
-            this.loadEvents();
+            this.clearQueryBuilder();
         });
 
         document.getElementById('clear-events-btn').addEventListener('click', () => {
@@ -1413,16 +1411,108 @@ class Shirushi {
         });
     }
 
+    /**
+     * Clear the query builder form fields
+     */
+    clearQueryBuilder() {
+        document.getElementById('filter-kinds').value = '';
+        document.getElementById('filter-authors').value = '';
+        document.getElementById('filter-tags').value = '';
+        document.getElementById('filter-limit').value = '20';
+        document.getElementById('filter-since').value = '';
+        document.getElementById('filter-until').value = '';
+        document.getElementById('show-timing').checked = false;
+        this.hideFetchTiming();
+        this.loadEvents();
+    }
+
+    /**
+     * Build query parameters from the query builder form
+     * @returns {URLSearchParams} Query parameters object
+     */
+    buildQueryParams() {
+        const params = new URLSearchParams();
+
+        // Kinds (comma-separated, support multiple)
+        const kindsInput = document.getElementById('filter-kinds').value.trim();
+        if (kindsInput) {
+            // Parse comma-separated kinds, filter out non-numbers
+            const kinds = kindsInput.split(',')
+                .map(k => k.trim())
+                .filter(k => k && !isNaN(parseInt(k, 10)))
+                .map(k => parseInt(k, 10));
+            if (kinds.length > 0) {
+                params.set('kinds', kinds.join(','));
+            }
+        }
+
+        // Authors (comma-separated, support npub and hex)
+        const authorsInput = document.getElementById('filter-authors').value.trim();
+        if (authorsInput) {
+            const authors = authorsInput.split(',')
+                .map(a => a.trim())
+                .filter(a => a.length > 0);
+            if (authors.length > 0) {
+                params.set('authors', authors.join(','));
+            }
+        }
+
+        // Tags (format: #tagname:value, comma-separated)
+        const tagsInput = document.getElementById('filter-tags').value.trim();
+        if (tagsInput) {
+            // Parse tag filters like #e:abc123, #p:def456, #t:nostr
+            const tagFilters = tagsInput.split(',')
+                .map(t => t.trim())
+                .filter(t => t.startsWith('#') && t.includes(':'));
+            if (tagFilters.length > 0) {
+                params.set('tags', tagFilters.join(','));
+            }
+        }
+
+        // Limit
+        const limitInput = document.getElementById('filter-limit').value;
+        const limit = parseInt(limitInput, 10);
+        if (!isNaN(limit) && limit > 0 && limit <= 500) {
+            params.set('limit', limit.toString());
+        }
+
+        // Since (datetime-local to Unix timestamp)
+        const sinceInput = document.getElementById('filter-since').value;
+        if (sinceInput) {
+            const sinceDate = new Date(sinceInput);
+            if (!isNaN(sinceDate.getTime())) {
+                params.set('since', Math.floor(sinceDate.getTime() / 1000).toString());
+            }
+        }
+
+        // Until (datetime-local to Unix timestamp)
+        const untilInput = document.getElementById('filter-until').value;
+        if (untilInput) {
+            const untilDate = new Date(untilInput);
+            if (!isNaN(untilDate.getTime())) {
+                params.set('until', Math.floor(untilDate.getTime() / 1000).toString());
+            }
+        }
+
+        // Show timing
+        const showTiming = document.getElementById('show-timing')?.checked || false;
+        if (showTiming) {
+            params.set('timing', 'true');
+        }
+
+        return params;
+    }
+
     async loadEvents() {
         try {
-            const kind = document.getElementById('filter-kind').value;
-            const author = document.getElementById('filter-author').value;
-            const showTiming = document.getElementById('show-timing')?.checked || false;
+            const params = this.buildQueryParams();
+            const showTiming = params.get('timing') === 'true';
 
-            let url = '/api/events?';
-            if (kind) url += `kind=${kind}&`;
-            if (author) url += `author=${author}&`;
-            if (showTiming) url += 'timing=true&';
+            let url = '/api/events';
+            const queryString = params.toString();
+            if (queryString) {
+                url += '?' + queryString;
+            }
 
             const response = await fetch(url);
             const data = await response.json();

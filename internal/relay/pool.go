@@ -498,6 +498,199 @@ func convertTags(tags nostr.Tags) [][]string {
 	return result
 }
 
+// buildFilter creates a nostr.Filter from the given parameters.
+func buildFilter(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) nostr.Filter {
+	filter := nostr.Filter{}
+
+	if len(kinds) > 0 {
+		filter.Kinds = kinds
+	}
+
+	if len(authors) > 0 {
+		filter.Authors = authors
+	}
+
+	if len(tags) > 0 {
+		filter.Tags = make(nostr.TagMap)
+		for tagName, tagValues := range tags {
+			filter.Tags[tagName] = tagValues
+		}
+	}
+
+	if limit > 0 {
+		filter.Limit = limit
+	} else {
+		filter.Limit = 20 // default
+	}
+
+	if since > 0 {
+		ts := nostr.Timestamp(since)
+		filter.Since = &ts
+	}
+
+	if until > 0 {
+		ts := nostr.Timestamp(until)
+		filter.Until = &ts
+	}
+
+	return filter
+}
+
+// QueryEventsAdvanced queries events from connected relays with advanced filter options.
+func (p *Pool) QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) ([]types.Event, error) {
+	relays := p.GetConnected()
+	if len(relays) == 0 {
+		return nil, fmt.Errorf("no connected relays")
+	}
+
+	filter := buildFilter(kinds, authors, tags, limit, since, until)
+
+	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+	defer cancel()
+
+	var events []types.Event
+	ch := p.pool.SubManyEose(ctx, relays, nostr.Filters{filter})
+
+	for ev := range ch {
+		events = append(events, types.Event{
+			ID:        ev.Event.ID,
+			Kind:      ev.Event.Kind,
+			PubKey:    ev.Event.PubKey,
+			Content:   ev.Event.Content,
+			CreatedAt: int64(ev.Event.CreatedAt),
+			Tags:      convertTags(ev.Event.Tags),
+			Sig:       ev.Event.Sig,
+			Relay:     ev.Relay.URL,
+		})
+	}
+
+	return events, nil
+}
+
+// QueryEventsAdvancedWithTiming queries events with advanced filter options and returns per-relay timing data.
+func (p *Pool) QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) (*types.EventsQueryResponse, error) {
+	totalStart := time.Now()
+
+	relays := p.GetConnected()
+	if len(relays) == 0 {
+		return nil, fmt.Errorf("no connected relays")
+	}
+
+	filter := buildFilter(kinds, authors, tags, limit, since, until)
+
+	// Query each relay individually to track per-relay timing
+	type relayResult struct {
+		timing types.RelayFetchTiming
+		events []types.Event
+	}
+
+	var wg sync.WaitGroup
+	resultsChan := make(chan relayResult, len(relays))
+
+	for _, relayURL := range relays {
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+
+			result := relayResult{
+				timing: types.RelayFetchTiming{
+					URL:       url,
+					Connected: true,
+				},
+				events: make([]types.Event, 0),
+			}
+
+			start := time.Now()
+			var firstEventTime time.Time
+
+			ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+			defer cancel()
+
+			// Get the relay connection
+			relay, err := p.pool.EnsureRelay(url)
+			if err != nil {
+				result.timing.Error = fmt.Sprintf("connection error: %v", err)
+				result.timing.LatencyMs = time.Since(start).Milliseconds()
+				result.timing.Connected = false
+				resultsChan <- result
+				return
+			}
+
+			sub, err := relay.Subscribe(ctx, nostr.Filters{filter})
+			if err != nil {
+				result.timing.Error = fmt.Sprintf("subscribe error: %v", err)
+				result.timing.LatencyMs = time.Since(start).Milliseconds()
+				resultsChan <- result
+				return
+			}
+			defer sub.Unsub()
+
+			// Collect events until EOSE or timeout
+		eventLoop:
+			for {
+				select {
+				case ev := <-sub.Events:
+					if ev != nil {
+						if firstEventTime.IsZero() {
+							firstEventTime = time.Now()
+						}
+						result.events = append(result.events, types.Event{
+							ID:        ev.ID,
+							Kind:      ev.Kind,
+							PubKey:    ev.PubKey,
+							Content:   ev.Content,
+							CreatedAt: int64(ev.CreatedAt),
+							Tags:      convertTags(ev.Tags),
+							Sig:       ev.Sig,
+							Relay:     url,
+						})
+					}
+				case <-sub.EndOfStoredEvents:
+					break eventLoop
+				case <-ctx.Done():
+					result.timing.Error = "timeout"
+					break eventLoop
+				}
+			}
+
+			result.timing.LatencyMs = time.Since(start).Milliseconds()
+			result.timing.EventCount = len(result.events)
+			if !firstEventTime.IsZero() {
+				result.timing.FirstEventMs = firstEventTime.Sub(start).Milliseconds()
+			}
+			resultsChan <- result
+		}(relayURL)
+	}
+
+	// Close channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	// Collect results
+	response := &types.EventsQueryResponse{
+		Events:       make([]types.Event, 0),
+		RelayTimings: make([]types.RelayFetchTiming, 0, len(relays)),
+	}
+
+	seenEvents := make(map[string]bool)
+	for result := range resultsChan {
+		response.RelayTimings = append(response.RelayTimings, result.timing)
+		// Deduplicate events by ID
+		for _, ev := range result.events {
+			if !seenEvents[ev.ID] {
+				seenEvents[ev.ID] = true
+				response.Events = append(response.Events, ev)
+			}
+		}
+	}
+
+	response.TotalTimeMs = time.Since(totalStart).Milliseconds()
+
+	return response, nil
+}
+
 // Subscribe creates a subscription to events matching the filter.
 func (p *Pool) Subscribe(kinds []int, authors []string, callback func(types.Event)) string {
 	p.subMu.Lock()

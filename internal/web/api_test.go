@@ -133,6 +133,22 @@ func (m *mockRelayPool) QueryEventsWithTiming(kindStr, author, limitStr string) 
 		TotalTimeMs:  100,
 	}, nil
 }
+func (m *mockRelayPool) QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) ([]types.Event, error) {
+	return m.events, m.err
+}
+func (m *mockRelayPool) QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) (*types.EventsQueryResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.eventsWithTiming != nil {
+		return m.eventsWithTiming, nil
+	}
+	return &types.EventsQueryResponse{
+		Events:       m.events,
+		RelayTimings: []types.RelayFetchTiming{},
+		TotalTimeMs:  100,
+	}, nil
+}
 func (m *mockRelayPool) QueryEventsByIDs(ids []string) ([]types.Event, error) {
 	if m.err != nil {
 		return nil, m.err

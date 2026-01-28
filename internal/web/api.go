@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ type RelayPool interface {
 	Count() int
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
 	QueryEventsWithTiming(kindStr, author, limitStr string) (*types.EventsQueryResponse, error)
+	QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) ([]types.Event, error)
+	QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) (*types.EventsQueryResponse, error)
 	QueryEventsByIDs(ids []string) ([]types.Event, error)
 	QueryBatchEventsByIDs(ids []string) *types.BatchQueryResponse
 	QueryEventReplies(eventID string) ([]types.Event, error)
@@ -237,8 +240,25 @@ func (a *API) HandleRelayInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, info)
 }
 
+// EventQueryParams holds the parsed query parameters for event queries.
+type EventQueryParams struct {
+	Kinds   []int
+	Authors []string
+	Tags    map[string][]string
+	Limit   int
+	Since   int64
+	Until   int64
+}
+
 // HandleEvents handles event queries.
-// Accepts optional query params: kind, author, limit, timing (if timing=true, returns per-relay timing data)
+// Accepts optional query params:
+// - kinds: comma-separated list of event kinds (e.g., "1,7,30023")
+// - authors: comma-separated list of pubkeys (hex or npub format)
+// - tags: comma-separated tag filters in format "#tagname:value" (e.g., "#e:abc123,#t:nostr")
+// - limit: max number of events to return (default 20, max 500)
+// - since: Unix timestamp for events created after this time
+// - until: Unix timestamp for events created before this time
+// - timing: if "true", returns per-relay timing data
 func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -246,13 +266,16 @@ func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse query parameters
-	kindStr := r.URL.Query().Get("kind")
-	author := r.URL.Query().Get("author")
-	limit := r.URL.Query().Get("limit")
+	params, err := a.parseEventQueryParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	includeTiming := r.URL.Query().Get("timing") == "true"
 
 	if includeTiming {
-		response, err := a.relayPool.QueryEventsWithTiming(kindStr, author, limit)
+		response, err := a.relayPool.QueryEventsAdvancedWithTiming(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -261,12 +284,132 @@ func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := a.relayPool.QueryEvents(kindStr, author, limit)
+	events, err := a.relayPool.QueryEventsAdvanced(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, events)
+}
+
+// parseEventQueryParams parses the query parameters for event queries.
+func (a *API) parseEventQueryParams(r *http.Request) (*EventQueryParams, error) {
+	params := &EventQueryParams{
+		Limit: 20, // default
+	}
+
+	// Parse kinds (comma-separated)
+	kindsStr := r.URL.Query().Get("kinds")
+	if kindsStr == "" {
+		// Fallback to legacy "kind" parameter for backwards compatibility
+		kindsStr = r.URL.Query().Get("kind")
+	}
+	if kindsStr != "" {
+		kindStrs := strings.Split(kindsStr, ",")
+		for _, ks := range kindStrs {
+			ks = strings.TrimSpace(ks)
+			if ks != "" {
+				kind, err := strconv.Atoi(ks)
+				if err != nil {
+					return nil, fmt.Errorf("invalid kind value: %s", ks)
+				}
+				params.Kinds = append(params.Kinds, kind)
+			}
+		}
+	}
+
+	// Parse authors (comma-separated, can be hex or npub)
+	authorsStr := r.URL.Query().Get("authors")
+	if authorsStr == "" {
+		// Fallback to legacy "author" parameter for backwards compatibility
+		authorsStr = r.URL.Query().Get("author")
+	}
+	if authorsStr != "" {
+		authorStrs := strings.Split(authorsStr, ",")
+		for _, as := range authorStrs {
+			as = strings.TrimSpace(as)
+			if as == "" {
+				continue
+			}
+			// Decode npub/nprofile to hex if needed
+			if strings.HasPrefix(as, "npub") || strings.HasPrefix(as, "nprofile") {
+				if a.nak == nil {
+					return nil, fmt.Errorf("nak CLI not available for decoding npub")
+				}
+				decoded, err := a.nak.Decode(as)
+				if err != nil {
+					return nil, fmt.Errorf("invalid author pubkey: %s", as)
+				}
+				if decoded.Pubkey != "" {
+					as = decoded.Pubkey
+				} else if decoded.Hex != "" {
+					as = decoded.Hex
+				}
+			}
+			params.Authors = append(params.Authors, as)
+		}
+	}
+
+	// Parse tags (comma-separated, format: #tagname:value)
+	tagsStr := r.URL.Query().Get("tags")
+	if tagsStr != "" {
+		params.Tags = make(map[string][]string)
+		tagStrs := strings.Split(tagsStr, ",")
+		for _, ts := range tagStrs {
+			ts = strings.TrimSpace(ts)
+			if !strings.HasPrefix(ts, "#") || !strings.Contains(ts, ":") {
+				continue
+			}
+			// Remove the # prefix and split by :
+			ts = strings.TrimPrefix(ts, "#")
+			parts := strings.SplitN(ts, ":", 2)
+			if len(parts) == 2 {
+				tagName := strings.TrimSpace(parts[0])
+				tagValue := strings.TrimSpace(parts[1])
+				if tagName != "" && tagValue != "" {
+					params.Tags[tagName] = append(params.Tags[tagName], tagValue)
+				}
+			}
+		}
+	}
+
+	// Parse limit
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid limit value: %s", limitStr)
+		}
+		if limit < 1 {
+			limit = 1
+		}
+		if limit > 500 {
+			limit = 500
+		}
+		params.Limit = limit
+	}
+
+	// Parse since (Unix timestamp)
+	sinceStr := r.URL.Query().Get("since")
+	if sinceStr != "" {
+		since, err := strconv.ParseInt(sinceStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid since value: %s", sinceStr)
+		}
+		params.Since = since
+	}
+
+	// Parse until (Unix timestamp)
+	untilStr := r.URL.Query().Get("until")
+	if untilStr != "" {
+		until, err := strconv.ParseInt(untilStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid until value: %s", untilStr)
+		}
+		params.Until = until
+	}
+
+	return params, nil
 }
 
 // HandleEventSubscribe handles event subscription management.
