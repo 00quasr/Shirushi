@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/keanuklestil/shirushi/internal/config"
@@ -59,12 +60,13 @@ type NakClient interface {
 
 // API handles REST API requests.
 type API struct {
-	cfg         *config.Config
-	nak         NakClient
-	relayPool   RelayPool
-	testRunner  TestRunner
-	hub         *Hub
-	testHistory []types.TestHistoryEntry
+	cfg              *config.Config
+	nak              NakClient
+	relayPool        RelayPool
+	testRunner       TestRunner
+	hub              *Hub
+	testHistory      []types.TestHistoryEntry
+	testHistoryMutex sync.RWMutex
 }
 
 // NewAPI creates a new API handler.
@@ -571,6 +573,9 @@ func (a *API) addTestHistory(result types.TestResult) types.TestHistoryEntry {
 		Result:    result,
 	}
 
+	a.testHistoryMutex.Lock()
+	defer a.testHistoryMutex.Unlock()
+
 	// Prepend to history (newest first)
 	a.testHistory = append([]types.TestHistoryEntry{entry}, a.testHistory...)
 
@@ -586,11 +591,17 @@ func (a *API) addTestHistory(result types.TestResult) types.TestHistoryEntry {
 func (a *API) HandleTestHistory(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, a.testHistory)
+		a.testHistoryMutex.RLock()
+		history := make([]types.TestHistoryEntry, len(a.testHistory))
+		copy(history, a.testHistory)
+		a.testHistoryMutex.RUnlock()
+		writeJSON(w, history)
 
 	case http.MethodDelete:
 		// Clear all history
+		a.testHistoryMutex.Lock()
 		a.testHistory = make([]types.TestHistoryEntry, 0)
+		a.testHistoryMutex.Unlock()
 		writeJSON(w, map[string]string{"status": "cleared"})
 
 	default:
@@ -612,24 +623,41 @@ func (a *API) HandleTestHistoryEntry(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		// Find entry by ID
+		a.testHistoryMutex.RLock()
+		var foundEntry *types.TestHistoryEntry
 		for _, entry := range a.testHistory {
 			if entry.ID == entryID {
-				writeJSON(w, entry)
-				return
+				entryCopy := entry
+				foundEntry = &entryCopy
+				break
 			}
 		}
-		writeError(w, http.StatusNotFound, "entry not found")
+		a.testHistoryMutex.RUnlock()
+
+		if foundEntry != nil {
+			writeJSON(w, foundEntry)
+		} else {
+			writeError(w, http.StatusNotFound, "entry not found")
+		}
 
 	case http.MethodDelete:
 		// Remove entry by ID
+		a.testHistoryMutex.Lock()
+		found := false
 		for i, entry := range a.testHistory {
 			if entry.ID == entryID {
 				a.testHistory = append(a.testHistory[:i], a.testHistory[i+1:]...)
-				writeJSON(w, map[string]string{"status": "deleted", "id": entryID})
-				return
+				found = true
+				break
 			}
 		}
-		writeError(w, http.StatusNotFound, "entry not found")
+		a.testHistoryMutex.Unlock()
+
+		if found {
+			writeJSON(w, map[string]string{"status": "deleted", "id": entryID})
+		} else {
+			writeError(w, http.StatusNotFound, "entry not found")
+		}
 
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")

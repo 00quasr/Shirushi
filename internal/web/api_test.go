@@ -5393,3 +5393,249 @@ func TestHandleTest_MissingNIPID(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
+
+// Tests for concurrent testHistory access with sync.RWMutex
+
+func TestTestHistory_ConcurrentReads(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add initial entries
+	for i := 0; i < 10; i++ {
+		result := types.TestResult{NIPID: fmt.Sprintf("nip%02d", i), Success: true}
+		api.addTestHistory(result)
+	}
+
+	// Launch multiple concurrent readers
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				req := httptest.NewRequest(http.MethodGet, "/api/test/history", nil)
+				w := httptest.NewRecorder()
+				api.HandleTestHistory(w, req)
+				if w.Code != http.StatusOK {
+					t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+				}
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all readers to finish
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestTestHistory_ConcurrentWrites(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Launch multiple concurrent writers
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 50; j++ {
+				result := types.TestResult{
+					NIPID:   fmt.Sprintf("nip%02d", id),
+					Success: j%2 == 0,
+					Message: fmt.Sprintf("Test %d-%d", id, j),
+				}
+				api.addTestHistory(result)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all writers to finish
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify history is not corrupted and respects max size
+	if len(api.testHistory) > 100 {
+		t.Errorf("expected testHistory to be at most 100 entries, got %d", len(api.testHistory))
+	}
+}
+
+func TestTestHistory_ConcurrentReadWrite(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add initial entries
+	for i := 0; i < 5; i++ {
+		result := types.TestResult{NIPID: fmt.Sprintf("nip%02d", i), Success: true}
+		api.addTestHistory(result)
+	}
+
+	done := make(chan bool)
+
+	// Launch concurrent readers
+	for i := 0; i < 5; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				req := httptest.NewRequest(http.MethodGet, "/api/test/history", nil)
+				w := httptest.NewRecorder()
+				api.HandleTestHistory(w, req)
+				if w.Code != http.StatusOK {
+					t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+				}
+			}
+			done <- true
+		}()
+	}
+
+	// Launch concurrent writers
+	for i := 0; i < 5; i++ {
+		go func(id int) {
+			for j := 0; j < 50; j++ {
+				result := types.TestResult{
+					NIPID:   fmt.Sprintf("nip%02d", id+10),
+					Success: true,
+				}
+				api.addTestHistory(result)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to finish
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify history is not corrupted
+	if len(api.testHistory) > 100 {
+		t.Errorf("expected testHistory to be at most 100 entries, got %d", len(api.testHistory))
+	}
+}
+
+func TestTestHistory_ConcurrentDelete(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add initial entries
+	for i := 0; i < 50; i++ {
+		result := types.TestResult{NIPID: fmt.Sprintf("nip%02d", i), Success: true}
+		api.addTestHistory(result)
+	}
+
+	done := make(chan bool)
+
+	// Launch concurrent readers
+	for i := 0; i < 3; i++ {
+		go func() {
+			for j := 0; j < 50; j++ {
+				req := httptest.NewRequest(http.MethodGet, "/api/test/history", nil)
+				w := httptest.NewRecorder()
+				api.HandleTestHistory(w, req)
+				// Status should always be OK
+				if w.Code != http.StatusOK {
+					t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+				}
+			}
+			done <- true
+		}()
+	}
+
+	// Launch concurrent writers
+	for i := 0; i < 3; i++ {
+		go func(id int) {
+			for j := 0; j < 20; j++ {
+				result := types.TestResult{
+					NIPID:   fmt.Sprintf("nip%02d", id+60),
+					Success: true,
+				}
+				api.addTestHistory(result)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Launch concurrent deletes (clear all)
+	for i := 0; i < 2; i++ {
+		go func() {
+			for j := 0; j < 10; j++ {
+				req := httptest.NewRequest(http.MethodDelete, "/api/test/history", nil)
+				w := httptest.NewRecorder()
+				api.HandleTestHistory(w, req)
+				if w.Code != http.StatusOK {
+					t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+				}
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines to finish
+	for i := 0; i < 8; i++ {
+		<-done
+	}
+}
+
+func TestTestHistory_ConcurrentEntryOperations(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Add entries with known IDs for testing
+	api.testHistoryMutex.Lock()
+	api.testHistory = []types.TestHistoryEntry{
+		{ID: "test-1", Timestamp: 1700000000, Result: types.TestResult{NIPID: "nip01", Success: true}},
+		{ID: "test-2", Timestamp: 1700000001, Result: types.TestResult{NIPID: "nip02", Success: true}},
+		{ID: "test-3", Timestamp: 1700000002, Result: types.TestResult{NIPID: "nip03", Success: true}},
+		{ID: "test-4", Timestamp: 1700000003, Result: types.TestResult{NIPID: "nip04", Success: true}},
+		{ID: "test-5", Timestamp: 1700000004, Result: types.TestResult{NIPID: "nip05", Success: true}},
+	}
+	api.testHistoryMutex.Unlock()
+
+	done := make(chan bool)
+
+	// Launch concurrent GET entry operations
+	for i := 0; i < 5; i++ {
+		go func(id int) {
+			for j := 0; j < 50; j++ {
+				req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/test/history/test-%d", (id%5)+1), nil)
+				w := httptest.NewRecorder()
+				api.HandleTestHistoryEntry(w, req)
+				// Entry may or may not exist due to concurrent deletes, both OK and NotFound are acceptable
+				if w.Code != http.StatusOK && w.Code != http.StatusNotFound {
+					t.Errorf("expected status %d or %d, got %d", http.StatusOK, http.StatusNotFound, w.Code)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Launch concurrent DELETE entry operations
+	for i := 0; i < 3; i++ {
+		go func(id int) {
+			for j := 0; j < 20; j++ {
+				req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/test/history/test-%d", (j%5)+1), nil)
+				w := httptest.NewRecorder()
+				api.HandleTestHistoryEntry(w, req)
+				// Entry may or may not exist due to concurrent deletes
+				if w.Code != http.StatusOK && w.Code != http.StatusNotFound {
+					t.Errorf("expected status %d or %d, got %d", http.StatusOK, http.StatusNotFound, w.Code)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Launch concurrent writers to add new entries
+	for i := 0; i < 2; i++ {
+		go func(id int) {
+			for j := 0; j < 30; j++ {
+				result := types.TestResult{NIPID: fmt.Sprintf("nip%02d", id+10), Success: true}
+				api.addTestHistory(result)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to finish
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
