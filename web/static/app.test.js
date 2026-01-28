@@ -11195,7 +11195,7 @@
         function setupModalVerifyTestDOM() {
             modalContainer = document.createElement('div');
             modalContainer.innerHTML = `
-                <div class="signature-section" data-event-id="test-modal-verify-123">
+                <div class="signature-section" data-event-id="test-modal-verify-123" data-pubkey="pubkey123">
                     <h4 class="event-detail-section-title">
                         Signature
                         <span class="signature-status" data-status="pending">
@@ -11206,6 +11206,10 @@
                     <div class="event-detail-row">
                         <span class="event-detail-label">Signature:</span>
                         <span class="event-detail-value monospace signature-value">abc123signature</span>
+                    </div>
+                    <div class="event-detail-row clickable view-author-profile-row" style="display: none;">
+                        <span class="event-detail-label">Verified Author:</span>
+                        <span class="event-detail-value link view-author-profile-link">View Author Profile →</span>
                     </div>
                 </div>
             `;
@@ -11424,6 +11428,204 @@
             assertEqual(parsedBody.content, testEvent.content, 'Body should include content');
             assertEqual(parsedBody.sig, testEvent.sig, 'Body should include signature');
             assertTrue(Array.isArray(parsedBody.tags), 'Body should include tags as array');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should show View Author Profile link when signature is valid', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const viewAuthorRow = modalContainer.querySelector('.view-author-profile-row');
+            assertEqual(viewAuthorRow.style.display, '', 'View Author Profile row should be visible');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should keep View Author Profile link hidden when signature is invalid', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                return {
+                    ok: true,
+                    json: async () => ({ valid: false, error: 'Invalid signature' })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'badsignature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const viewAuthorRow = modalContainer.querySelector('.view-author-profile-row');
+            assertEqual(viewAuthorRow.style.display, 'none', 'View Author Profile row should remain hidden');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should attach click handler to View Author Profile row when signature is valid', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            let exploreProfileCalled = false;
+            let exploredPubkey = null;
+            instance.exploreProfileByPubkey = function(pubkey) {
+                exploreProfileCalled = true;
+                exploredPubkey = pubkey;
+            };
+            instance.closeModal = function() {};
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const viewAuthorRow = modalContainer.querySelector('.view-author-profile-row');
+            assertDefined(viewAuthorRow.onclick, 'Click handler should be attached');
+
+            viewAuthorRow.onclick();
+
+            assertTrue(exploreProfileCalled, 'exploreProfileByPubkey should be called');
+            assertEqual(exploredPubkey, 'pubkey123', 'Should explore correct pubkey from data-pubkey attribute');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should close modal when View Author Profile link is clicked', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            let closeModalCalled = false;
+            instance.exploreProfileByPubkey = function() {};
+            instance.closeModal = function() {
+                closeModalCalled = true;
+            };
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const viewAuthorRow = modalContainer.querySelector('.view-author-profile-row');
+            viewAuthorRow.onclick();
+
+            assertTrue(closeModalCalled, 'closeModal should be called');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should keep View Author Profile link hidden on verification error', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                throw new Error('Network error');
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const viewAuthorRow = modalContainer.querySelector('.view-author-profile-row');
+            assertEqual(viewAuthorRow.style.display, 'none', 'View Author Profile row should remain hidden on error');
 
             window.fetch = originalFetch;
             Shirushi.prototype.init = originalInit;

@@ -1561,7 +1561,7 @@ class Shirushi {
                 ` : ''}
 
                 ${event.sig ? `
-                <div class="event-detail-section signature-section" data-event-id="${this.escapeHtml(event.id)}">
+                <div class="event-detail-section signature-section" data-event-id="${this.escapeHtml(event.id)}" data-pubkey="${this.escapeHtml(event.pubkey)}">
                     <h4 class="event-detail-section-title">
                         Signature
                         <span class="signature-status" data-status="pending">
@@ -1573,6 +1573,10 @@ class Shirushi {
                         <span class="event-detail-label">Signature:</span>
                         <span class="event-detail-value monospace signature-value" title="${this.escapeHtml(event.sig)}">${this.escapeHtml(event.sig)}</span>
                         <button class="btn small copy-btn" data-copy-field="${this.escapeHtml(event.sig)}">Copy</button>
+                    </div>
+                    <div class="event-detail-row clickable view-author-profile-row" style="display: none;">
+                        <span class="event-detail-label">Verified Author:</span>
+                        <span class="event-detail-value link view-author-profile-link">View Author Profile →</span>
                     </div>
                 </div>
                 ` : ''}
@@ -1660,6 +1664,17 @@ class Shirushi {
                 statusText.textContent = 'Valid';
                 signatureSection.classList.add('signature-valid');
                 signatureValue.classList.add('signature-verified');
+
+                // Show the View Author Profile link
+                const viewAuthorRow = signatureSection.querySelector('.view-author-profile-row');
+                if (viewAuthorRow) {
+                    viewAuthorRow.style.display = '';
+                    const pubkey = signatureSection.dataset.pubkey;
+                    viewAuthorRow.onclick = () => {
+                        this.exploreProfileByPubkey(pubkey);
+                        this.closeModal();
+                    };
+                }
             } else {
                 statusSpan.setAttribute('data-status', 'invalid');
                 statusIcon.textContent = '✗';
