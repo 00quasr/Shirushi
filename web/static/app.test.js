@@ -9757,6 +9757,309 @@
         });
     });
 
+    // ===== Sign & Publish Button Tests =====
+    describe('Sign & Publish Button', function() {
+        let container;
+        let appInstance;
+
+        function createSignPublishTestApp() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <select id="publish-kind" class="form-select">
+                        <option value="1">1 - Short Text Note</option>
+                        <option value="0">0 - Metadata</option>
+                        <option value="custom">Custom Kind...</option>
+                    </select>
+                    <input type="number" id="publish-custom-kind" class="form-input hidden" placeholder="Enter custom kind number" min="0">
+                    <textarea id="publish-content" class="form-textarea"></textarea>
+                    <span id="content-char-count">0</span>
+                    <div id="tag-builder-rows"></div>
+                    <button id="add-tag-row-btn" class="btn small">+ Add Tag</button>
+                    <input type="radio" name="signing-method" value="extension" id="sign-extension">
+                    <input type="radio" name="signing-method" value="nsec" id="sign-nsec" checked>
+                    <div id="nsec-input-group">
+                        <input type="password" id="publish-nsec" class="form-input">
+                        <button id="toggle-publish-nsec" class="btn">Show</button>
+                    </div>
+                    <div id="publish-relay-list"></div>
+                    <button id="preview-event-btn" class="btn">Preview Event</button>
+                    <button id="sign-only-btn" class="btn">Sign Only</button>
+                    <button id="sign-publish-btn" class="btn primary">Sign & Publish</button>
+                    <div id="event-preview" class="event-preview"></div>
+                    <div id="signed-event-preview" class="signed-event-preview"></div>
+                    <div id="publish-history" class="publish-history"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            appInstance = new Shirushi();
+            appInstance.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true }
+            ];
+            return appInstance;
+        }
+
+        function cleanupSignPublishTest() {
+            if (container && container.parentNode) {
+                document.body.removeChild(container);
+            }
+            restoreFetch();
+        }
+
+        it('should have sign-only-btn element', function() {
+            const app = createSignPublishTestApp();
+
+            const signOnlyBtn = container.querySelector('#sign-only-btn');
+            assertDefined(signOnlyBtn, 'Sign Only button should exist');
+            assertEqual(signOnlyBtn.textContent, 'Sign Only', 'Button should have correct text');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have sign-publish-btn element', function() {
+            const app = createSignPublishTestApp();
+
+            const signPublishBtn = container.querySelector('#sign-publish-btn');
+            assertDefined(signPublishBtn, 'Sign & Publish button should exist');
+            assertEqual(signPublishBtn.textContent, 'Sign & Publish', 'Button should have correct text');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have signed-event-preview element', function() {
+            const app = createSignPublishTestApp();
+
+            const signedEventPreview = container.querySelector('#signed-event-preview');
+            assertDefined(signedEventPreview, 'Signed event preview section should exist');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have signOnlyEvent method', function() {
+            const app = createSignPublishTestApp();
+
+            assertDefined(app.signOnlyEvent, 'signOnlyEvent method should be defined');
+            assertEqual(typeof app.signOnlyEvent, 'function', 'signOnlyEvent should be a function');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have signAndPublishEvent method', function() {
+            const app = createSignPublishTestApp();
+
+            assertDefined(app.signAndPublishEvent, 'signAndPublishEvent method should be defined');
+            assertEqual(typeof app.signAndPublishEvent, 'function', 'signAndPublishEvent should be a function');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have displaySignedEvent method', function() {
+            const app = createSignPublishTestApp();
+
+            assertDefined(app.displaySignedEvent, 'displaySignedEvent method should be defined');
+            assertEqual(typeof app.displaySignedEvent, 'function', 'displaySignedEvent should be a function');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should display signed event in preview panel', function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'abc123def456abc123def456abc123def456abc123def456abc123def456abc123',
+                pubkey: 'pub123pub456pub123pub456pub123pub456pub123pub456pub123pub456pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['t', 'nostr']],
+                content: 'Hello, Nostr!',
+                sig: 'sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456'
+            };
+
+            app.displaySignedEvent(mockSignedEvent);
+
+            const signedEventPreview = container.querySelector('#signed-event-preview');
+            assertTrue(signedEventPreview.innerHTML.includes('Signed'), 'Should display Signed badge');
+            assertTrue(signedEventPreview.innerHTML.includes('abc123def456'), 'Should display event ID');
+            assertTrue(signedEventPreview.innerHTML.includes('pub123pub456'), 'Should display pubkey');
+            assertTrue(signedEventPreview.innerHTML.includes('sig123sig456'), 'Should display signature (truncated)');
+            assertTrue(signedEventPreview.innerHTML.includes('Copy JSON'), 'Should have copy button');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should show error toast when signing without nsec', async function() {
+            const app = createSignPublishTestApp();
+
+            // Select nsec method but leave it empty
+            const nsecRadio = container.querySelector('#sign-nsec');
+            nsecRadio.checked = true;
+            const nsecInput = container.querySelector('#publish-nsec');
+            nsecInput.value = '';
+
+            // Try to sign
+            await app.signOnlyEvent();
+
+            // Check that toast was shown
+            const toastContainer = container.querySelector('#toast-container');
+            assertTrue(toastContainer.innerHTML.includes('Missing Private Key') ||
+                       toastContainer.innerHTML.includes('error'),
+                       'Should show error toast for missing nsec');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should show error toast when publishing without relays selected', async function() {
+            const app = createSignPublishTestApp();
+
+            // Load relays but select none
+            app.loadPublishRelays();
+            app.selectNoRelays();
+
+            // Set nsec input
+            const nsecInput = container.querySelector('#publish-nsec');
+            nsecInput.value = 'nsec1test';
+
+            // Try to sign and publish
+            await app.signAndPublishEvent();
+
+            // Check that toast was shown
+            const toastContainer = container.querySelector('#toast-container');
+            assertTrue(toastContainer.innerHTML.includes('No Relays Selected') ||
+                       toastContainer.innerHTML.includes('error'),
+                       'Should show error toast for no relays');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should store last signed event after signing', async function() {
+            const app = createSignPublishTestApp();
+
+            // Setup mock for successful signing
+            const mockSignedEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test content',
+                sig: 'signature123'
+            };
+
+            setMockFetch({ ok: true, data: mockSignedEvent });
+
+            // Set nsec input
+            const nsecRadio = container.querySelector('#sign-nsec');
+            nsecRadio.checked = true;
+            const nsecInput = container.querySelector('#publish-nsec');
+            nsecInput.value = 'nsec1validkey';
+
+            // Set content
+            const contentTextarea = container.querySelector('#publish-content');
+            contentTextarea.value = 'Test content';
+
+            // Sign only
+            await app.signOnlyEvent();
+
+            // Check that signed event was stored
+            assertDefined(app.lastSignedEvent, 'lastSignedEvent should be set after signing');
+            assertEqual(app.lastSignedEvent.id, 'test123', 'lastSignedEvent should have correct id');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should call correct API endpoint when signing with nsec', async function() {
+            const app = createSignPublishTestApp();
+
+            // Setup mock
+            setMockFetch({ ok: true, data: { id: 'test', pubkey: 'pub', sig: 'sig', kind: 1, content: 'Test', tags: [], created_at: 123 } });
+
+            // Set nsec input
+            const nsecRadio = container.querySelector('#sign-nsec');
+            nsecRadio.checked = true;
+            const nsecInput = container.querySelector('#publish-nsec');
+            nsecInput.value = 'nsec1test';
+
+            // Set content
+            const contentTextarea = container.querySelector('#publish-content');
+            contentTextarea.value = 'Test content';
+
+            // Sign
+            await app.signOnlyEvent();
+
+            // Check that correct endpoint was called
+            assertEqual(lastFetchUrl, '/api/events/sign', 'Should call /api/events/sign endpoint');
+            const requestBody = JSON.parse(lastFetchOptions.body);
+            assertEqual(requestBody.kind, 1, 'Request should include kind');
+            assertEqual(requestBody.content, 'Test content', 'Request should include content');
+            assertEqual(requestBody.privateKey, 'nsec1test', 'Request should include privateKey');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should include tags in sign request', async function() {
+            const app = createSignPublishTestApp();
+
+            // Setup mock
+            setMockFetch({ ok: true, data: { id: 'test', pubkey: 'pub', sig: 'sig', kind: 1, content: 'Test', tags: [], created_at: 123 } });
+
+            // Set nsec input
+            const nsecRadio = container.querySelector('#sign-nsec');
+            nsecRadio.checked = true;
+            const nsecInput = container.querySelector('#publish-nsec');
+            nsecInput.value = 'nsec1test';
+
+            // Set content
+            const contentTextarea = container.querySelector('#publish-content');
+            contentTextarea.value = 'Test content';
+
+            // Add tags
+            app.publishTags = [['t', 'nostr'], ['p', 'somepubkey']];
+
+            // Sign
+            await app.signOnlyEvent();
+
+            // Check request includes tags
+            const requestBody = JSON.parse(lastFetchOptions.body);
+            assertEqual(requestBody.tags.length, 2, 'Request should include 2 tags');
+            assertEqual(requestBody.tags[0][0], 't', 'First tag should be t');
+            assertEqual(requestBody.tags[1][0], 'p', 'Second tag should be p');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should display signed event JSON with proper formatting', function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'eventid123',
+                pubkey: 'pubkey456',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['t', 'test']],
+                content: 'Hello world',
+                sig: 'signature789'
+            };
+
+            app.displaySignedEvent(mockSignedEvent);
+
+            const signedEventPreview = container.querySelector('#signed-event-preview');
+            const jsonPre = signedEventPreview.querySelector('.signed-event-json');
+            assertDefined(jsonPre, 'Should have JSON pre element');
+
+            const jsonContent = jsonPre.textContent;
+            assertTrue(jsonContent.includes('eventid123'), 'JSON should include event id');
+            assertTrue(jsonContent.includes('pubkey456'), 'JSON should include pubkey');
+            assertTrue(jsonContent.includes('Hello world'), 'JSON should include content');
+
+            cleanupSignPublishTest();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

@@ -1477,16 +1477,21 @@ class Shirushi {
             });
         }
 
-        // Preview and publish buttons
+        // Preview, sign only, and sign & publish buttons
         const previewBtn = document.getElementById('preview-event-btn');
-        const publishBtn = document.getElementById('publish-event-btn');
+        const signOnlyBtn = document.getElementById('sign-only-btn');
+        const signPublishBtn = document.getElementById('sign-publish-btn');
 
         if (previewBtn) {
             previewBtn.addEventListener('click', () => this.updateEventPreview());
         }
 
-        if (publishBtn) {
-            publishBtn.addEventListener('click', () => this.publishEvent());
+        if (signOnlyBtn) {
+            signOnlyBtn.addEventListener('click', () => this.signOnlyEvent());
+        }
+
+        if (signPublishBtn) {
+            signPublishBtn.addEventListener('click', () => this.signAndPublishEvent());
         }
 
         // Update extension status in signing options
@@ -1782,18 +1787,11 @@ class Shirushi {
         return Array.from(checkboxes).map(cb => cb.value);
     }
 
-    async publishEvent() {
-        const publishBtn = document.getElementById('publish-event-btn');
+    async signOnlyEvent() {
+        const signOnlyBtn = document.getElementById('sign-only-btn');
         const kind = this.getPublishEventKind();
         const content = document.getElementById('publish-content').value;
         const tags = this.publishTags;
-        const selectedRelays = this.getSelectedPublishRelays();
-
-        // Validate
-        if (selectedRelays.length === 0) {
-            this.toastError('No Relays Selected', 'Please select at least one relay to publish to');
-            return;
-        }
 
         // Get signing method
         const useExtension = document.getElementById('sign-extension').checked;
@@ -1805,7 +1803,7 @@ class Shirushi {
             return;
         }
 
-        await this.withLoading('publish-event', async () => {
+        await this.withLoading('sign-only', async () => {
             let signedEvent;
 
             if (useExtension) {
@@ -1842,6 +1840,127 @@ class Shirushi {
 
                 signedEvent = await signResponse.json();
             }
+
+            // Store the signed event for potential publishing
+            this.lastSignedEvent = signedEvent;
+
+            // Display signed event in the preview panel
+            this.displaySignedEvent(signedEvent);
+
+            this.toastSuccess('Event Signed', 'Event signed successfully. You can now publish it.');
+        }, {
+            button: signOnlyBtn,
+            buttonText: 'Signing...',
+            showErrorToast: true
+        });
+    }
+
+    displaySignedEvent(event) {
+        const signedEventPreview = document.getElementById('signed-event-preview');
+        if (!signedEventPreview) return;
+
+        const eventJson = JSON.stringify(event, null, 2);
+
+        signedEventPreview.innerHTML = `
+            <div class="signed-event-content">
+                <div class="signed-event-header">
+                    <span class="signed-badge">Signed</span>
+                    <button class="btn small copy-signed-event" title="Copy to clipboard">Copy JSON</button>
+                </div>
+                <div class="signed-event-details">
+                    <div class="detail-row">
+                        <span class="label">Event ID:</span>
+                        <span class="value mono">${event.id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Pubkey:</span>
+                        <span class="value mono">${event.pubkey}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Signature:</span>
+                        <span class="value mono">${event.sig.slice(0, 32)}...</span>
+                    </div>
+                </div>
+                <pre class="signed-event-json">${this.escapeHtml(eventJson)}</pre>
+            </div>
+        `;
+
+        // Add copy handler
+        const copyBtn = signedEventPreview.querySelector('.copy-signed-event');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(eventJson).then(() => {
+                    this.toastSuccess('Copied', 'Signed event JSON copied to clipboard');
+                }).catch(() => {
+                    this.toastError('Copy Failed', 'Failed to copy to clipboard');
+                });
+            });
+        }
+    }
+
+    async signAndPublishEvent() {
+        const signPublishBtn = document.getElementById('sign-publish-btn');
+        const kind = this.getPublishEventKind();
+        const content = document.getElementById('publish-content').value;
+        const tags = this.publishTags;
+        const selectedRelays = this.getSelectedPublishRelays();
+
+        // Validate
+        if (selectedRelays.length === 0) {
+            this.toastError('No Relays Selected', 'Please select at least one relay to publish to');
+            return;
+        }
+
+        // Get signing method
+        const useExtension = document.getElementById('sign-extension').checked;
+        const nsecInput = document.getElementById('publish-nsec');
+
+        if (!useExtension && !nsecInput.value.trim()) {
+            this.toastError('Missing Private Key', 'Please enter your nsec private key');
+            nsecInput.focus();
+            return;
+        }
+
+        await this.withLoading('sign-publish', async () => {
+            let signedEvent;
+
+            if (useExtension) {
+                // Sign with NIP-07 extension
+                const unsignedEvent = {
+                    kind: kind,
+                    content: content,
+                    tags: tags,
+                    created_at: Math.floor(Date.now() / 1000)
+                };
+
+                const signResult = await this.signWithExtension(unsignedEvent);
+                if (!signResult.success) {
+                    throw new Error(signResult.error || 'Failed to sign with extension');
+                }
+                signedEvent = signResult.event;
+            } else {
+                // Sign with provided nsec via backend
+                const signResponse = await fetch('/api/events/sign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        kind: kind,
+                        content: content,
+                        tags: tags,
+                        privateKey: nsecInput.value.trim()
+                    })
+                });
+
+                if (!signResponse.ok) {
+                    const error = await signResponse.json();
+                    throw new Error(error.error || 'Failed to sign event');
+                }
+
+                signedEvent = await signResponse.json();
+            }
+
+            // Display signed event
+            this.displaySignedEvent(signedEvent);
 
             // Publish to selected relays
             const publishResults = [];
@@ -1885,16 +2004,16 @@ class Shirushi {
                 this.updateEventPreview();
 
                 if (failCount === 0) {
-                    this.toastSuccess('Event Published', `Successfully published to ${successCount} relay${successCount > 1 ? 's' : ''}`);
+                    this.toastSuccess('Event Published', `Successfully signed and published to ${successCount} relay${successCount > 1 ? 's' : ''}`);
                 } else {
-                    this.toastWarning('Partially Published', `Published to ${successCount} relay(s), failed on ${failCount}`);
+                    this.toastWarning('Partially Published', `Signed and published to ${successCount} relay(s), failed on ${failCount}`);
                 }
             } else {
                 throw new Error('Failed to publish to any relay');
             }
         }, {
-            button: publishBtn,
-            buttonText: 'Publishing...',
+            button: signPublishBtn,
+            buttonText: 'Signing & Publishing...',
             showErrorToast: true
         });
     }

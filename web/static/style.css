@@ -2147,6 +2147,94 @@ main {
     color: var(--error);
 }
 
+/* Signed Event Preview */
+.signed-event-preview {
+    padding: 16px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.signed-event-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.signed-event-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.signed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--success);
+    color: var(--bg-0);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+}
+
+.signed-badge::before {
+    content: '\2713';
+}
+
+.signed-event-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.signed-event-details .detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.signed-event-details .label {
+    color: var(--text-3);
+    min-width: 70px;
+}
+
+.signed-event-details .value {
+    color: var(--text-1);
+    word-break: break-all;
+}
+
+.signed-event-details .value.mono {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+}
+
+.signed-event-json {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-1);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.copy-signed-event {
+    font-size: 11px;
+}
+
 /* Publish Tab Responsive */
 @media (max-width: 900px) {
     .publish-layout {
