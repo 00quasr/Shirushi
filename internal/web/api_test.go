@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -5263,5 +5264,132 @@ func TestHandleEventsAggregate_WithFilters(t *testing.T) {
 
 	if response.TotalEvents != 50 {
 		t.Errorf("expected total_events 50, got %d", response.TotalEvents)
+	}
+}
+
+// mockTestRunner is a mock implementation of TestRunner for testing.
+type mockTestRunner struct {
+	result *types.TestResult
+	err    error
+}
+
+func (m *mockTestRunner) RunTest(ctx context.Context, nipID string, params map[string]interface{}) (*types.TestResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &types.TestResult{
+		NIPID:   nipID,
+		Success: true,
+		Steps:   []types.TestStep{},
+	}, nil
+}
+
+func TestHandleTest_InvalidJSON(t *testing.T) {
+	runner := &mockTestRunner{
+		result: &types.TestResult{
+			NIPID:   "nip01",
+			Success: true,
+			Steps:   []types.TestStep{},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, nil, runner)
+
+	// Send invalid JSON
+	req := httptest.NewRequest(http.MethodPost, "/api/test/nip01", strings.NewReader("{invalid json}"))
+	w := httptest.NewRecorder()
+
+	api.HandleTest(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var response map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(response["error"], "invalid JSON body") {
+		t.Errorf("expected error to contain 'invalid JSON body', got %q", response["error"])
+	}
+}
+
+func TestHandleTest_EmptyBody(t *testing.T) {
+	runner := &mockTestRunner{
+		result: &types.TestResult{
+			NIPID:   "nip01",
+			Success: true,
+			Steps:   []types.TestStep{},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, nil, runner)
+
+	// Send empty body (should still work - params will be nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/test/nip01", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTest(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d: %s", http.StatusOK, w.Code, w.Body.String())
+	}
+}
+
+func TestHandleTest_ValidJSON(t *testing.T) {
+	runner := &mockTestRunner{
+		result: &types.TestResult{
+			NIPID:   "nip01",
+			Success: true,
+			Steps:   []types.TestStep{},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, nil, runner)
+
+	// Send valid JSON
+	req := httptest.NewRequest(http.MethodPost, "/api/test/nip01", strings.NewReader(`{"key": "value"}`))
+	w := httptest.NewRecorder()
+
+	api.HandleTest(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d: %s", http.StatusOK, w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response["result"] == nil {
+		t.Error("expected result in response")
+	}
+}
+
+func TestHandleTest_MethodNotAllowed(t *testing.T) {
+	api := NewAPI(&config.Config{}, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/test/nip01", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTest(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleTest_MissingNIPID(t *testing.T) {
+	api := NewAPI(&config.Config{}, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/test/", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleTest(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }

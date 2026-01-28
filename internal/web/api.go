@@ -534,7 +534,10 @@ func (a *API) HandleTest(w http.ResponseWriter, r *http.Request) {
 
 	// Parse test parameters from body
 	var params map[string]interface{}
-	json.NewDecoder(r.Body).Decode(&params)
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil && err.Error() != "EOF" {
+		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
+		return
+	}
 
 	// Run test
 	result, err := a.testRunner.RunTest(r.Context(), "nip"+nipID, params)
