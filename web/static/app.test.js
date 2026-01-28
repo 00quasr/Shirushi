@@ -1618,8 +1618,8 @@
             assertDefined(Shirushi.prototype.resizeAllCharts, 'resizeAllCharts method should exist');
         });
 
-        it('should have createLineChart method', () => {
-            assertDefined(Shirushi.prototype.createLineChart, 'createLineChart method should exist');
+        it('should not have createLineChart method (removed)', () => {
+            assertEqual(Shirushi.prototype.createLineChart, undefined, 'createLineChart method should not exist');
         });
 
         it('should have createBarChart method', () => {
@@ -1768,23 +1768,6 @@
             removeMockDOM(container);
         });
 
-        it('should create line chart with correct properties', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Test Label', 'test/sec');
-
-            assertEqual(chart.label, 'Test Label', 'Chart should have correct label');
-            assertEqual(chart.unit, 'test/sec', 'Chart should have correct unit');
-            assertEqual(chart.maxPoints, 60, 'Chart should have maxPoints of 60');
-            assertTrue(Array.isArray(chart.data), 'Chart data should be an array');
-
-            removeMockDOM(container);
-        });
-
         it('should create bar chart with correct properties', () => {
             container = createChartMockDOM();
 
@@ -1815,65 +1798,6 @@
             assertTrue(typeof chart.series === 'object', 'Chart series should be an object');
             assertTrue(Array.isArray(chart.colors), 'Chart should have colors array');
             assertEqual(chart.colors.length, 8, 'Chart should have 8 colors');
-
-            removeMockDOM(container);
-        });
-
-        it('should add point to line chart correctly', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.parentElement.style.width = '400px';
-            canvas.parentElement.style.height = '200px';
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Test', 'units');
-            chart.addPoint(5.5);
-
-            assertEqual(chart.data.length, 1, 'Chart should have 1 data point');
-            assertEqual(chart.data[0].value, 5.5, 'Data point should have correct value');
-            assertDefined(chart.data[0].timestamp, 'Data point should have timestamp');
-
-            removeMockDOM(container);
-        });
-
-        it('should limit line chart to maxPoints', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.parentElement.style.width = '400px';
-            canvas.parentElement.style.height = '200px';
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Test', 'units');
-
-            // Add more than maxPoints
-            for (let i = 0; i < 70; i++) {
-                chart.addPoint(i);
-            }
-
-            assertEqual(chart.data.length, 60, 'Chart should not exceed maxPoints');
-            assertEqual(chart.data[0].value, 10, 'Oldest points should be removed');
-
-            removeMockDOM(container);
-        });
-
-        it('should set data on line chart correctly', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.parentElement.style.width = '400px';
-            canvas.parentElement.style.height = '200px';
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Test', 'units');
-            const testData = [{ value: 1 }, { value: 2 }, { value: 3 }];
-            chart.setData(testData);
-
-            assertEqual(chart.data.length, 3, 'Chart should have 3 data points');
 
             removeMockDOM(container);
         });
@@ -2470,41 +2394,6 @@
             return el;
         }
 
-        it('should render line chart with data points', () => {
-            container = createChartRenderDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.width = 400;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Latency', 'ms');
-
-            // Add data points
-            chart.addPoint(5.0);
-            chart.addPoint(7.5);
-            chart.addPoint(10.0);
-
-            // Draw the chart
-            chart.draw();
-
-            // Verify canvas has been drawn to (check for non-empty ImageData)
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let hasContent = false;
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                // Check if any pixel has non-transparent content
-                if (imageData.data[i + 3] > 0) {
-                    hasContent = true;
-                    break;
-                }
-            }
-
-            assertTrue(hasContent, 'Line chart should render content to canvas');
-
-            removeMockDOM(container);
-        });
-
         it('should render bar chart with data', () => {
             container = createChartRenderDOM();
 
@@ -2576,66 +2465,6 @@
             removeMockDOM(container);
         });
 
-        it('should update line chart rendering when new data is added', () => {
-            container = createChartRenderDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.width = 400;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
-
-            // Initial draw with one point
-            chart.addPoint(5.0);
-            chart.draw();
-
-            // Get initial state
-            const initialImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const initialPixelSum = initialImageData.data.reduce((sum, val) => sum + val, 0);
-
-            // Add more data and redraw
-            chart.addPoint(10.0);
-            chart.addPoint(15.0);
-            chart.draw();
-
-            // Get updated state
-            const updatedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const updatedPixelSum = updatedImageData.data.reduce((sum, val) => sum + val, 0);
-
-            // The chart should have changed (different pixel values with more data)
-            assertTrue(updatedPixelSum !== initialPixelSum || chart.data.length === 3, 'Chart should update when new data is added');
-
-            removeMockDOM(container);
-        });
-
-        it('should clear canvas before redrawing', () => {
-            container = createChartRenderDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.width = 400;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
-
-            // Draw with initial data
-            chart.setData([{ value: 5, timestamp: Date.now() }]);
-            chart.draw();
-
-            // Draw with completely different data
-            chart.setData([{ value: 100, timestamp: Date.now() }]);
-            chart.draw();
-
-            // Chart should have redrawn cleanly without ghosting
-            assertEqual(chart.data.length, 1, 'Chart should have only the new data');
-            assertEqual(chart.data[0].value, 100, 'Chart should display the latest data');
-
-            removeMockDOM(container);
-        });
-
         it('should render latency bars with correct colors based on value', () => {
             container = createChartRenderDOM();
 
@@ -2686,82 +2515,6 @@
             removeMockDOM(container);
         });
 
-        it('should handle empty data gracefully when drawing', () => {
-            container = createChartRenderDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.width = 400;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
-
-            // Draw with no data
-            let errorThrown = false;
-            try {
-                chart.draw();
-            } catch (e) {
-                errorThrown = true;
-            }
-
-            assertFalse(errorThrown, 'Chart should handle empty data without error');
-
-            removeMockDOM(container);
-        });
-
-        it('should render grid lines on charts', () => {
-            container = createChartRenderDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.width = 400;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
-            chart.addPoint(5.0);
-            chart.draw();
-
-            // Canvas should have content (grid lines at minimum)
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let hasContent = false;
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                if (imageData.data[i + 3] > 0) {
-                    hasContent = true;
-                    break;
-                }
-            }
-
-            assertTrue(hasContent, 'Chart should render grid lines');
-
-            removeMockDOM(container);
-        });
-
-        it('should scale Y-axis based on data range', () => {
-            container = createChartRenderDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('latency-chart');
-            canvas.width = 400;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-
-            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
-
-            // Add data with varying values
-            chart.addPoint(10);
-            chart.addPoint(50);
-            chart.addPoint(100);
-
-            chart.draw();
-
-            // Verify the max value is tracked correctly
-            const maxValue = Math.max(...chart.data.map(d => d.value));
-            assertEqual(maxValue, 100, 'Chart should track max value correctly');
-
-            removeMockDOM(container);
-        });
     });
 
     // Avatar and Banner CSS Rules Tests
