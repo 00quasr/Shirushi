@@ -47,8 +47,10 @@ class Shirushi {
         // Event stream throttling
         this.eventBuffer = [];
         this.eventRenderScheduled = false;
-        this.maxEventsPerRender = 10;
-        this.eventRenderInterval = 100; // ms between renders
+        this.maxEventsPerRender = 5;
+        this.eventRenderInterval = 150; // ms between renders
+        this.maxBufferSize = 50; // Discard oldest events if buffer exceeds this
+        this.maxDisplayedEvents = 100;
 
         this.init();
     }
@@ -1024,9 +1026,6 @@ class Shirushi {
     }
 
     async loadEvents() {
-        // Show skeleton while loading
-        this.showSkeleton('event-list-skeleton');
-
         try {
             const kind = document.getElementById('filter-kind').value;
             const author = document.getElementById('filter-author').value;
@@ -1037,10 +1036,8 @@ class Shirushi {
 
             const response = await fetch(url);
             this.events = await response.json() || [];
-            this.hideSkeleton('event-list-skeleton');
             this.renderEvents();
         } catch (error) {
-            this.hideSkeleton('event-list-skeleton');
             console.error('Failed to load events:', error);
         }
     }
@@ -1055,6 +1052,11 @@ class Shirushi {
 
         // Add to buffer instead of rendering immediately
         this.eventBuffer.push(event);
+
+        // Discard oldest events if buffer is too large (prevent memory/lag issues)
+        if (this.eventBuffer.length > this.maxBufferSize) {
+            this.eventBuffer = this.eventBuffer.slice(-this.maxBufferSize);
+        }
 
         // Schedule a batched render if not already scheduled
         if (!this.eventRenderScheduled) {
@@ -1078,13 +1080,13 @@ class Shirushi {
             this.events.unshift(event);
         }
 
-        // Trim to 100 events max
-        if (this.events.length > 100) {
-            this.events.length = 100;
+        // Trim to max displayed events
+        if (this.events.length > this.maxDisplayedEvents) {
+            this.events.length = this.maxDisplayedEvents;
         }
 
-        // Render once for all buffered events
-        this.renderEvents();
+        // Use incremental DOM updates instead of full re-render
+        this.renderEventsIncremental(eventsToAdd);
 
         // Clear the _isNew flag after animation completes
         for (const event of eventsToAdd) {
@@ -1176,6 +1178,154 @@ class Shirushi {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.copyToClipboard(btn.dataset.tagCopy, btn, 'Copy');
+            });
+        });
+    }
+
+    /**
+     * Render events incrementally - only add new events to the DOM
+     * This is much faster than re-rendering the entire list
+     * @param {Array} newEvents - Array of new events to prepend
+     */
+    renderEventsIncremental(newEvents) {
+        const container = document.getElementById('event-list');
+
+        // If no events yet, just do a full render
+        if (this.events.length === newEvents.length) {
+            this.renderEvents();
+            return;
+        }
+
+        // Remove the "no events" hint if present
+        const hint = container.querySelector('.hint');
+        if (hint) {
+            hint.remove();
+        }
+
+        // Create a document fragment for efficient DOM insertion
+        const fragment = document.createDocumentFragment();
+
+        // Create event cards for new events (in reverse order since we prepend)
+        for (let i = newEvents.length - 1; i >= 0; i--) {
+            const event = newEvents[i];
+            const card = this.createEventCard(event);
+            fragment.appendChild(card);
+        }
+
+        // Prepend all new cards at once
+        container.insertBefore(fragment, container.firstChild);
+
+        // Trim excess events from the DOM to match maxDisplayedEvents
+        while (container.children.length > this.maxDisplayedEvents) {
+            container.removeChild(container.lastChild);
+        }
+    }
+
+    /**
+     * Create a single event card DOM element
+     * @param {Object} event - The event data
+     * @returns {HTMLElement} - The event card element
+     */
+    createEventCard(event) {
+        const isZapEvent = event.kind === 9734 || event.kind === 9735;
+        const isNewZap = isZapEvent && event._isNew;
+
+        const card = document.createElement('div');
+        card.className = `event-card${isZapEvent ? ' zap-event' : ''}${isNewZap ? ' zap-new' : ''}`;
+
+        const kindLabel = isZapEvent
+            ? `${this.renderLightningBolt(isNewZap)} kind:${event.kind}`
+            : `kind:${event.kind}`;
+
+        card.innerHTML = `
+            <div class="event-header">
+                <span class="event-kind">${kindLabel}</span>
+                <span class="event-time">${this.formatTime(event.created_at)}</span>
+            </div>
+            <div class="event-id">
+                ID: ${event.id.substring(0, 16)}...
+                <button class="btn small copy-btn" data-copy-event-id="${event.id}" title="Copy full event ID">Copy</button>
+            </div>
+            <div class="event-author">
+                Author: ${event.pubkey.substring(0, 16)}...
+                <button class="btn small copy-btn" data-copy-author="${event.pubkey}" title="Copy author pubkey">Copy</button>
+            </div>
+            <div class="event-content">${this.escapeHtml(event.content.substring(0, 200))}${event.content.length > 200 ? '...' : ''}</div>
+            ${event.relay ? `<div class="event-relay">via ${this.escapeHtml(event.relay)}</div>` : ''}
+            ${this.renderTagsSection(event)}
+            <div class="event-actions">
+                <button class="btn small" data-action="details" data-event-id="${event.id}">View Details</button>
+                <button class="btn small" data-action="json" data-event-id="${event.id}">Raw JSON</button>
+                <button class="btn small" data-action="thread" data-event-id="${event.id}">View Thread</button>
+                <button class="btn small" data-action="profile" data-pubkey="${event.pubkey}">View Profile</button>
+            </div>
+        `;
+
+        // Attach event listeners directly to this card's elements
+        this.attachEventCardListeners(card);
+
+        return card;
+    }
+
+    /**
+     * Attach event listeners to a single event card
+     * @param {HTMLElement} card - The event card element
+     */
+    attachEventCardListeners(card) {
+        // Copy event ID
+        card.querySelectorAll('[data-copy-event-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.copyEventId, btn, 'Copy');
+            });
+        });
+
+        // Copy author pubkey
+        card.querySelectorAll('[data-copy-author]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.copyAuthor, btn, 'Copy');
+            });
+        });
+
+        // Tags toggle
+        card.querySelectorAll('[data-tags-toggle]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleTagsSection(btn.dataset.tagsToggle);
+            });
+        });
+
+        // Tag copy buttons
+        card.querySelectorAll('[data-tag-copy]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.tagCopy, btn, 'Copy');
+            });
+        });
+
+        // Action buttons
+        card.querySelectorAll('[data-action]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const eventId = btn.dataset.eventId;
+                const pubkey = btn.dataset.pubkey;
+
+                switch (action) {
+                    case 'details':
+                        this.showEventDetails(eventId);
+                        break;
+                    case 'json':
+                        this.showEventJson(eventId);
+                        break;
+                    case 'thread':
+                        this.showThreadViewer(eventId);
+                        break;
+                    case 'profile':
+                        this.exploreProfileByPubkey(pubkey);
+                        break;
+                }
             });
         });
     }
