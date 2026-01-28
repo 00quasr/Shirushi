@@ -204,19 +204,6 @@ Shirushi supports NIP-07 browser extensions for signing events with your own key
 
 When an extension is detected, you'll see a "Connected via Extension" badge in the header.
 
-## Demo Script
-
-When showing Shirushi to friends:
-
-1. **Open app** - Show real-time event stream flowing in
-2. **Profile Explorer** - Enter `_@fiatjaf.com`, show beautiful profile card
-3. **Explore follows** - Click a follow to navigate to their profile
-4. **Monitoring tab** - Show latency charts updating live
-5. **Run NIP-05 test** - Verify `_@fiatjaf.com` step by step
-6. **Generate keys** - Show keypair generation
-7. **Console** - Run raw nak commands
-8. **NIP-07** - (If they have an extension) Sign event with their own key
-
 ## License
 
 MIT
