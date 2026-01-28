@@ -26,15 +26,15 @@ type Hub struct {
 	unregister chan *Client
 	mu         sync.RWMutex
 
-	// Event rate limiting
-	eventBuffer     []types.Event
-	eventBufferMu   sync.Mutex
+	// Event rate limiting and deduplication
+	// eventMu protects eventBuffer and seenEventIDs
+	eventBuffer  []types.Event
+	seenEventIDs map[string]bool
+	eventMu      sync.Mutex
+
 	eventTicker     *time.Ticker
 	maxEventsPerSec int
 	stopChan        chan struct{}
-
-	// Event deduplication
-	seenEventIDs map[string]bool
 }
 
 // NewHub creates a new Hub.
@@ -119,9 +119,9 @@ func (h *Hub) Stop() {
 
 // flushEventBuffer sends buffered events as a batch to all clients.
 func (h *Hub) flushEventBuffer() {
-	h.eventBufferMu.Lock()
+	h.eventMu.Lock()
 	if len(h.eventBuffer) == 0 {
-		h.eventBufferMu.Unlock()
+		h.eventMu.Unlock()
 		return
 	}
 
@@ -138,7 +138,7 @@ func (h *Hub) flushEventBuffer() {
 	} else {
 		h.eventBuffer = h.eventBuffer[:0]
 	}
-	h.eventBufferMu.Unlock()
+	h.eventMu.Unlock()
 
 	// Send events as a batch message
 	if len(eventsToSend) > 0 {
@@ -206,8 +206,8 @@ func (h *Hub) Broadcast(msg Message) {
 // BroadcastEvent buffers an event for rate-limited broadcast to all clients.
 // Duplicate events (by ID) are ignored to prevent sending the same event multiple times.
 func (h *Hub) BroadcastEvent(event types.Event) {
-	h.eventBufferMu.Lock()
-	defer h.eventBufferMu.Unlock()
+	h.eventMu.Lock()
+	defer h.eventMu.Unlock()
 
 	// Deduplicate by event ID
 	if h.seenEventIDs[event.ID] {

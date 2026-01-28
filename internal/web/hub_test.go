@@ -107,9 +107,9 @@ func TestHub_BroadcastEvent_BuffersEvents(t *testing.T) {
 	}
 
 	// Check that events are buffered
-	hub.eventBufferMu.Lock()
+	hub.eventMu.Lock()
 	bufferLen := len(hub.eventBuffer)
-	hub.eventBufferMu.Unlock()
+	hub.eventMu.Unlock()
 
 	if bufferLen != 5 {
 		t.Errorf("expected 5 events in buffer, got %d", bufferLen)
@@ -133,9 +133,9 @@ func TestHub_BroadcastEvent_BufferLimit(t *testing.T) {
 	}
 
 	// Check that buffer is limited to 100
-	hub.eventBufferMu.Lock()
+	hub.eventMu.Lock()
 	bufferLen := len(hub.eventBuffer)
-	hub.eventBufferMu.Unlock()
+	hub.eventMu.Unlock()
 
 	if bufferLen > 100 {
 		t.Errorf("expected buffer to be limited to 100, got %d", bufferLen)
@@ -160,9 +160,9 @@ func TestHub_BroadcastEvent_Deduplication(t *testing.T) {
 	}
 
 	// Check that only one event is in the buffer (duplicates ignored)
-	hub.eventBufferMu.Lock()
+	hub.eventMu.Lock()
 	bufferLen := len(hub.eventBuffer)
-	hub.eventBufferMu.Unlock()
+	hub.eventMu.Unlock()
 
 	if bufferLen != 1 {
 		t.Errorf("expected 1 event in buffer (duplicates ignored), got %d", bufferLen)
@@ -186,9 +186,9 @@ func TestHub_BroadcastEvent_DeduplicationWithDifferentEvents(t *testing.T) {
 	}
 
 	// Check that only 3 unique events are in the buffer
-	hub.eventBufferMu.Lock()
+	hub.eventMu.Lock()
 	bufferLen := len(hub.eventBuffer)
-	hub.eventBufferMu.Unlock()
+	hub.eventMu.Unlock()
 
 	if bufferLen != 3 {
 		t.Errorf("expected 3 events in buffer (duplicates ignored), got %d", bufferLen)
@@ -211,9 +211,9 @@ func TestHub_BroadcastEvent_SeenEventIDsMapCleanup(t *testing.T) {
 	}
 
 	// The seenEventIDs map should have been cleaned up
-	hub.eventBufferMu.Lock()
+	hub.eventMu.Lock()
 	seenCount := len(hub.seenEventIDs)
-	hub.eventBufferMu.Unlock()
+	hub.eventMu.Unlock()
 
 	// After cleanup, seenEventIDs should contain IDs from the buffer plus recent additions
 	// The exact number depends on timing, but should be reasonable
@@ -268,9 +268,9 @@ func TestHub_FlushEventBuffer_SendsBatch(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Buffer should be empty after flush
-	hub.eventBufferMu.Lock()
+	hub.eventMu.Lock()
 	bufferLen := len(hub.eventBuffer)
-	hub.eventBufferMu.Unlock()
+	hub.eventMu.Unlock()
 
 	if bufferLen != 0 {
 		t.Errorf("expected buffer to be empty after flush, got %d", bufferLen)
@@ -1400,5 +1400,152 @@ func TestGetNIPList_ExampleEventsJSONSerialization(t *testing.T) {
 			}
 			break
 		}
+	}
+}
+
+func TestHub_SeenEventIDs_ConcurrentAccess(t *testing.T) {
+	// This test verifies that concurrent access to seenEventIDs is thread-safe.
+	// Multiple goroutines broadcast events simultaneously, which should not cause
+	// a data race when accessing the seenEventIDs map.
+	hub := NewHub()
+
+	// Start the hub
+	go hub.Run()
+	defer hub.Stop()
+
+	// Give the hub time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Run multiple goroutines that broadcast events concurrently
+	const numGoroutines = 10
+	const numEvents = 100
+	done := make(chan bool, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		go func(gid int) {
+			for i := 0; i < numEvents; i++ {
+				event := types.Event{
+					ID:        "event-" + string(rune('a'+gid)) + "-" + string(rune('0'+i%10)),
+					Kind:      1,
+					PubKey:    "abc123",
+					Content:   "test content",
+					CreatedAt: 1700000000,
+				}
+				hub.BroadcastEvent(event)
+			}
+			done <- true
+		}(g)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < numGoroutines; i++ {
+		select {
+		case <-done:
+			// Success
+		case <-time.After(5 * time.Second):
+			t.Errorf("goroutine %d did not complete within timeout", i)
+		}
+	}
+}
+
+func TestHub_SeenEventIDs_ConcurrentWithFlush(t *testing.T) {
+	// This test verifies that concurrent event broadcasting and buffer flushing
+	// do not cause race conditions with seenEventIDs.
+	hub := NewHub()
+
+	// Start the hub (which runs flushEventBuffer periodically)
+	go hub.Run()
+	defer hub.Stop()
+
+	// Give the hub time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Broadcast events from multiple goroutines while flush is running
+	const numGoroutines = 5
+	const numEvents = 50
+	done := make(chan bool, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		go func(gid int) {
+			for i := 0; i < numEvents; i++ {
+				event := types.Event{
+					ID:        "flush-test-" + string(rune('a'+gid)) + string(rune('0'+i%10)),
+					Kind:      1,
+					PubKey:    "abc123",
+					Content:   "test content",
+					CreatedAt: 1700000000,
+				}
+				hub.BroadcastEvent(event)
+				// Small sleep to allow flush to interleave
+				time.Sleep(1 * time.Millisecond)
+			}
+			done <- true
+		}(g)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < numGoroutines; i++ {
+		select {
+		case <-done:
+			// Success
+		case <-time.After(10 * time.Second):
+			t.Errorf("goroutine %d did not complete within timeout", i)
+		}
+	}
+}
+
+func TestHub_SeenEventIDs_MapCleanupConcurrent(t *testing.T) {
+	// This test verifies that the seenEventIDs map cleanup (when it exceeds
+	// maxSeenEvents) is thread-safe when multiple goroutines are adding events.
+	hub := NewHub()
+
+	// Start the hub
+	go hub.Run()
+	defer hub.Stop()
+
+	// Give the hub time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Add enough events to trigger map cleanup (maxSeenEvents = 1000)
+	// Using multiple goroutines to stress test concurrent access during cleanup
+	const numGoroutines = 5
+	const eventsPerGoroutine = 250 // Total 1250 > 1000 to trigger cleanup
+	done := make(chan bool, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		go func(gid int) {
+			for i := 0; i < eventsPerGoroutine; i++ {
+				// Each goroutine produces unique event IDs
+				event := types.Event{
+					ID:        "cleanup-" + string(rune('A'+gid)) + "-" + string(rune(i/100+'0')) + string(rune((i/10)%10+'0')) + string(rune(i%10+'0')),
+					Kind:      1,
+					PubKey:    "abc123",
+					Content:   "test content",
+					CreatedAt: 1700000000,
+				}
+				hub.BroadcastEvent(event)
+			}
+			done <- true
+		}(g)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < numGoroutines; i++ {
+		select {
+		case <-done:
+			// Success
+		case <-time.After(10 * time.Second):
+			t.Errorf("goroutine %d did not complete within timeout", i)
+		}
+	}
+
+	// Verify seenEventIDs map is in a valid state
+	hub.eventMu.Lock()
+	seenCount := len(hub.seenEventIDs)
+	hub.eventMu.Unlock()
+
+	// After cleanup, the map size should be reasonable
+	if seenCount > 1500 {
+		t.Errorf("expected seenEventIDs to be cleaned up, got %d entries", seenCount)
 	}
 }
