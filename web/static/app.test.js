@@ -9548,6 +9548,190 @@
         });
     });
 
+    // ========================================
+    // Relay Meta Display Tests
+    // ========================================
+
+    describe('Relay Meta Display (name, description, pubkey, contact)', () => {
+        it('should have renderRelayMeta method', () => {
+            assertDefined(Shirushi.prototype.renderRelayMeta, 'renderRelayMeta method should exist');
+        });
+
+        it('should return empty string when no relay info', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({ url: 'wss://relay.example.com' });
+            assertEqual(result, '', 'Should return empty string when no relay_info');
+        });
+
+        it('should return empty string when relay info is empty', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({ url: 'wss://relay.example.com', relay_info: {} });
+            assertEqual(result, '', 'Should return empty string when relay_info is empty');
+        });
+
+        it('should render relay name when available', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: { name: 'Test Relay' }
+            });
+
+            assertTrue(result.includes('relay-meta-name'), 'Should include relay-meta-name class');
+            assertTrue(result.includes('Test Relay'), 'Should include relay name');
+        });
+
+        it('should render relay description when available', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: { description: 'A test relay for development' }
+            });
+
+            assertTrue(result.includes('relay-meta-description'), 'Should include relay-meta-description class');
+            assertTrue(result.includes('A test relay for development'), 'Should include description');
+        });
+
+        it('should truncate long descriptions', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const longDescription = 'A'.repeat(200);
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: { description: longDescription }
+            });
+
+            assertTrue(result.includes('...'), 'Long description should be truncated');
+            assertFalse(result.includes(longDescription), 'Full long description should not be present');
+        });
+
+        it('should render pubkey when available', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: { pubkey: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' }
+            });
+
+            assertTrue(result.includes('relay-meta-operator'), 'Should include relay-meta-operator class');
+            assertTrue(result.includes('relay-meta-item'), 'Should include relay-meta-item class');
+            assertTrue(result.includes('1234567890ab'), 'Should include shortened pubkey');
+            assertTrue(result.includes('...'), 'Should show truncated pubkey indicator');
+        });
+
+        it('should render contact when available', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: { contact: 'admin@relay.example.com' }
+            });
+
+            assertTrue(result.includes('relay-meta-operator'), 'Should include relay-meta-operator class');
+            assertTrue(result.includes('admin@relay.example.com'), 'Should include contact');
+        });
+
+        it('should strip mailto: prefix from contact', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: { contact: 'mailto:admin@relay.example.com' }
+            });
+
+            assertTrue(result.includes('admin@relay.example.com'), 'Should include contact without mailto: prefix');
+            assertFalse(result.includes('>mailto:'), 'Should not include mailto: prefix in display');
+        });
+
+        it('should render all fields together', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: {
+                    name: 'Full Test Relay',
+                    description: 'A complete test relay',
+                    pubkey: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+                    contact: 'test@example.com'
+                }
+            });
+
+            assertTrue(result.includes('relay-meta'), 'Should include relay-meta wrapper');
+            assertTrue(result.includes('Full Test Relay'), 'Should include name');
+            assertTrue(result.includes('A complete test relay'), 'Should include description');
+            assertTrue(result.includes('abcdef123456'), 'Should include shortened pubkey');
+            assertTrue(result.includes('test@example.com'), 'Should include contact');
+        });
+
+        it('should render relay-meta section in renderRelays output', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                {
+                    url: 'wss://relay.example.com',
+                    connected: true,
+                    latency_ms: 50,
+                    relay_info: {
+                        name: 'Test Relay',
+                        description: 'A test relay',
+                        pubkey: '1234567890abcdef1234567890abcdef',
+                        contact: 'admin@test.com'
+                    }
+                }
+            ];
+            instance.escapeHtml = function(str) { return str; };
+            instance.renderRelayMeta = Shirushi.prototype.renderRelayMeta;
+            instance.renderSupportedNIPs = function() { return ''; };
+            instance.renderRelayInfoPanel = function() { return ''; };
+
+            // Create a container to render into
+            const container = document.createElement('div');
+            container.id = 'relay-list';
+            document.body.appendChild(container);
+
+            instance.renderRelays();
+
+            const relayCard = container.querySelector('.relay-card');
+            assertDefined(relayCard, 'Relay card should exist');
+
+            const relayMeta = container.querySelector('.relay-meta');
+            assertDefined(relayMeta, 'Relay meta section should exist');
+
+            const relayMetaName = container.querySelector('.relay-meta-name');
+            assertDefined(relayMetaName, 'Relay meta name should exist');
+            assertEqual(relayMetaName.textContent, 'Test Relay', 'Relay name should match');
+
+            // Clean up
+            document.body.removeChild(container);
+        });
+
+        it('should include operator icons in relay meta', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+
+            const result = instance.renderRelayMeta({
+                url: 'wss://relay.example.com',
+                relay_info: {
+                    pubkey: '1234567890abcdef',
+                    contact: 'admin@test.com'
+                }
+            });
+
+            assertTrue(result.includes('relay-meta-icon'), 'Should include relay-meta-icon class');
+        });
+    });
+
     describe('Command Reference Panel', () => {
         function getApp() {
             return window.app || app;

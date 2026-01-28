@@ -352,6 +352,57 @@ main {
     gap: 8px;
 }
 
+/* Relay metadata display (name, description, pubkey, contact) */
+.relay-meta {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: var(--bg-3);
+    border-radius: 6px;
+    border-left: 2px solid var(--accent);
+}
+
+.relay-meta-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-0);
+    margin-bottom: 4px;
+}
+
+.relay-meta-description {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+
+.relay-meta-operator {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-2);
+}
+
+.relay-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.relay-meta-icon {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.relay-meta-item code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    background: var(--bg-2);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+/* Legacy relay-name (kept for backwards compatibility) */
 .relay-name {
     font-size: 12px;
     color: var(--text-1);

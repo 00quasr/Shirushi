@@ -354,7 +354,7 @@ class Shirushi {
                         ${relay.connected ? 'Connected' : 'Disconnected'}
                     </span>
                 </div>
-                ${relay.relay_info?.name ? `<div class="relay-name">${this.escapeHtml(relay.relay_info.name)}</div>` : ''}
+                ${this.renderRelayMeta(relay)}
                 <div class="relay-stats">
                     <span>Latency: ${relay.latency_ms > 0 ? relay.latency_ms + 'ms' : 'N/A'}</span>
                 </div>
@@ -386,6 +386,50 @@ class Shirushi {
                 this.toggleRelayInfoPanel(url, btn);
             });
         });
+    }
+
+    renderRelayMeta(relay) {
+        const info = relay.relay_info;
+        if (!info) {
+            return '';
+        }
+
+        const parts = [];
+
+        // Relay name (displayed prominently)
+        if (info.name) {
+            parts.push(`<div class="relay-meta-name">${this.escapeHtml(info.name)}</div>`);
+        }
+
+        // Relay description (truncated if too long)
+        if (info.description) {
+            const truncatedDesc = info.description.length > 150
+                ? info.description.substring(0, 150) + '...'
+                : info.description;
+            parts.push(`<div class="relay-meta-description">${this.escapeHtml(truncatedDesc)}</div>`);
+        }
+
+        // Operator info (pubkey and contact in a row)
+        const operatorParts = [];
+        if (info.pubkey) {
+            const shortPubkey = info.pubkey.substring(0, 12) + '...';
+            operatorParts.push(`<span class="relay-meta-item" title="Operator pubkey: ${this.escapeHtml(info.pubkey)}"><span class="relay-meta-icon">&#128100;</span><code>${shortPubkey}</code></span>`);
+        }
+        if (info.contact) {
+            const contactDisplay = info.contact.startsWith('mailto:')
+                ? info.contact.substring(7)
+                : info.contact;
+            operatorParts.push(`<span class="relay-meta-item" title="Contact: ${this.escapeHtml(info.contact)}"><span class="relay-meta-icon">&#9993;</span>${this.escapeHtml(contactDisplay)}</span>`);
+        }
+        if (operatorParts.length > 0) {
+            parts.push(`<div class="relay-meta-operator">${operatorParts.join('')}</div>`);
+        }
+
+        if (parts.length === 0) {
+            return '';
+        }
+
+        return `<div class="relay-meta">${parts.join('')}</div>`;
     }
 
     renderSupportedNIPs(nips) {
