@@ -65,6 +65,7 @@ class Shirushi {
         this.setupToasts();
         this.setupModal();
         this.setupWebSocket();
+        this.setupEventDelegation(); // Setup delegated event handlers to prevent memory leaks
         this.setupTabs();
         this.setupRelays();
         this.setupExplorer();
@@ -77,6 +78,413 @@ class Shirushi {
         this.setupKeyboardShortcuts();
         this.loadInitialData();
         this.updateExtensionStatus();
+    }
+
+    /**
+     * Setup event delegation for dynamic content to prevent memory leaks.
+     * Instead of attaching listeners to individual elements on each render,
+     * we attach listeners to parent containers that delegate to children.
+     */
+    setupEventDelegation() {
+        // Relay list container delegation
+        const relayList = document.getElementById('relay-list');
+        if (relayList) {
+            relayList.addEventListener('click', (e) => this.handleRelayListClick(e));
+        }
+
+        // Profile notes container delegation
+        const profileNotes = document.getElementById('profile-notes-list');
+        if (profileNotes) {
+            profileNotes.addEventListener('click', (e) => this.handleProfileNotesClick(e));
+        }
+
+        // Profile following container delegation
+        const profileFollowing = document.getElementById('profile-following-list');
+        if (profileFollowing) {
+            profileFollowing.addEventListener('click', (e) => this.handleProfileFollowingClick(e));
+        }
+
+        // Profile zaps container delegation
+        const profileZaps = document.getElementById('profile-zaps-list');
+        if (profileZaps) {
+            profileZaps.addEventListener('click', (e) => this.handleProfileZapsClick(e));
+        }
+
+        // Event list container delegation
+        const eventList = document.getElementById('event-list');
+        if (eventList) {
+            eventList.addEventListener('click', (e) => this.handleEventListClick(e));
+        }
+
+        // Relay counts panel delegation
+        const relayCountsPanel = document.getElementById('relay-counts-panel');
+        if (relayCountsPanel) {
+            relayCountsPanel.addEventListener('click', (e) => this.handleRelayCountsClick(e));
+        }
+
+        // Aggregation panel delegation
+        const aggregationPanel = document.getElementById('aggregation-panel');
+        if (aggregationPanel) {
+            aggregationPanel.addEventListener('click', (e) => this.handleAggregationClick(e));
+        }
+
+        // NIP test list container delegation
+        const nipTestList = document.getElementById('nip-test-list');
+        if (nipTestList) {
+            nipTestList.addEventListener('click', (e) => this.handleNipTestListClick(e));
+        }
+
+        // Test form container delegation
+        const testForm = document.getElementById('test-form');
+        if (testForm) {
+            testForm.addEventListener('click', (e) => this.handleTestFormClick(e));
+        }
+
+        // Test history container delegation
+        const testHistory = document.getElementById('test-history-list');
+        if (testHistory) {
+            testHistory.addEventListener('click', (e) => this.handleTestHistoryClick(e));
+        }
+
+        // Modal body delegation (for dynamic modal content)
+        const modalBody = document.getElementById('modal-body');
+        if (modalBody) {
+            modalBody.addEventListener('click', (e) => this.handleModalBodyClick(e));
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the relay list
+     */
+    handleRelayListClick(e) {
+        const target = e.target;
+
+        // Copy relay URL button
+        const copyRelayBtn = target.closest('[data-copy-relay]');
+        if (copyRelayBtn) {
+            e.stopPropagation();
+            const url = copyRelayBtn.dataset.copyRelay;
+            this.copyToClipboard(url, copyRelayBtn, 'Copy URL');
+            return;
+        }
+
+        // Toggle relay info panel button
+        const toggleInfoBtn = target.closest('[data-toggle-info]');
+        if (toggleInfoBtn) {
+            e.stopPropagation();
+            const url = toggleInfoBtn.dataset.toggleInfo;
+            this.toggleRelayInfoPanel(url, toggleInfoBtn);
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in profile notes list
+     */
+    handleProfileNotesClick(e) {
+        const target = e.target;
+
+        // Copy note ID button
+        const copyNoteBtn = target.closest('[data-copy-note-id]');
+        if (copyNoteBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyNoteBtn.dataset.copyNoteId, copyNoteBtn, 'Copy ID');
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in profile following list
+     */
+    handleProfileFollowingClick(e) {
+        const target = e.target;
+
+        // Copy follow pubkey button
+        const copyFollowBtn = target.closest('[data-copy-follow-pubkey]');
+        if (copyFollowBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyFollowBtn.dataset.copyFollowPubkey, copyFollowBtn, 'Copy');
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in profile zaps list
+     */
+    handleProfileZapsClick(e) {
+        const target = e.target;
+
+        // Copy zap sender button
+        const copyZapBtn = target.closest('[data-copy-zap-sender]');
+        if (copyZapBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyZapBtn.dataset.copyZapSender, copyZapBtn, 'Copy');
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the event list
+     */
+    handleEventListClick(e) {
+        const target = e.target;
+
+        // Copy event ID button
+        const copyEventBtn = target.closest('[data-copy-event-id]');
+        if (copyEventBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyEventBtn.dataset.copyEventId, copyEventBtn, 'Copy');
+            return;
+        }
+
+        // Copy author pubkey button
+        const copyAuthorBtn = target.closest('[data-copy-author]');
+        if (copyAuthorBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyAuthorBtn.dataset.copyAuthor, copyAuthorBtn, 'Copy');
+            return;
+        }
+
+        // Tags toggle button
+        const tagsToggleBtn = target.closest('[data-tags-toggle]');
+        if (tagsToggleBtn) {
+            e.stopPropagation();
+            this.toggleTagsSection(tagsToggleBtn.dataset.tagsToggle);
+            return;
+        }
+
+        // Tag copy button
+        const tagCopyBtn = target.closest('[data-tag-copy]');
+        if (tagCopyBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(tagCopyBtn.dataset.tagCopy, tagCopyBtn, 'Copy');
+            return;
+        }
+
+        // Action buttons (View Details, Raw JSON, View Thread, View Profile)
+        const actionBtn = target.closest('[data-action]');
+        if (actionBtn) {
+            e.stopPropagation();
+            const action = actionBtn.dataset.action;
+            const eventId = actionBtn.dataset.eventId;
+            const pubkey = actionBtn.dataset.pubkey;
+
+            switch (action) {
+                case 'details':
+                    this.showEventDetails(eventId);
+                    break;
+                case 'json':
+                    this.showEventJson(eventId);
+                    break;
+                case 'thread':
+                    this.showThreadViewer(eventId);
+                    break;
+                case 'profile':
+                    this.exploreProfileByPubkey(pubkey);
+                    break;
+            }
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the relay counts panel
+     */
+    handleRelayCountsClick(e) {
+        const target = e.target;
+
+        // Copy relay URL button
+        const copyBtn = target.closest('[data-copy-relay-url]');
+        if (copyBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyBtn.dataset.copyRelayUrl, copyBtn, 'Copy');
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the aggregation panel
+     */
+    handleAggregationClick(e) {
+        const target = e.target;
+
+        // Copy author pubkey button
+        const copyAuthorBtn = target.closest('[data-copy-agg-author]');
+        if (copyAuthorBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyAuthorBtn.dataset.copyAggAuthor, copyAuthorBtn, 'Copy');
+            return;
+        }
+
+        // Copy relay URL button
+        const copyRelayBtn = target.closest('[data-copy-agg-relay]');
+        if (copyRelayBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyRelayBtn.dataset.copyAggRelay, copyRelayBtn, 'Copy');
+            return;
+        }
+
+        // Copy tag value button
+        const copyTagBtn = target.closest('[data-copy-agg-tag]');
+        if (copyTagBtn) {
+            e.stopPropagation();
+            this.copyToClipboard(copyTagBtn.dataset.copyAggTag, copyTagBtn, 'Copy');
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the NIP test list
+     */
+    handleNipTestListClick(e) {
+        const target = e.target;
+
+        // Expand button click
+        const expandBtn = target.closest('.nip-card-expand-btn');
+        if (expandBtn) {
+            e.stopPropagation();
+            const card = expandBtn.closest('.nip-card');
+            const nipId = card?.dataset.nip;
+            if (card && nipId) {
+                this.toggleNipCardExpanded(card, nipId);
+            }
+            return;
+        }
+
+        // Related NIP link click
+        const relatedLink = target.closest('.nip-card-related-link');
+        if (relatedLink) {
+            e.stopPropagation();
+            this.selectNip(relatedLink.dataset.nip);
+            return;
+        }
+
+        // NIP card header click (select NIP)
+        const header = target.closest('.nip-card-header');
+        if (header && !target.closest('.nip-card-expand-btn')) {
+            const card = header.closest('.nip-card');
+            const nipId = card?.dataset.nip;
+            if (nipId) {
+                this.selectNip(nipId);
+            }
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the test form
+     */
+    handleTestFormClick(e) {
+        const target = e.target;
+
+        // Related NIP link click
+        const relatedLink = target.closest('.related-nip-link');
+        if (relatedLink) {
+            e.stopPropagation();
+            this.selectNip(relatedLink.dataset.nip);
+            return;
+        }
+
+        // Example event copy button
+        const exampleCopyBtn = target.closest('.example-event .copy-btn[data-example-index]');
+        if (exampleCopyBtn) {
+            e.stopPropagation();
+            const index = parseInt(exampleCopyBtn.dataset.exampleIndex, 10);
+            const nip = this.nips.find(n => n.id === this.selectedNip);
+            if (nip && nip.exampleEvents && nip.exampleEvents[index]) {
+                navigator.clipboard.writeText(nip.exampleEvents[index].json).then(() => {
+                    exampleCopyBtn.textContent = 'Copied!';
+                    setTimeout(() => { exampleCopyBtn.textContent = 'Copy'; }, 2000);
+                }).catch(() => {
+                    this.toastError('Error', 'Failed to copy to clipboard');
+                });
+            }
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the test history list
+     */
+    handleTestHistoryClick(e) {
+        const target = e.target;
+
+        // Delete button click
+        const deleteBtn = target.closest('.history-delete-btn');
+        if (deleteBtn) {
+            e.stopPropagation();
+            this.deleteHistoryEntry(deleteBtn.dataset.id);
+            return;
+        }
+
+        // History entry click (show details)
+        const entry = target.closest('.history-entry');
+        if (entry && !target.classList.contains('history-delete-btn')) {
+            const entryId = entry.dataset.entryId;
+            const historyEntry = this.testHistory.find(h => h.id === entryId);
+            if (historyEntry) {
+                this.showTestResult(historyEntry.result);
+            }
+            return;
+        }
+    }
+
+    /**
+     * Handle delegated clicks in the modal body
+     */
+    handleModalBodyClick(e) {
+        const target = e.target;
+
+        // Copy field button in event details modal
+        const copyFieldBtn = target.closest('[data-copy-field]');
+        if (copyFieldBtn) {
+            e.stopPropagation();
+            const value = copyFieldBtn.dataset.copyField;
+            navigator.clipboard.writeText(value)
+                .then(() => this.toastSuccess('Copied', 'Value copied to clipboard'))
+                .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
+            return;
+        }
+
+        // Copy tag button in event details modal
+        const copyTagBtn = target.closest('[data-copy-tag]');
+        if (copyTagBtn) {
+            e.stopPropagation();
+            const value = copyTagBtn.dataset.copyTag;
+            navigator.clipboard.writeText(value)
+                .then(() => this.toastSuccess('Copied', 'Tag copied to clipboard'))
+                .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
+            return;
+        }
+
+        // Thread viewer: Raw JSON button
+        const threadJsonBtn = target.closest('[data-thread-json]');
+        if (threadJsonBtn) {
+            e.stopPropagation();
+            const eventId = threadJsonBtn.dataset.threadJson;
+            this.showThreadEventJson(eventId);
+            return;
+        }
+
+        // Thread viewer: View Profile button
+        const threadProfileBtn = target.closest('[data-thread-profile]');
+        if (threadProfileBtn) {
+            e.stopPropagation();
+            const pubkey = threadProfileBtn.dataset.threadProfile;
+            this.closeModal();
+            this.exploreProfileByPubkey(pubkey);
+            return;
+        }
+
+        // Thread viewer: Author link (pubkey click)
+        const pubkeyEl = target.closest('.thread-author[data-pubkey]');
+        if (pubkeyEl) {
+            e.stopPropagation();
+            const pubkey = pubkeyEl.dataset.pubkey;
+            this.closeModal();
+            this.exploreProfileByPubkey(pubkey);
+            return;
+        }
     }
 
     // WebSocket Connection
@@ -387,24 +795,7 @@ class Shirushi {
                 </div>
             </div>
         `).join('');
-
-        // Attach copy handlers to relay URL buttons
-        container.querySelectorAll('[data-copy-relay]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const url = btn.dataset.copyRelay;
-                this.copyToClipboard(url, btn, 'Copy URL');
-            });
-        });
-
-        // Attach info toggle button handlers
-        container.querySelectorAll('[data-toggle-info]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const url = btn.dataset.toggleInfo;
-                this.toggleRelayInfoPanel(url, btn);
-            });
-        });
+        // Event listeners handled via delegation in handleRelayListClick()
     }
 
     renderRelayMeta(relay) {
@@ -1197,14 +1588,7 @@ class Shirushi {
                     </div>
                 </div>
             `).join('');
-
-            // Add click handlers for copy buttons
-            container.querySelectorAll('[data-copy-note-id]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.copyToClipboard(btn.dataset.copyNoteId, btn, 'Copy ID');
-                });
-            });
+            // Event listeners handled via delegation in handleProfileNotesClick()
         } catch (error) {
             this.hideSkeleton('profile-notes-skeleton');
             container.innerHTML = `<p class="error">Failed to load notes: ${this.escapeHtml(error.message)}</p>`;
@@ -1258,14 +1642,7 @@ class Shirushi {
                     <button class="btn small copy-btn" data-copy-follow-pubkey="${follow.pubkey}" title="Copy pubkey">Copy</button>
                 </div>
             `).join('');
-
-            // Add click handlers for copy buttons
-            container.querySelectorAll('[data-copy-follow-pubkey]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.copyToClipboard(btn.dataset.copyFollowPubkey, btn, 'Copy');
-                });
-            });
+            // Event listeners handled via delegation in handleProfileFollowingClick()
         } catch (error) {
             this.hideSkeleton('profile-following-skeleton');
             container.innerHTML = `<p class="error">Failed to load following: ${this.escapeHtml(error.message)}</p>`;
@@ -1348,14 +1725,7 @@ class Shirushi {
                     ${zap.sender ? `<button class="btn small copy-btn" data-copy-zap-sender="${zap.sender}" title="Copy sender pubkey">Copy</button>` : ''}
                 </div>
             `).join('');
-
-            // Add click handlers for copy buttons
-            container.querySelectorAll('[data-copy-zap-sender]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.copyToClipboard(btn.dataset.copyZapSender, btn, 'Copy');
-                });
-            });
+            // Event listeners handled via delegation in handleProfileZapsClick()
 
             // Add glow animation after initial strike animation completes
             setTimeout(() => {
@@ -1749,14 +2119,7 @@ class Shirushi {
                 </div>
             `;
         }).join('');
-
-        // Add click handlers for copy buttons
-        content.querySelectorAll('[data-copy-relay-url]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.copyRelayUrl, btn, 'Copy');
-            });
-        });
+        // Event listeners handled via delegation in handleRelayCountsClick()
     }
 
     /**
@@ -1858,14 +2221,7 @@ class Shirushi {
                     <button class="btn small copy-btn" data-copy-agg-author="${a.pubkey}" title="Copy pubkey">Copy</button>
                 </div>
             `).join('');
-
-            // Add click handlers for author copy buttons
-            authorCountsEl.querySelectorAll('[data-copy-agg-author]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.copyToClipboard(btn.dataset.copyAggAuthor, btn, 'Copy');
-                });
-            });
+            // Event listeners handled via delegation in handleAggregationClick()
         } else {
             authorCountsEl.innerHTML = '<div class="agg-empty">No authors</div>';
         }
@@ -1889,14 +2245,7 @@ class Shirushi {
                     <button class="btn small copy-btn" data-copy-agg-relay="${this.escapeHtml(r.url)}" title="Copy relay URL">Copy</button>
                 </div>
             `}).join('');
-
-            // Add click handlers for relay copy buttons
-            relayCountsEl.querySelectorAll('[data-copy-agg-relay]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.copyToClipboard(btn.dataset.copyAggRelay, btn, 'Copy');
-                });
-            });
+            // Event listeners handled via delegation in handleAggregationClick()
         } else {
             relayCountsEl.innerHTML = '<div class="agg-empty">No relay data</div>';
         }
@@ -1954,14 +2303,7 @@ class Shirushi {
                     </div>
                 </div>
             `).join('');
-
-            // Add click handlers for tag copy buttons
-            tagCountsEl.querySelectorAll('[data-copy-agg-tag]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.copyToClipboard(btn.dataset.copyAggTag, btn, 'Copy');
-                });
-            });
+            // Event listeners handled via delegation in handleAggregationClick()
         } else {
             tagCountsEl.innerHTML = '<div class="agg-empty">No tag data</div>';
         }
@@ -2136,45 +2478,14 @@ class Shirushi {
                 ${event.relay ? `<div class="event-relay">via ${this.escapeHtml(event.relay)}</div>` : ''}
                 ${this.renderTagsSection(event)}
                 <div class="event-actions">
-                    <button class="btn small" onclick="app.showEventDetails('${event.id}')">View Details</button>
-                    <button class="btn small" onclick="app.showEventJson('${event.id}')">Raw JSON</button>
-                    <button class="btn small" onclick="app.showThreadViewer('${event.id}')">View Thread</button>
-                    <button class="btn small" onclick="app.exploreProfileByPubkey('${event.pubkey}')">View Profile</button>
+                    <button class="btn small" data-action="details" data-event-id="${event.id}">View Details</button>
+                    <button class="btn small" data-action="json" data-event-id="${event.id}">Raw JSON</button>
+                    <button class="btn small" data-action="thread" data-event-id="${event.id}">View Thread</button>
+                    <button class="btn small" data-action="profile" data-pubkey="${event.pubkey}">View Profile</button>
                 </div>
             </div>
         `}).join('');
-
-        // Attach copy handlers for event IDs
-        container.querySelectorAll('[data-copy-event-id]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.copyEventId, btn, 'Copy');
-            });
-        });
-
-        // Attach copy handlers for author pubkeys
-        container.querySelectorAll('[data-copy-author]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.copyAuthor, btn, 'Copy');
-            });
-        });
-
-        // Attach toggle handlers for collapsible tag sections
-        container.querySelectorAll('[data-tags-toggle]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleTagsSection(btn.dataset.tagsToggle);
-            });
-        });
-
-        // Attach copy handlers for individual tags
-        container.querySelectorAll('[data-tag-copy]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.tagCopy, btn, 'Copy');
-            });
-        });
+        // Event listeners handled via delegation in handleEventListClick()
     }
 
     /**
@@ -2255,74 +2566,9 @@ class Shirushi {
                 <button class="btn small" data-action="profile" data-pubkey="${event.pubkey}">View Profile</button>
             </div>
         `;
-
-        // Attach event listeners directly to this card's elements
-        this.attachEventCardListeners(card);
+        // Event listeners handled via delegation in handleEventListClick()
 
         return card;
-    }
-
-    /**
-     * Attach event listeners to a single event card
-     * @param {HTMLElement} card - The event card element
-     */
-    attachEventCardListeners(card) {
-        // Copy event ID
-        card.querySelectorAll('[data-copy-event-id]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.copyEventId, btn, 'Copy');
-            });
-        });
-
-        // Copy author pubkey
-        card.querySelectorAll('[data-copy-author]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.copyAuthor, btn, 'Copy');
-            });
-        });
-
-        // Tags toggle
-        card.querySelectorAll('[data-tags-toggle]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleTagsSection(btn.dataset.tagsToggle);
-            });
-        });
-
-        // Tag copy buttons
-        card.querySelectorAll('[data-tag-copy]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.copyToClipboard(btn.dataset.tagCopy, btn, 'Copy');
-            });
-        });
-
-        // Action buttons
-        card.querySelectorAll('[data-action]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const action = btn.dataset.action;
-                const eventId = btn.dataset.eventId;
-                const pubkey = btn.dataset.pubkey;
-
-                switch (action) {
-                    case 'details':
-                        this.showEventDetails(eventId);
-                        break;
-                    case 'json':
-                        this.showEventJson(eventId);
-                        break;
-                    case 'thread':
-                        this.showThreadViewer(eventId);
-                        break;
-                    case 'profile':
-                        this.exploreProfileByPubkey(pubkey);
-                        break;
-                }
-            });
-        });
     }
 
     /**
@@ -2838,28 +3084,9 @@ class Shirushi {
             }
         });
 
-        // Attach copy handlers after modal is shown
+        // Copy handlers handled via delegation in handleModalBodyClick()
+        // Verify signature after modal is shown
         setTimeout(() => {
-            document.querySelectorAll('.event-details-modal [data-copy-field]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const value = btn.dataset.copyField;
-                    navigator.clipboard.writeText(value)
-                        .then(() => this.toastSuccess('Copied', 'Value copied to clipboard'))
-                        .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
-                });
-            });
-            document.querySelectorAll('.event-details-modal [data-copy-tag]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const value = btn.dataset.copyTag;
-                    navigator.clipboard.writeText(value)
-                        .then(() => this.toastSuccess('Copied', 'Tag copied to clipboard'))
-                        .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
-                });
-            });
-
-            // Verify signature and update status
             if (event.sig) {
                 this.verifyEventSignatureInModal(event);
             }
@@ -5278,35 +5505,7 @@ class Shirushi {
     renderNipList() {
         const container = document.getElementById('nip-test-list');
         container.innerHTML = this.nips.map(nip => this.renderNipCard(nip)).join('');
-
-        // Setup click handlers for NIP cards
-        container.querySelectorAll('.nip-card').forEach(card => {
-            const nipId = card.dataset.nip;
-
-            // Header click selects the NIP
-            card.querySelector('.nip-card-header').addEventListener('click', (e) => {
-                // Don't select if clicking the expand button
-                if (e.target.closest('.nip-card-expand-btn')) return;
-                this.selectNip(nipId);
-            });
-
-            // Expand button toggles expanded state
-            const expandBtn = card.querySelector('.nip-card-expand-btn');
-            if (expandBtn) {
-                expandBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleNipCardExpanded(card, nipId);
-                });
-            }
-
-            // Related NIP links in the expanded view
-            card.querySelectorAll('.nip-card-related-link').forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.selectNip(link.dataset.nip);
-                });
-            });
-        });
+        // Event listeners handled via delegation in handleNipTestListClick()
     }
 
     /**
@@ -5605,28 +5804,7 @@ class Shirushi {
         document.getElementById('run-test-btn').addEventListener('click', () => {
             this.runTest(nip.id);
         });
-
-        // Setup related NIP click handlers
-        container.querySelectorAll('.related-nip-link').forEach(link => {
-            link.addEventListener('click', () => {
-                this.selectNip(link.dataset.nip);
-            });
-        });
-
-        // Setup example event copy buttons
-        container.querySelectorAll('.example-event .copy-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const index = parseInt(btn.dataset.exampleIndex, 10);
-                if (nip.exampleEvents && nip.exampleEvents[index]) {
-                    navigator.clipboard.writeText(nip.exampleEvents[index].json).then(() => {
-                        btn.textContent = 'Copied!';
-                        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-                    }).catch(() => {
-                        this.showToast('error', 'Failed to copy to clipboard');
-                    });
-                }
-            });
-        });
+        // Related NIP links and example copy buttons handled via delegation in handleTestFormClick()
 
         // Setup signing mode handlers
         if (needsSigningMode) {
@@ -5957,28 +6135,7 @@ class Shirushi {
                 </div>
             `;
         }).join('');
-
-        // Add click handlers
-        container.querySelectorAll('.history-entry').forEach(entry => {
-            // Click on entry to show details
-            entry.addEventListener('click', (e) => {
-                if (!e.target.classList.contains('history-delete-btn')) {
-                    const entryId = entry.dataset.entryId;
-                    const historyEntry = this.testHistory.find(h => h.id === entryId);
-                    if (historyEntry) {
-                        this.showTestResult(historyEntry.result);
-                    }
-                }
-            });
-        });
-
-        // Add delete button handlers
-        container.querySelectorAll('.history-delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.deleteHistoryEntry(btn.dataset.id);
-            });
-        });
+        // Event listeners handled via delegation in handleTestHistoryClick()
     }
 
     /**
@@ -7776,45 +7933,17 @@ class Shirushi {
 
     /**
      * Attach event handlers for thread viewer elements
+     * Note: Most handlers are now managed via delegation in handleModalBodyClick()
      */
     attachThreadEventHandlers() {
         const modalBody = document.getElementById('modal-body');
         if (!modalBody) return;
 
-        // Raw JSON buttons
-        modalBody.querySelectorAll('[data-thread-json]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const eventId = btn.dataset.threadJson;
-                // Find the event in the thread container
-                const eventEl = modalBody.querySelector(`[data-event-id="${eventId}"]`);
-                if (eventEl) {
-                    // Fetch and show the event JSON
-                    this.showThreadEventJson(eventId);
-                }
-            });
-        });
-
-        // View Profile buttons
-        modalBody.querySelectorAll('[data-thread-profile]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const pubkey = btn.dataset.threadProfile;
-                this.closeModal();
-                this.exploreProfileByPubkey(pubkey);
-            });
-        });
-
-        // Author links
-        modalBody.querySelectorAll('[data-pubkey]').forEach(el => {
+        // Set cursor style for author links (visual feedback)
+        modalBody.querySelectorAll('.thread-author[data-pubkey]').forEach(el => {
             el.style.cursor = 'pointer';
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const pubkey = el.dataset.pubkey;
-                this.closeModal();
-                this.exploreProfileByPubkey(pubkey);
-            });
         });
+        // Event handlers are managed via delegation in handleModalBodyClick()
     }
 
     /**

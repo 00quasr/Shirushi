@@ -14674,6 +14674,312 @@
         });
     });
 
+    // Event Delegation Tests
+    describe('Event Delegation - Memory Leak Prevention', () => {
+        it('should have setupEventDelegation method', () => {
+            assertDefined(Shirushi.prototype.setupEventDelegation, 'setupEventDelegation method should exist');
+        });
+
+        it('should have handleRelayListClick method for relay list delegation', () => {
+            assertDefined(Shirushi.prototype.handleRelayListClick, 'handleRelayListClick method should exist');
+        });
+
+        it('should have handleProfileNotesClick method for profile notes delegation', () => {
+            assertDefined(Shirushi.prototype.handleProfileNotesClick, 'handleProfileNotesClick method should exist');
+        });
+
+        it('should have handleProfileFollowingClick method for profile following delegation', () => {
+            assertDefined(Shirushi.prototype.handleProfileFollowingClick, 'handleProfileFollowingClick method should exist');
+        });
+
+        it('should have handleProfileZapsClick method for profile zaps delegation', () => {
+            assertDefined(Shirushi.prototype.handleProfileZapsClick, 'handleProfileZapsClick method should exist');
+        });
+
+        it('should have handleEventListClick method for event list delegation', () => {
+            assertDefined(Shirushi.prototype.handleEventListClick, 'handleEventListClick method should exist');
+        });
+
+        it('should have handleRelayCountsClick method for relay counts delegation', () => {
+            assertDefined(Shirushi.prototype.handleRelayCountsClick, 'handleRelayCountsClick method should exist');
+        });
+
+        it('should have handleAggregationClick method for aggregation panel delegation', () => {
+            assertDefined(Shirushi.prototype.handleAggregationClick, 'handleAggregationClick method should exist');
+        });
+
+        it('should have handleNipTestListClick method for NIP test list delegation', () => {
+            assertDefined(Shirushi.prototype.handleNipTestListClick, 'handleNipTestListClick method should exist');
+        });
+
+        it('should have handleTestFormClick method for test form delegation', () => {
+            assertDefined(Shirushi.prototype.handleTestFormClick, 'handleTestFormClick method should exist');
+        });
+
+        it('should have handleTestHistoryClick method for test history delegation', () => {
+            assertDefined(Shirushi.prototype.handleTestHistoryClick, 'handleTestHistoryClick method should exist');
+        });
+
+        it('should have handleModalBodyClick method for modal body delegation', () => {
+            assertDefined(Shirushi.prototype.handleModalBodyClick, 'handleModalBodyClick method should exist');
+        });
+
+        it('handleRelayListClick should handle copy relay button', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let copiedText = null;
+            instance.copyToClipboard = function(text) {
+                copiedText = text;
+                return Promise.resolve(true);
+            };
+
+            // Create mock event
+            const button = document.createElement('button');
+            button.dataset.copyRelay = 'wss://relay.example.com';
+            const event = {
+                target: button,
+                stopPropagation: function() {}
+            };
+            button.closest = function(selector) {
+                if (selector === '[data-copy-relay]') return button;
+                return null;
+            };
+
+            instance.handleRelayListClick(event);
+
+            assertEqual(copiedText, 'wss://relay.example.com', 'Should copy relay URL');
+        });
+
+        it('handleEventListClick should handle copy event ID button', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let copiedText = null;
+            instance.copyToClipboard = function(text) {
+                copiedText = text;
+                return Promise.resolve(true);
+            };
+
+            // Create mock event
+            const button = document.createElement('button');
+            button.dataset.copyEventId = 'event123abc';
+            const event = {
+                target: button,
+                stopPropagation: function() {}
+            };
+            button.closest = function(selector) {
+                if (selector === '[data-copy-event-id]') return button;
+                return null;
+            };
+
+            instance.handleEventListClick(event);
+
+            assertEqual(copiedText, 'event123abc', 'Should copy event ID');
+        });
+
+        it('handleEventListClick should handle action buttons', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let detailsShown = false;
+            let shownEventId = null;
+            instance.showEventDetails = function(eventId) {
+                detailsShown = true;
+                shownEventId = eventId;
+            };
+
+            // Create mock event with action button
+            const button = document.createElement('button');
+            button.dataset.action = 'details';
+            button.dataset.eventId = 'event456def';
+            const event = {
+                target: button,
+                stopPropagation: function() {}
+            };
+            button.closest = function(selector) {
+                if (selector === '[data-action]') return button;
+                return null;
+            };
+
+            instance.handleEventListClick(event);
+
+            assertTrue(detailsShown, 'Should show event details');
+            assertEqual(shownEventId, 'event456def', 'Should pass correct event ID');
+        });
+
+        it('handleNipTestListClick should handle expand button', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let toggleCalled = false;
+            let toggledCard = null;
+            let toggledNipId = null;
+            instance.toggleNipCardExpanded = function(card, nipId) {
+                toggleCalled = true;
+                toggledCard = card;
+                toggledNipId = nipId;
+            };
+
+            // Create mock DOM structure
+            const card = document.createElement('div');
+            card.className = 'nip-card';
+            card.dataset.nip = 'nip01';
+            const expandBtn = document.createElement('button');
+            expandBtn.className = 'nip-card-expand-btn';
+            card.appendChild(expandBtn);
+
+            const event = {
+                target: expandBtn,
+                stopPropagation: function() {}
+            };
+            expandBtn.closest = function(selector) {
+                if (selector === '.nip-card-expand-btn') return expandBtn;
+                if (selector === '.nip-card') return card;
+                return null;
+            };
+
+            instance.handleNipTestListClick(event);
+
+            assertTrue(toggleCalled, 'Should call toggleNipCardExpanded');
+            assertEqual(toggledNipId, 'nip01', 'Should pass correct NIP ID');
+        });
+
+        it('handleTestHistoryClick should handle delete button', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let deleteCalled = false;
+            let deletedId = null;
+            instance.deleteHistoryEntry = function(id) {
+                deleteCalled = true;
+                deletedId = id;
+            };
+
+            // Create mock delete button
+            const button = document.createElement('button');
+            button.className = 'history-delete-btn';
+            button.dataset.id = 'history123';
+
+            const event = {
+                target: button,
+                stopPropagation: function() {}
+            };
+            button.closest = function(selector) {
+                if (selector === '.history-delete-btn') return button;
+                return null;
+            };
+
+            instance.handleTestHistoryClick(event);
+
+            assertTrue(deleteCalled, 'Should call deleteHistoryEntry');
+            assertEqual(deletedId, 'history123', 'Should pass correct history entry ID');
+        });
+
+        it('handleModalBodyClick should handle copy field button', async () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            let toastCalled = false;
+            instance.toastSuccess = function() {
+                toastCalled = true;
+            };
+            instance.toastError = function() {};
+
+            // Mock clipboard
+            const originalClipboard = navigator.clipboard;
+            navigator.clipboard = {
+                writeText: function(text) {
+                    return Promise.resolve();
+                }
+            };
+
+            // Create mock copy button
+            const button = document.createElement('button');
+            button.dataset.copyField = 'field_value_123';
+
+            const event = {
+                target: button,
+                stopPropagation: function() {}
+            };
+            button.closest = function(selector) {
+                if (selector === '[data-copy-field]') return button;
+                return null;
+            };
+
+            instance.handleModalBodyClick(event);
+
+            // Wait for async clipboard operation
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assertTrue(toastCalled, 'Should show success toast after copy');
+
+            // Restore clipboard
+            navigator.clipboard = originalClipboard;
+        });
+
+        it('should setup event delegation during init', () => {
+            // Create necessary DOM elements
+            const container = document.createElement('div');
+            container.innerHTML = `
+                <div id="relay-list"></div>
+                <div id="profile-notes-list"></div>
+                <div id="profile-following-list"></div>
+                <div id="profile-zaps-list"></div>
+                <div id="event-list"></div>
+                <div id="relay-counts-panel"></div>
+                <div id="aggregation-panel"></div>
+                <div id="nip-test-list"></div>
+                <div id="test-form"></div>
+                <div id="test-history-list"></div>
+                <div id="modal-body"></div>
+            `;
+            document.body.appendChild(container);
+
+            // Track if listeners were added
+            let listenersAdded = 0;
+            const originalAddEventListener = HTMLElement.prototype.addEventListener;
+            HTMLElement.prototype.addEventListener = function(type, handler) {
+                if (type === 'click' && this.id && [
+                    'relay-list', 'profile-notes-list', 'profile-following-list',
+                    'profile-zaps-list', 'event-list', 'relay-counts-panel',
+                    'aggregation-panel', 'nip-test-list', 'test-form',
+                    'test-history-list', 'modal-body'
+                ].includes(this.id)) {
+                    listenersAdded++;
+                }
+                return originalAddEventListener.call(this, type, handler);
+            };
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {
+                this.setupEventDelegation();
+            };
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Restore addEventListener
+            HTMLElement.prototype.addEventListener = originalAddEventListener;
+
+            // Cleanup
+            document.body.removeChild(container);
+
+            assertTrue(listenersAdded >= 10, 'Should have added delegated listeners to containers');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
