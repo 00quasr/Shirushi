@@ -2300,6 +2300,27 @@ a.nip-badge:hover {
     background: var(--error);
 }
 
+/* Compact relay checkbox list for Events tab */
+.relay-checkbox-list-compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 4px;
+    max-height: 150px;
+}
+
+.relay-checkbox-list-compact .relay-checkbox-item {
+    padding: 4px 6px;
+    gap: 6px;
+}
+
+.relay-checkbox-list-compact .relay-url {
+    font-size: 11px;
+}
+
+.query-builder-field-full {
+    flex: 1 1 100%;
+}
+
 /* Publish Actions */
 .publish-actions {
     display: flex;

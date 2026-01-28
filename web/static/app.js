@@ -333,6 +333,9 @@ class Shirushi {
             this.relays = await response.json();
             this.hideSkeleton('relay-list-skeleton');
             this.renderRelays();
+            // Update relay selection lists in other tabs
+            this.loadPublishRelays();
+            this.loadEventsRelays();
         } catch (error) {
             this.hideSkeleton('relay-list-skeleton');
             console.error('Failed to load relays:', error);
@@ -1409,6 +1412,19 @@ class Shirushi {
         document.getElementById('batch-query-input').addEventListener('input', () => {
             this.updateBatchIdCount();
         });
+
+        // Events relay selection handlers
+        document.getElementById('events-select-all-relays')?.addEventListener('click', () => {
+            this.selectAllEventsRelays();
+        });
+
+        document.getElementById('events-select-none-relays')?.addEventListener('click', () => {
+            this.selectNoEventsRelays();
+        });
+
+        document.getElementById('events-select-connected-relays')?.addEventListener('click', () => {
+            this.selectConnectedEventsRelays();
+        });
     }
 
     /**
@@ -1498,6 +1514,12 @@ class Shirushi {
         const showTiming = document.getElementById('show-timing')?.checked || false;
         if (showTiming) {
             params.set('timing', 'true');
+        }
+
+        // Selected relays
+        const selectedRelays = this.getSelectedEventsRelays();
+        if (selectedRelays.length > 0) {
+            params.set('relays', selectedRelays.join(','));
         }
 
         return params;
@@ -3917,6 +3939,77 @@ class Shirushi {
             checkbox.checked = connectedUrls.has(checkbox.value);
         });
         this.updateRelaySelectionCount();
+    }
+
+    // Events Tab Relay Selection Methods
+    loadEventsRelays() {
+        const container = document.getElementById('events-relay-list');
+        if (!container) return;
+
+        if (this.relays.length === 0) {
+            container.innerHTML = '<p class="hint">No relays connected. Add relays from the Relays tab.</p>';
+            this.updateEventsRelaySelectionCount();
+            return;
+        }
+
+        container.innerHTML = this.relays.map(relay => `
+            <label class="relay-checkbox-item">
+                <input type="checkbox" name="events-relay" value="${this.escapeHtml(relay.url)}" ${relay.connected ? 'checked' : ''}>
+                <span class="relay-status-dot ${relay.connected ? 'connected' : 'disconnected'}"></span>
+                <span class="relay-url">${this.escapeHtml(relay.url)}</span>
+            </label>
+        `).join('');
+
+        // Add change listeners to update count
+        container.querySelectorAll('input[name="events-relay"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateEventsRelaySelectionCount());
+        });
+
+        this.updateEventsRelaySelectionCount();
+    }
+
+    updateEventsRelaySelectionCount() {
+        const countEl = document.getElementById('events-relay-selection-count');
+        if (!countEl) return;
+
+        const checkboxes = document.querySelectorAll('input[name="events-relay"]');
+        const checked = document.querySelectorAll('input[name="events-relay"]:checked');
+
+        if (checkboxes.length === 0) {
+            countEl.textContent = '';
+            return;
+        }
+
+        countEl.textContent = `(${checked.length}/${checkboxes.length} selected)`;
+    }
+
+    selectAllEventsRelays() {
+        document.querySelectorAll('input[name="events-relay"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        this.updateEventsRelaySelectionCount();
+    }
+
+    selectNoEventsRelays() {
+        document.querySelectorAll('input[name="events-relay"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        this.updateEventsRelaySelectionCount();
+    }
+
+    selectConnectedEventsRelays() {
+        const connectedUrls = new Set(
+            this.relays.filter(r => r.connected).map(r => r.url)
+        );
+        document.querySelectorAll('input[name="events-relay"]').forEach(checkbox => {
+            checkbox.checked = connectedUrls.has(checkbox.value);
+        });
+        this.updateEventsRelaySelectionCount();
+    }
+
+    getSelectedEventsRelays() {
+        const checkboxes = document.querySelectorAll('input[name="events-relay"]:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
     }
 
     addPublishTag() {

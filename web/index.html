@@ -446,6 +446,19 @@ nevent1xyz..."></textarea>
                             <span class="field-hint">Events created before this time</span>
                         </div>
                     </div>
+                    <div class="query-builder-row">
+                        <div class="query-builder-field query-builder-field-full">
+                            <label>Query Relays <span id="events-relay-selection-count" class="relay-selection-count"></span></label>
+                            <div class="relay-selector-controls">
+                                <button type="button" id="events-select-all-relays" class="btn small">Select All</button>
+                                <button type="button" id="events-select-none-relays" class="btn small">Select None</button>
+                                <button type="button" id="events-select-connected-relays" class="btn small">Connected Only</button>
+                            </div>
+                            <div id="events-relay-list" class="relay-checkbox-list relay-checkbox-list-compact">
+                                <p class="hint">Loading relays...</p>
+                            </div>
+                        </div>
+                    </div>
                     <div class="query-builder-actions">
                         <button id="apply-filter-btn" class="btn primary">Query Events</button>
                         <button id="clear-filter-btn" class="btn">Clear Filters</button>

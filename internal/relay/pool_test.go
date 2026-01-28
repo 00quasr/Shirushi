@@ -981,3 +981,121 @@ func TestRefreshRelayInfo_RelayNotFound(t *testing.T) {
 		t.Errorf("expected error 'relay not found: wss://unknown.relay.com', got '%s'", err.Error())
 	}
 }
+
+// Tests for getRelaysForQuery
+
+func TestGetRelaysForQuery_NoSelection_ReturnsAllConnected(t *testing.T) {
+	pool := &Pool{
+		relays: map[string]*RelayConn{
+			"wss://relay1.example.com": {URL: "wss://relay1.example.com", Connected: true},
+			"wss://relay2.example.com": {URL: "wss://relay2.example.com", Connected: true},
+			"wss://relay3.example.com": {URL: "wss://relay3.example.com", Connected: false},
+		},
+	}
+
+	result := pool.getRelaysForQuery(nil)
+
+	if len(result) != 2 {
+		t.Errorf("expected 2 connected relays, got %d", len(result))
+	}
+
+	// Check that the disconnected relay is not included
+	for _, url := range result {
+		if url == "wss://relay3.example.com" {
+			t.Error("disconnected relay should not be included")
+		}
+	}
+}
+
+func TestGetRelaysForQuery_EmptySelection_ReturnsAllConnected(t *testing.T) {
+	pool := &Pool{
+		relays: map[string]*RelayConn{
+			"wss://relay1.example.com": {URL: "wss://relay1.example.com", Connected: true},
+			"wss://relay2.example.com": {URL: "wss://relay2.example.com", Connected: true},
+		},
+	}
+
+	result := pool.getRelaysForQuery([]string{})
+
+	if len(result) != 2 {
+		t.Errorf("expected 2 connected relays, got %d", len(result))
+	}
+}
+
+func TestGetRelaysForQuery_WithSelection_FiltersToConnected(t *testing.T) {
+	pool := &Pool{
+		relays: map[string]*RelayConn{
+			"wss://relay1.example.com": {URL: "wss://relay1.example.com", Connected: true},
+			"wss://relay2.example.com": {URL: "wss://relay2.example.com", Connected: true},
+			"wss://relay3.example.com": {URL: "wss://relay3.example.com", Connected: false},
+		},
+	}
+
+	// Select specific relays including a disconnected one
+	selection := []string{
+		"wss://relay1.example.com",
+		"wss://relay3.example.com", // This one is disconnected
+	}
+
+	result := pool.getRelaysForQuery(selection)
+
+	// Should only return relay1 (the connected one from the selection)
+	if len(result) != 1 {
+		t.Errorf("expected 1 relay, got %d", len(result))
+	}
+
+	if len(result) > 0 && result[0] != "wss://relay1.example.com" {
+		t.Errorf("expected relay1, got %s", result[0])
+	}
+}
+
+func TestGetRelaysForQuery_WithSelection_OnlyConnectedFromSelection(t *testing.T) {
+	pool := &Pool{
+		relays: map[string]*RelayConn{
+			"wss://relay1.example.com": {URL: "wss://relay1.example.com", Connected: true},
+			"wss://relay2.example.com": {URL: "wss://relay2.example.com", Connected: true},
+			"wss://relay3.example.com": {URL: "wss://relay3.example.com", Connected: true},
+		},
+	}
+
+	// Only select relay1 and relay3
+	selection := []string{
+		"wss://relay1.example.com",
+		"wss://relay3.example.com",
+	}
+
+	result := pool.getRelaysForQuery(selection)
+
+	// Should return exactly the two selected relays
+	if len(result) != 2 {
+		t.Errorf("expected 2 relays, got %d", len(result))
+	}
+
+	// relay2 should not be in the result
+	for _, url := range result {
+		if url == "wss://relay2.example.com" {
+			t.Error("relay2 should not be included as it wasn't selected")
+		}
+	}
+}
+
+func TestGetRelaysForQuery_SelectionWithUnknownRelay(t *testing.T) {
+	pool := &Pool{
+		relays: map[string]*RelayConn{
+			"wss://relay1.example.com": {URL: "wss://relay1.example.com", Connected: true},
+		},
+	}
+
+	// Select a relay that's not in the pool
+	selection := []string{
+		"wss://relay1.example.com",
+		"wss://unknown.example.com",
+	}
+
+	result := pool.getRelaysForQuery(selection)
+
+	// Should only return the known, connected relay
+	if len(result) != 1 {
+		t.Errorf("expected 1 relay, got %d", len(result))
+	}
+}

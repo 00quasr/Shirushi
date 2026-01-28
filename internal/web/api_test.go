@@ -133,10 +133,19 @@ func (m *mockRelayPool) QueryEventsWithTiming(kindStr, author, limitStr string) 
 		TotalTimeMs:  100,
 	}, nil
 }
-func (m *mockRelayPool) QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) ([]types.Event, error) {
+func (m *mockRelayPool) GetConnected() []string {
+	var connected []string
+	for _, r := range m.relayList {
+		if r.Connected {
+			connected = append(connected, r.URL)
+		}
+	}
+	return connected
+}
+func (m *mockRelayPool) QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) ([]types.Event, error) {
 	return m.events, m.err
 }
-func (m *mockRelayPool) QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) (*types.EventsQueryResponse, error) {
+func (m *mockRelayPool) QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) (*types.EventsQueryResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -4637,6 +4646,157 @@ func TestHandleEvents_MethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEvents_WithRelaySelection(t *testing.T) {
+	mock := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Kind:      1,
+				PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+				Content:   "Test message from selected relay",
+				CreatedAt: 1700000000,
+				Relay:     "wss://relay1.example.com",
+			},
+		},
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: true},
+			{URL: "wss://relay2.example.com", Connected: true},
+			{URL: "wss://relay3.example.com", Connected: false},
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	// Test with specific relays selected
+	req := httptest.NewRequest("GET", "/api/events?relays=wss://relay1.example.com,wss://relay2.example.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var events []types.Event
+	if err := json.NewDecoder(w.Body).Decode(&events); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Errorf("expected 1 event, got %d", len(events))
+	}
+}
+
+func TestHandleEvents_WithRelaySelectionAndTiming(t *testing.T) {
+	mock := &mockRelayPool{
+		eventsWithTiming: &types.EventsQueryResponse{
+			Events: []types.Event{
+				{
+					ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					Kind:      1,
+					PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+					Content:   "Test message",
+					CreatedAt: 1700000000,
+					Relay:     "wss://relay1.example.com",
+				},
+			},
+			RelayTimings: []types.RelayFetchTiming{
+				{URL: "wss://relay1.example.com", LatencyMs: 50, EventCount: 1},
+			},
+			TotalTimeMs: 100,
+		},
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: true},
+			{URL: "wss://relay2.example.com", Connected: true},
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	// Test with specific relays selected and timing enabled
+	req := httptest.NewRequest("GET", "/api/events?timing=true&relays=wss://relay1.example.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventsQueryResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(response.Events) != 1 {
+		t.Errorf("expected 1 event, got %d", len(response.Events))
+	}
+
+	if len(response.RelayTimings) != 1 {
+		t.Errorf("expected 1 relay timing, got %d", len(response.RelayTimings))
+	}
+}
+
+func TestParseEventQueryParams_WithRelays(t *testing.T) {
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, nil, nil)
+
+	testCases := []struct {
+		name           string
+		queryString    string
+		expectedRelays []string
+	}{
+		{
+			name:           "single relay",
+			queryString:    "relays=wss://relay1.example.com",
+			expectedRelays: []string{"wss://relay1.example.com"},
+		},
+		{
+			name:           "multiple relays",
+			queryString:    "relays=wss://relay1.example.com,wss://relay2.example.com,wss://relay3.example.com",
+			expectedRelays: []string{"wss://relay1.example.com", "wss://relay2.example.com", "wss://relay3.example.com"},
+		},
+		{
+			name:           "no relays",
+			queryString:    "kinds=1",
+			expectedRelays: nil,
+		},
+		{
+			name:           "empty relays param",
+			queryString:    "relays=",
+			expectedRelays: nil,
+		},
+		{
+			name:           "relays with spaces URL encoded",
+			queryString:    "relays=wss://relay1.example.com,%20wss://relay2.example.com",
+			expectedRelays: []string{"wss://relay1.example.com", "wss://relay2.example.com"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/events?"+tc.queryString, nil)
+			params, err := api.parseEventQueryParams(req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(params.Relays) != len(tc.expectedRelays) {
+				t.Errorf("expected %d relays, got %d", len(tc.expectedRelays), len(params.Relays))
+				return
+			}
+
+			for i, expected := range tc.expectedRelays {
+				if params.Relays[i] != expected {
+					t.Errorf("relay %d: expected %q, got %q", i, expected, params.Relays[i])
+				}
+			}
+		})
 	}
 }
 

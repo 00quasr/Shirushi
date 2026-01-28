@@ -290,6 +290,31 @@ func (p *Pool) GetConnected() []string {
 	return urls
 }
 
+// getRelaysForQuery returns the list of relays to use for a query.
+// If selectedRelays is provided and non-empty, only those relays are returned (if connected).
+// Otherwise, all connected relays are returned.
+func (p *Pool) getRelaysForQuery(selectedRelays []string) []string {
+	connectedRelays := p.GetConnected()
+	if len(selectedRelays) == 0 {
+		return connectedRelays
+	}
+
+	// Create a set of connected relays for O(1) lookup
+	connectedSet := make(map[string]bool)
+	for _, url := range connectedRelays {
+		connectedSet[url] = true
+	}
+
+	// Filter selected relays to only include connected ones
+	var result []string
+	for _, url := range selectedRelays {
+		if connectedSet[url] {
+			result = append(result, url)
+		}
+	}
+	return result
+}
+
 // QueryEvents queries events from connected relays.
 func (p *Pool) QueryEvents(kindStr, author, limitStr string) ([]types.Event, error) {
 	relays := p.GetConnected()
@@ -537,8 +562,9 @@ func buildFilter(kinds []int, authors []string, tags map[string][]string, limit 
 }
 
 // QueryEventsAdvanced queries events from connected relays with advanced filter options.
-func (p *Pool) QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) ([]types.Event, error) {
-	relays := p.GetConnected()
+// If selectedRelays is provided and non-empty, only those relays are queried (must be connected).
+func (p *Pool) QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) ([]types.Event, error) {
+	relays := p.getRelaysForQuery(selectedRelays)
 	if len(relays) == 0 {
 		return nil, fmt.Errorf("no connected relays")
 	}
@@ -568,10 +594,11 @@ func (p *Pool) QueryEventsAdvanced(kinds []int, authors []string, tags map[strin
 }
 
 // QueryEventsAdvancedWithTiming queries events with advanced filter options and returns per-relay timing data.
-func (p *Pool) QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) (*types.EventsQueryResponse, error) {
+// If selectedRelays is provided and non-empty, only those relays are queried (must be connected).
+func (p *Pool) QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) (*types.EventsQueryResponse, error) {
 	totalStart := time.Now()
 
-	relays := p.GetConnected()
+	relays := p.getRelaysForQuery(selectedRelays)
 	if len(relays) == 0 {
 		return nil, fmt.Errorf("no connected relays")
 	}

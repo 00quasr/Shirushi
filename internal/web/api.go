@@ -23,10 +23,11 @@ type RelayPool interface {
 	List() []types.RelayStatus
 	Stats() map[string]types.RelayStats
 	Count() int
+	GetConnected() []string
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
 	QueryEventsWithTiming(kindStr, author, limitStr string) (*types.EventsQueryResponse, error)
-	QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) ([]types.Event, error)
-	QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64) (*types.EventsQueryResponse, error)
+	QueryEventsAdvanced(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) ([]types.Event, error)
+	QueryEventsAdvancedWithTiming(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) (*types.EventsQueryResponse, error)
 	QueryEventsByIDs(ids []string) ([]types.Event, error)
 	QueryBatchEventsByIDs(ids []string) *types.BatchQueryResponse
 	QueryEventReplies(eventID string) ([]types.Event, error)
@@ -248,6 +249,7 @@ type EventQueryParams struct {
 	Limit   int
 	Since   int64
 	Until   int64
+	Relays  []string
 }
 
 // HandleEvents handles event queries.
@@ -259,6 +261,7 @@ type EventQueryParams struct {
 // - since: Unix timestamp for events created after this time
 // - until: Unix timestamp for events created before this time
 // - timing: if "true", returns per-relay timing data
+// - relays: comma-separated list of relay URLs to query from (only connected relays are used)
 func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -275,7 +278,7 @@ func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	includeTiming := r.URL.Query().Get("timing") == "true"
 
 	if includeTiming {
-		response, err := a.relayPool.QueryEventsAdvancedWithTiming(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until)
+		response, err := a.relayPool.QueryEventsAdvancedWithTiming(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until, params.Relays...)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -284,7 +287,7 @@ func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := a.relayPool.QueryEventsAdvanced(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until)
+	events, err := a.relayPool.QueryEventsAdvanced(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until, params.Relays...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -407,6 +410,18 @@ func (a *API) parseEventQueryParams(r *http.Request) (*EventQueryParams, error) 
 			return nil, fmt.Errorf("invalid until value: %s", untilStr)
 		}
 		params.Until = until
+	}
+
+	// Parse relays (comma-separated relay URLs)
+	relaysStr := r.URL.Query().Get("relays")
+	if relaysStr != "" {
+		relayURLs := strings.Split(relaysStr, ",")
+		for _, url := range relayURLs {
+			url = strings.TrimSpace(url)
+			if url != "" {
+				params.Relays = append(params.Relays, url)
+			}
+		}
 	}
 
 	return params, nil
