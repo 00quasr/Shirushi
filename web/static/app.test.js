@@ -9084,10 +9084,10 @@
                     <input type="number" id="publish-custom-kind" class="form-input hidden" placeholder="Enter custom kind number" min="0">
                     <textarea id="publish-content" class="form-textarea"></textarea>
                     <span id="content-char-count">0</span>
-                    <div id="publish-tags" class="tags-container"></div>
-                    <input type="text" id="tag-key" class="form-input">
-                    <input type="text" id="tag-value" class="form-input">
-                    <button id="add-tag-btn" class="btn">Add Tag</button>
+                    <div id="tag-builder" class="tag-builder">
+                        <div id="tag-builder-rows" class="tag-builder-rows"></div>
+                        <button id="add-tag-row-btn" class="btn small tag-builder-add">+ Add Tag</button>
+                    </div>
                     <input type="radio" name="signing-method" value="extension" id="sign-extension">
                     <input type="radio" name="signing-method" value="nsec" id="sign-nsec" checked>
                     <div id="nsec-input-group">
@@ -9183,16 +9183,10 @@
             cleanupPublishTest();
         });
 
-        it('should add tag to publishTags array', function() {
+        it('should add tag row to publishTags array via addTagBuilderRow', function() {
             const app = createPublishTestApp();
 
-            const keyInput = container.querySelector('#tag-key');
-            const valueInput = container.querySelector('#tag-value');
-
-            keyInput.value = 't';
-            valueInput.value = 'nostr';
-
-            app.addPublishTag();
+            app.addTagBuilderRow('t', ['nostr']);
 
             assertEqual(app.publishTags.length, 1, 'Should have 1 tag');
             assertEqual(app.publishTags[0][0], 't', 'Tag key should be t');
@@ -9201,35 +9195,14 @@
             cleanupPublishTest();
         });
 
-        it('should clear inputs after adding tag', function() {
+        it('should add empty tag row via addPublishTag (legacy)', function() {
             const app = createPublishTestApp();
-
-            const keyInput = container.querySelector('#tag-key');
-            const valueInput = container.querySelector('#tag-value');
-
-            keyInput.value = 'p';
-            valueInput.value = 'abc123';
 
             app.addPublishTag();
 
-            assertEqual(keyInput.value, '', 'Key input should be cleared');
-            assertEqual(valueInput.value, '', 'Value input should be cleared');
-
-            cleanupPublishTest();
-        });
-
-        it('should not add tag without key', function() {
-            const app = createPublishTestApp();
-
-            const keyInput = container.querySelector('#tag-key');
-            const valueInput = container.querySelector('#tag-value');
-
-            keyInput.value = '';
-            valueInput.value = 'somevalue';
-
-            app.addPublishTag();
-
-            assertEqual(app.publishTags.length, 0, 'Should not add tag without key');
+            assertEqual(app.publishTags.length, 1, 'Should have 1 tag');
+            assertEqual(app.publishTags[0][0], '', 'Tag key should be empty');
+            assertEqual(app.publishTags[0][1], '', 'Tag value should be empty');
 
             cleanupPublishTest();
         });
@@ -9237,13 +9210,7 @@
         it('should allow tag with empty value', function() {
             const app = createPublishTestApp();
 
-            const keyInput = container.querySelector('#tag-key');
-            const valueInput = container.querySelector('#tag-value');
-
-            keyInput.value = 'client';
-            valueInput.value = '';
-
-            app.addPublishTag();
+            app.addTagBuilderRow('client', ['']);
 
             assertEqual(app.publishTags.length, 1, 'Should add tag with empty value');
             assertEqual(app.publishTags[0][0], 'client', 'Tag key should be client');
@@ -9266,34 +9233,114 @@
             cleanupPublishTest();
         });
 
-        it('should render tags container correctly', function() {
+        it('should render tag builder rows correctly', function() {
             const app = createPublishTestApp();
 
             app.publishTags = [['t', 'nostr'], ['client', 'shirushi']];
             app.renderPublishTags();
 
-            const tagsContainer = container.querySelector('#publish-tags');
-            const tagItems = tagsContainer.querySelectorAll('.tag-item');
+            const tagBuilderRows = container.querySelector('#tag-builder-rows');
+            const tagRows = tagBuilderRows.querySelectorAll('.tag-builder-row');
 
-            assertEqual(tagItems.length, 2, 'Should render 2 tag items');
+            assertEqual(tagRows.length, 2, 'Should render 2 tag rows');
 
-            const firstTagKey = tagItems[0].querySelector('.tag-key');
-            const firstTagValue = tagItems[0].querySelector('.tag-value');
+            const firstKeyInput = tagRows[0].querySelector('.tag-key-input');
+            const firstValueInput = tagRows[0].querySelector('.tag-value-input');
 
-            assertEqual(firstTagKey.textContent, 't', 'First tag key should be t');
-            assertEqual(firstTagValue.textContent, 'nostr', 'First tag value should be nostr');
+            assertEqual(firstKeyInput.value, 't', 'First tag key should be t');
+            assertEqual(firstValueInput.value, 'nostr', 'First tag value should be nostr');
 
             cleanupPublishTest();
         });
 
-        it('should render empty tags container when no tags', function() {
+        it('should render empty state when no tags', function() {
             const app = createPublishTestApp();
 
             app.publishTags = [];
             app.renderPublishTags();
 
-            const tagsContainer = container.querySelector('#publish-tags');
-            assertEqual(tagsContainer.innerHTML, '', 'Tags container should be empty');
+            const tagBuilderRows = container.querySelector('#tag-builder-rows');
+            assertTrue(tagBuilderRows.innerHTML.includes('No tags added yet'), 'Should show empty state message');
+
+            cleanupPublishTest();
+        });
+
+        it('should add additional value to existing tag', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['e', 'eventid']];
+            app.addTagValue(0);
+
+            assertEqual(app.publishTags[0].length, 3, 'Tag should have 3 elements (key + 2 values)');
+            assertEqual(app.publishTags[0][0], 'e', 'Key should still be e');
+            assertEqual(app.publishTags[0][1], 'eventid', 'First value should still be eventid');
+            assertEqual(app.publishTags[0][2], '', 'Second value should be empty string');
+
+            cleanupPublishTest();
+        });
+
+        it('should remove value from tag with multiple values', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['e', 'eventid', 'relay', 'reply']];
+            app.removeTagValue(0, 1); // Remove 'relay' (index 1 in values = index 2 in array)
+
+            assertEqual(app.publishTags[0].length, 3, 'Tag should have 3 elements after removal');
+            assertEqual(app.publishTags[0][0], 'e', 'Key should still be e');
+            assertEqual(app.publishTags[0][1], 'eventid', 'First value should still be eventid');
+            assertEqual(app.publishTags[0][2], 'reply', 'Second value should now be reply');
+
+            cleanupPublishTest();
+        });
+
+        it('should not remove last value from tag', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['t', 'nostr']];
+            app.removeTagValue(0, 0);
+
+            assertEqual(app.publishTags[0].length, 2, 'Tag should still have 2 elements (key + 1 value)');
+            assertEqual(app.publishTags[0][1], 'nostr', 'Value should not be removed');
+
+            cleanupPublishTest();
+        });
+
+        it('should sync tags from builder inputs', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['', '']];
+            app.renderPublishTags();
+
+            // Simulate user typing in the inputs
+            const tagBuilderRows = container.querySelector('#tag-builder-rows');
+            const keyInput = tagBuilderRows.querySelector('.tag-key-input');
+            const valueInput = tagBuilderRows.querySelector('.tag-value-input');
+
+            keyInput.value = 'p';
+            valueInput.value = 'pubkey123';
+
+            app.syncTagsFromBuilder();
+
+            assertEqual(app.publishTags[0][0], 'p', 'Key should be synced');
+            assertEqual(app.publishTags[0][1], 'pubkey123', 'Value should be synced');
+
+            cleanupPublishTest();
+        });
+
+        it('should render tag with multiple values', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['e', 'eventid', 'wss://relay.com', 'reply']];
+            app.renderPublishTags();
+
+            const tagBuilderRows = container.querySelector('#tag-builder-rows');
+            const tagRow = tagBuilderRows.querySelector('.tag-builder-row');
+            const valueInputs = tagRow.querySelectorAll('.tag-value-input');
+
+            assertEqual(valueInputs.length, 3, 'Should render 3 value inputs');
+            assertEqual(valueInputs[0].value, 'eventid', 'First value should be eventid');
+            assertEqual(valueInputs[1].value, 'wss://relay.com', 'Second value should be relay url');
+            assertEqual(valueInputs[2].value, 'reply', 'Third value should be reply');
 
             cleanupPublishTest();
         });

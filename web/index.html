@@ -414,15 +414,13 @@
 
                         <div class="form-group">
                             <label>Tags <span class="optional">(optional)</span></label>
-                            <div id="publish-tags" class="tags-container">
-                                <!-- Tags will be added here dynamically -->
+                            <div id="tag-builder" class="tag-builder">
+                                <div id="tag-builder-rows" class="tag-builder-rows">
+                                    <!-- Tag rows will be added here dynamically -->
+                                </div>
+                                <button id="add-tag-row-btn" class="btn small tag-builder-add">+ Add Tag</button>
                             </div>
-                            <div class="tag-input-row">
-                                <input type="text" id="tag-key" class="form-input tag-input" placeholder="Key (e.g., p, e, t)">
-                                <input type="text" id="tag-value" class="form-input tag-input" placeholder="Value">
-                                <button id="add-tag-btn" class="btn small">Add Tag</button>
-                            </div>
-                            <p class="hint">Common tags: p (pubkey), e (event), t (hashtag)</p>
+                            <p class="hint">Common tags: p (pubkey), e (event), t (hashtag). Use + to add more values to a tag.</p>
                         </div>
 
                         <div class="form-group">

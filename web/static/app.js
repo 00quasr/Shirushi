@@ -1407,28 +1407,38 @@ class Shirushi {
             });
         }
 
-        // Tag management
-        const addTagBtn = document.getElementById('add-tag-btn');
-        if (addTagBtn) {
-            addTagBtn.addEventListener('click', () => this.addPublishTag());
+        // Tag builder management
+        const addTagRowBtn = document.getElementById('add-tag-row-btn');
+        if (addTagRowBtn) {
+            addTagRowBtn.addEventListener('click', () => this.addTagBuilderRow());
         }
 
-        // Allow Enter key to add tags
-        const tagKeyInput = document.getElementById('tag-key');
-        const tagValueInput = document.getElementById('tag-value');
-        if (tagKeyInput) {
-            tagKeyInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    tagValueInput.focus();
+        // Event delegation for tag builder interactions
+        const tagBuilderRows = document.getElementById('tag-builder-rows');
+        if (tagBuilderRows) {
+            tagBuilderRows.addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.classList.contains('tag-row-remove')) {
+                    const row = target.closest('.tag-builder-row');
+                    const index = parseInt(row.dataset.index);
+                    this.removeTagBuilderRow(index);
+                } else if (target.classList.contains('tag-value-add')) {
+                    const row = target.closest('.tag-builder-row');
+                    const index = parseInt(row.dataset.index);
+                    this.addTagValue(index);
+                } else if (target.classList.contains('tag-value-remove')) {
+                    const row = target.closest('.tag-builder-row');
+                    const rowIndex = parseInt(row.dataset.index);
+                    const valueIndex = parseInt(target.dataset.valueIndex);
+                    this.removeTagValue(rowIndex, valueIndex);
                 }
             });
-        }
-        if (tagValueInput) {
-            tagValueInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.addPublishTag();
+
+            tagBuilderRows.addEventListener('input', (e) => {
+                const target = e.target;
+                if (target.classList.contains('tag-key-input') || target.classList.contains('tag-value-input')) {
+                    this.syncTagsFromBuilder();
+                    this.updateEventPreview();
                 }
             });
         }
@@ -1538,51 +1548,123 @@ class Shirushi {
     }
 
     addPublishTag() {
-        const keyInput = document.getElementById('tag-key');
-        const valueInput = document.getElementById('tag-value');
-        const container = document.getElementById('publish-tags');
+        // Legacy method for backwards compatibility
+        this.addTagBuilderRow();
+    }
 
-        const key = keyInput.value.trim();
-        const value = valueInput.value.trim();
-
-        if (!key) {
-            this.toastWarning('Missing Tag Key', 'Please enter a tag key');
-            keyInput.focus();
-            return;
+    addTagBuilderRow(key = '', values = ['']) {
+        // Ensure values is always an array with at least one element
+        if (!Array.isArray(values) || values.length === 0) {
+            values = [''];
         }
-
-        this.publishTags.push([key, value]);
+        this.publishTags.push([key, ...values]);
         this.renderPublishTags();
-
-        keyInput.value = '';
-        valueInput.value = '';
-        keyInput.focus();
-
         this.updateEventPreview();
+
+        // Focus on the new row's key input
+        const container = document.getElementById('tag-builder-rows');
+        if (container) {
+            const rows = container.querySelectorAll('.tag-builder-row');
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) {
+                const keyInput = lastRow.querySelector('.tag-key-input');
+                if (keyInput) {
+                    keyInput.focus();
+                }
+            }
+        }
     }
 
     removePublishTag(index) {
+        this.removeTagBuilderRow(index);
+    }
+
+    removeTagBuilderRow(index) {
         this.publishTags.splice(index, 1);
         this.renderPublishTags();
         this.updateEventPreview();
     }
 
+    addTagValue(rowIndex) {
+        if (this.publishTags[rowIndex]) {
+            this.publishTags[rowIndex].push('');
+            this.renderPublishTags();
+            this.updateEventPreview();
+
+            // Focus on the new value input
+            const container = document.getElementById('tag-builder-rows');
+            if (container) {
+                const row = container.querySelector(`.tag-builder-row[data-index="${rowIndex}"]`);
+                if (row) {
+                    const valueInputs = row.querySelectorAll('.tag-value-input');
+                    const lastInput = valueInputs[valueInputs.length - 1];
+                    if (lastInput) {
+                        lastInput.focus();
+                    }
+                }
+            }
+        }
+    }
+
+    removeTagValue(rowIndex, valueIndex) {
+        if (this.publishTags[rowIndex] && this.publishTags[rowIndex].length > 2) {
+            // valueIndex is 0-based for values, but index 0 in the array is the key
+            // so valueIndex 0 corresponds to array index 1
+            this.publishTags[rowIndex].splice(valueIndex + 1, 1);
+            this.renderPublishTags();
+            this.updateEventPreview();
+        }
+    }
+
+    syncTagsFromBuilder() {
+        const container = document.getElementById('tag-builder-rows');
+        if (!container) return;
+
+        const rows = container.querySelectorAll('.tag-builder-row');
+        this.publishTags = Array.from(rows).map(row => {
+            const keyInput = row.querySelector('.tag-key-input');
+            const valueInputs = row.querySelectorAll('.tag-value-input');
+            const key = keyInput ? keyInput.value : '';
+            const values = Array.from(valueInputs).map(input => input.value);
+            return [key, ...values];
+        });
+    }
+
     renderPublishTags() {
-        const container = document.getElementById('publish-tags');
+        const container = document.getElementById('tag-builder-rows');
         if (!container) return;
 
         if (this.publishTags.length === 0) {
-            container.innerHTML = '';
+            container.innerHTML = '<p class="hint tag-builder-empty">No tags added yet. Click "+ Add Tag" to add a tag.</p>';
             return;
         }
 
-        container.innerHTML = this.publishTags.map((tag, index) => `
-            <span class="tag-item">
-                <span class="tag-key">${this.escapeHtml(tag[0])}</span>
-                <span class="tag-value">${this.escapeHtml(tag[1] || '(empty)')}</span>
-                <button class="remove-tag" onclick="app.removePublishTag(${index})" title="Remove tag">&times;</button>
-            </span>
-        `).join('');
+        container.innerHTML = this.publishTags.map((tag, index) => {
+            const key = tag[0] || '';
+            const values = tag.slice(1);
+            // Ensure at least one value field
+            if (values.length === 0) {
+                values.push('');
+            }
+
+            return `
+                <div class="tag-builder-row" data-index="${index}">
+                    <div class="tag-row-key">
+                        <input type="text" class="form-input tag-key-input" value="${this.escapeHtml(key)}" placeholder="Key" title="Tag key (e.g., p, e, t)">
+                    </div>
+                    <div class="tag-row-values">
+                        ${values.map((value, valueIndex) => `
+                            <div class="tag-value-wrapper">
+                                <input type="text" class="form-input tag-value-input" value="${this.escapeHtml(value)}" placeholder="Value ${valueIndex + 1}" data-value-index="${valueIndex}">
+                                ${values.length > 1 ? `<button type="button" class="btn small tag-value-remove" data-value-index="${valueIndex}" title="Remove value">&times;</button>` : ''}
+                            </div>
+                        `).join('')}
+                        <button type="button" class="btn small tag-value-add" title="Add another value">+</button>
+                    </div>
+                    <button type="button" class="btn small tag-row-remove" title="Remove tag row">&times;</button>
+                </div>
+            `;
+        }).join('');
     }
 
     getPublishEventKind() {
