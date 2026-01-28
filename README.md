@@ -1,4 +1,4 @@
-# Shirushi - Nostr Protocol Explorer
+# Shirushi 印 - Nostr Protocol Explorer
 
 A **web-based Nostr protocol testing and monitoring tool** built in Go. Explore profiles, monitor relay performance with real-time charts, test NIP implementations, and interact with the Nostr network through an intuitive dashboard.
 
