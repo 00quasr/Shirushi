@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "A web-based Nostr protocol testing and monitoring tool built in Go",
   "scripts": {
-    "test": "echo \"No tests specified\" && exit 0"
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "test": "node tests/vite.config.test.js"
   },
   "keywords": [
     "nostr",
