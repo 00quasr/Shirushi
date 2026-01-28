@@ -445,6 +445,13 @@ main {
     color: var(--text-2);
     font-family: 'Geist Mono', monospace;
     font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+a.nip-badge:hover {
+    background: var(--accent);
+    color: white;
 }
 
 .nip-badge.more {

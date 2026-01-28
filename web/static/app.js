@@ -444,9 +444,11 @@ class Shirushi {
         const displayNips = sortedNips.slice(0, 10);
         const hasMore = sortedNips.length > 10;
 
-        const nipBadges = displayNips.map(nip =>
-            `<span class="nip-badge" title="NIP-${String(nip).padStart(2, '0')}">${nip}</span>`
-        ).join('');
+        const nipBadges = displayNips.map(nip => {
+            const nipNumber = String(nip).padStart(2, '0');
+            const specUrl = `https://github.com/nostr-protocol/nips/blob/master/${nipNumber}.md`;
+            return `<a href="${specUrl}" target="_blank" rel="noopener noreferrer" class="nip-badge" title="NIP-${nipNumber} - Click to view spec">${nip}</a>`;
+        }).join('');
 
         return `
             <div class="relay-nips">
@@ -622,9 +624,11 @@ class Shirushi {
                     <h4>Supported NIPs (${nips.length})</h4>
                     ${nips.length > 0 ? `
                         <div class="relay-nips-full">
-                            ${[...nips].sort((a, b) => a - b).map(nip =>
-                                `<span class="nip-badge" title="NIP-${String(nip).padStart(2, '0')}">NIP-${String(nip).padStart(2, '0')}</span>`
-                            ).join('')}
+                            ${[...nips].sort((a, b) => a - b).map(nip => {
+                                const nipNumber = String(nip).padStart(2, '0');
+                                const specUrl = `https://github.com/nostr-protocol/nips/blob/master/${nipNumber}.md`;
+                                return `<a href="${specUrl}" target="_blank" rel="noopener noreferrer" class="nip-badge" title="NIP-${nipNumber} - Click to view spec">NIP-${nipNumber}</a>`;
+                            }).join('')}
                         </div>
                     ` : '<p class="hint">No NIP information available</p>'}
                 </div>
