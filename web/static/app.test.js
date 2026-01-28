@@ -9080,6 +9080,135 @@
         });
     });
 
+    // ========================================
+    // Relay Status Auto-Update Tests
+    // ========================================
+
+    describe('Relay Status Auto-Updates', () => {
+        it('should have updateRelayStatus method', () => {
+            assertDefined(Shirushi.prototype.updateRelayStatus, 'updateRelayStatus method should exist');
+        });
+
+        it('should update relay status when receiving relay_status message', () => {
+            // Create a mock Shirushi instance with relay data
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true, error: '' },
+                { url: 'wss://relay2.example.com', connected: false, error: 'connection failed' }
+            ];
+            let renderCalled = false;
+            instance.renderRelays = function() {
+                renderCalled = true;
+            };
+
+            // Simulate receiving a relay_status update
+            instance.updateRelayStatus({
+                url: 'wss://relay2.example.com',
+                connected: true,
+                error: ''
+            });
+
+            // Verify the relay was updated
+            const relay = instance.relays.find(r => r.url === 'wss://relay2.example.com');
+            assertTrue(relay.connected, 'Relay should be marked as connected');
+            assertEqual(relay.error, '', 'Relay error should be cleared');
+            assertTrue(renderCalled, 'renderRelays should be called');
+        });
+
+        it('should update relay status to disconnected with error', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true, error: '' }
+            ];
+            let renderCalled = false;
+            instance.renderRelays = function() {
+                renderCalled = true;
+            };
+
+            // Simulate receiving a disconnect status
+            instance.updateRelayStatus({
+                url: 'wss://relay1.example.com',
+                connected: false,
+                error: 'connection refused'
+            });
+
+            const relay = instance.relays.find(r => r.url === 'wss://relay1.example.com');
+            assertFalse(relay.connected, 'Relay should be marked as disconnected');
+            assertEqual(relay.error, 'connection refused', 'Relay should have error message');
+            assertTrue(renderCalled, 'renderRelays should be called');
+        });
+
+        it('should not update non-existent relay', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true, error: '' }
+            ];
+            let renderCalled = false;
+            instance.renderRelays = function() {
+                renderCalled = true;
+            };
+
+            // Try to update a relay that doesn't exist
+            instance.updateRelayStatus({
+                url: 'wss://unknown.relay.com',
+                connected: true,
+                error: ''
+            });
+
+            // Verify nothing changed
+            assertFalse(renderCalled, 'renderRelays should not be called for unknown relay');
+            assertEqual(instance.relays.length, 1, 'Relay list should not change');
+        });
+
+        it('should handle relay_status message type in handleMessage', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://test.relay', connected: false, error: 'timeout' }
+            ];
+            let updateCalled = false;
+            let receivedStatus = null;
+            instance.updateRelayStatus = function(status) {
+                updateCalled = true;
+                receivedStatus = status;
+            };
+
+            // Simulate WebSocket message
+            instance.handleMessage({
+                type: 'relay_status',
+                data: {
+                    url: 'wss://test.relay',
+                    connected: true,
+                    error: ''
+                }
+            });
+
+            assertTrue(updateCalled, 'updateRelayStatus should be called');
+            assertEqual(receivedStatus.url, 'wss://test.relay', 'URL should match');
+            assertTrue(receivedStatus.connected, 'Connected status should be true');
+        });
+
+        it('should merge additional status fields during update', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true, error: '', latency_ms: 0, events_per_sec: 0 }
+            ];
+            instance.renderRelays = function() {};
+
+            // Update with additional fields
+            instance.updateRelayStatus({
+                url: 'wss://relay1.example.com',
+                connected: true,
+                error: '',
+                latency_ms: 150,
+                events_per_sec: 5.2
+            });
+
+            const relay = instance.relays.find(r => r.url === 'wss://relay1.example.com');
+            assertEqual(relay.latency_ms, 150, 'Latency should be updated');
+            assertEqual(relay.events_per_sec, 5.2, 'Events per second should be updated');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
