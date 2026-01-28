@@ -202,6 +202,7 @@ func (p *Pool) fetchRelayInfo(url string) {
 		Software:      info.Software,
 		Version:       info.Version,
 		Icon:          info.Icon,
+		PaymentsURL:   info.PaymentsURL,
 	}
 
 	// Copy limitation info if available
@@ -215,6 +216,32 @@ func (p *Pool) fetchRelayInfo(url string) {
 			MinPOWDifficulty: info.Limitation.MinPowDifficulty,
 			AuthRequired:     info.Limitation.AuthRequired,
 			PaymentRequired:  info.Limitation.PaymentRequired,
+			RestrictedWrites: info.Limitation.RestrictedWrites,
+		}
+	}
+
+	// Copy fees info if available
+	if info.Fees != nil {
+		relayInfo.Fees = &types.RelayFees{}
+		for _, a := range info.Fees.Admission {
+			relayInfo.Fees.Admission = append(relayInfo.Fees.Admission, types.RelayFeeEntry{
+				Amount: a.Amount,
+				Unit:   a.Unit,
+			})
+		}
+		for _, s := range info.Fees.Subscription {
+			relayInfo.Fees.Subscription = append(relayInfo.Fees.Subscription, types.RelayFeeEntry{
+				Amount: s.Amount,
+				Unit:   s.Unit,
+				Period: s.Period,
+			})
+		}
+		for _, p := range info.Fees.Publication {
+			relayInfo.Fees.Publication = append(relayInfo.Fees.Publication, types.RelayFeeEntry{
+				Amount: p.Amount,
+				Unit:   p.Unit,
+				Kinds:  p.Kinds,
+			})
 		}
 	}
 
@@ -541,6 +568,7 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 		Software:      info.Software,
 		Version:       info.Version,
 		Icon:          info.Icon,
+		PaymentsURL:   info.PaymentsURL,
 	}
 
 	if info.Limitation != nil {
@@ -553,6 +581,32 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 			MinPOWDifficulty: info.Limitation.MinPowDifficulty,
 			AuthRequired:     info.Limitation.AuthRequired,
 			PaymentRequired:  info.Limitation.PaymentRequired,
+			RestrictedWrites: info.Limitation.RestrictedWrites,
+		}
+	}
+
+	// Copy fees info if available
+	if info.Fees != nil {
+		conn.Info.Fees = &types.RelayFees{}
+		for _, a := range info.Fees.Admission {
+			conn.Info.Fees.Admission = append(conn.Info.Fees.Admission, types.RelayFeeEntry{
+				Amount: a.Amount,
+				Unit:   a.Unit,
+			})
+		}
+		for _, s := range info.Fees.Subscription {
+			conn.Info.Fees.Subscription = append(conn.Info.Fees.Subscription, types.RelayFeeEntry{
+				Amount: s.Amount,
+				Unit:   s.Unit,
+				Period: s.Period,
+			})
+		}
+		for _, p := range info.Fees.Publication {
+			conn.Info.Fees.Publication = append(conn.Info.Fees.Publication, types.RelayFeeEntry{
+				Amount: p.Amount,
+				Unit:   p.Unit,
+				Kinds:  p.Kinds,
+			})
 		}
 	}
 

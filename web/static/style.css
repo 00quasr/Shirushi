@@ -435,6 +435,45 @@ main {
 .relay-limit-payment {
     background: rgba(76, 175, 80, 0.15);
     color: #4caf50;
+    text-decoration: none;
+}
+
+.relay-limit-payment:hover {
+    background: rgba(76, 175, 80, 0.25);
+}
+
+.relay-limit-restricted {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+}
+
+/* Payment section in modal */
+.relay-payment-section {
+    background: rgba(76, 175, 80, 0.08);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.relay-payment-section h4 {
+    color: #4caf50;
+    margin-bottom: 12px;
+}
+
+.payment-required-yes {
+    color: #4caf50;
+    font-weight: 600;
+}
+
+.payment-link {
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.payment-link:hover {
+    text-decoration: underline;
 }
 
 /* Legacy relay-name (kept for backwards compatibility) */

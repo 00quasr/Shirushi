@@ -854,3 +854,235 @@ func TestRelayStatusWithLimitations(t *testing.T) {
 		t.Errorf("Limitation.AuthRequired mismatch: got %v, want %v", decoded.RelayInfo.Limitation.AuthRequired, true)
 	}
 }
+
+// Tests for NIP-42 payment requirements (RelayFees structure)
+
+func TestRelayFeesJSONSerialization(t *testing.T) {
+	fees := RelayFees{
+		Admission: []RelayFeeEntry{
+			{Amount: 1000000, Unit: "msats"},
+		},
+		Subscription: []RelayFeeEntry{
+			{Amount: 5000000, Unit: "msats", Period: 2592000},
+			{Amount: 28000000, Unit: "msats", Period: 31536000},
+		},
+		Publication: []RelayFeeEntry{
+			{Amount: 100, Unit: "msats", Kinds: []int{4}},
+			{Amount: 50, Unit: "msats", Kinds: []int{1, 6}},
+		},
+	}
+
+	data, err := json.Marshal(fees)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayFees: %v", err)
+	}
+
+	var decoded RelayFees
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayFees: %v", err)
+	}
+
+	// Check admission fees
+	if len(decoded.Admission) != 1 {
+		t.Fatalf("Admission length mismatch: got %d, want 1", len(decoded.Admission))
+	}
+	if decoded.Admission[0].Amount != 1000000 {
+		t.Errorf("Admission[0].Amount mismatch: got %d, want 1000000", decoded.Admission[0].Amount)
+	}
+	if decoded.Admission[0].Unit != "msats" {
+		t.Errorf("Admission[0].Unit mismatch: got %s, want msats", decoded.Admission[0].Unit)
+	}
+
+	// Check subscription fees
+	if len(decoded.Subscription) != 2 {
+		t.Fatalf("Subscription length mismatch: got %d, want 2", len(decoded.Subscription))
+	}
+	if decoded.Subscription[0].Period != 2592000 {
+		t.Errorf("Subscription[0].Period mismatch: got %d, want 2592000", decoded.Subscription[0].Period)
+	}
+	if decoded.Subscription[1].Amount != 28000000 {
+		t.Errorf("Subscription[1].Amount mismatch: got %d, want 28000000", decoded.Subscription[1].Amount)
+	}
+
+	// Check publication fees
+	if len(decoded.Publication) != 2 {
+		t.Fatalf("Publication length mismatch: got %d, want 2", len(decoded.Publication))
+	}
+	if len(decoded.Publication[0].Kinds) != 1 || decoded.Publication[0].Kinds[0] != 4 {
+		t.Errorf("Publication[0].Kinds mismatch: got %v, want [4]", decoded.Publication[0].Kinds)
+	}
+	if len(decoded.Publication[1].Kinds) != 2 {
+		t.Errorf("Publication[1].Kinds length mismatch: got %d, want 2", len(decoded.Publication[1].Kinds))
+	}
+}
+
+func TestRelayFeeEntryJSONSerialization(t *testing.T) {
+	entry := RelayFeeEntry{
+		Amount: 5000000,
+		Unit:   "msats",
+		Period: 2592000,
+		Kinds:  []int{1, 4, 30023},
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayFeeEntry: %v", err)
+	}
+
+	var decoded RelayFeeEntry
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayFeeEntry: %v", err)
+	}
+
+	if decoded.Amount != entry.Amount {
+		t.Errorf("Amount mismatch: got %d, want %d", decoded.Amount, entry.Amount)
+	}
+	if decoded.Unit != entry.Unit {
+		t.Errorf("Unit mismatch: got %s, want %s", decoded.Unit, entry.Unit)
+	}
+	if decoded.Period != entry.Period {
+		t.Errorf("Period mismatch: got %d, want %d", decoded.Period, entry.Period)
+	}
+	if len(decoded.Kinds) != len(entry.Kinds) {
+		t.Errorf("Kinds length mismatch: got %d, want %d", len(decoded.Kinds), len(entry.Kinds))
+	}
+}
+
+func TestRelayFeeEntryOmitEmpty(t *testing.T) {
+	// Minimal fee entry without period or kinds
+	entry := RelayFeeEntry{
+		Amount: 1000,
+		Unit:   "sats",
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayFeeEntry: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := m["period"]; exists {
+		t.Error("zero period should be omitted")
+	}
+	if _, exists := m["kinds"]; exists {
+		t.Error("nil kinds should be omitted")
+	}
+	if _, exists := m["amount"]; !exists {
+		t.Error("amount should be present")
+	}
+	if _, exists := m["unit"]; !exists {
+		t.Error("unit should be present")
+	}
+}
+
+func TestRelayInfoWithPaymentRequirements(t *testing.T) {
+	relayInfo := RelayInfo{
+		Name:          "Paid Relay",
+		Description:   "A paid relay with fees",
+		SupportedNIPs: []int{1, 11, 42},
+		PaymentsURL:   "https://relay.example.com/payments",
+		Limitation: &RelayLimitation{
+			PaymentRequired:  true,
+			RestrictedWrites: true,
+			AuthRequired:     true,
+		},
+		Fees: &RelayFees{
+			Admission: []RelayFeeEntry{
+				{Amount: 1000000, Unit: "msats"},
+			},
+			Subscription: []RelayFeeEntry{
+				{Amount: 5000000, Unit: "msats", Period: 2592000},
+			},
+		},
+	}
+
+	data, err := json.Marshal(relayInfo)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayInfo: %v", err)
+	}
+
+	var decoded RelayInfo
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayInfo: %v", err)
+	}
+
+	if decoded.PaymentsURL != relayInfo.PaymentsURL {
+		t.Errorf("PaymentsURL mismatch: got %s, want %s", decoded.PaymentsURL, relayInfo.PaymentsURL)
+	}
+
+	if decoded.Limitation == nil {
+		t.Fatal("Limitation should not be nil")
+	}
+	if !decoded.Limitation.PaymentRequired {
+		t.Error("PaymentRequired should be true")
+	}
+	if !decoded.Limitation.RestrictedWrites {
+		t.Error("RestrictedWrites should be true")
+	}
+
+	if decoded.Fees == nil {
+		t.Fatal("Fees should not be nil")
+	}
+	if len(decoded.Fees.Admission) != 1 {
+		t.Errorf("Fees.Admission length mismatch: got %d, want 1", len(decoded.Fees.Admission))
+	}
+	if len(decoded.Fees.Subscription) != 1 {
+		t.Errorf("Fees.Subscription length mismatch: got %d, want 1", len(decoded.Fees.Subscription))
+	}
+}
+
+func TestRelayInfoWithoutFees(t *testing.T) {
+	relayInfo := RelayInfo{
+		Name:          "Free Relay",
+		SupportedNIPs: []int{1},
+	}
+
+	data, err := json.Marshal(relayInfo)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayInfo: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := m["payments_url"]; exists {
+		t.Error("empty payments_url should be omitted")
+	}
+	if _, exists := m["fees"]; exists {
+		t.Error("nil fees should be omitted")
+	}
+}
+
+func TestRelayLimitationRestrictedWrites(t *testing.T) {
+	limitation := RelayLimitation{
+		PaymentRequired:  true,
+		RestrictedWrites: true,
+		AuthRequired:     false,
+	}
+
+	data, err := json.Marshal(limitation)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayLimitation: %v", err)
+	}
+
+	var decoded RelayLimitation
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayLimitation: %v", err)
+	}
+
+	if !decoded.PaymentRequired {
+		t.Error("PaymentRequired should be true")
+	}
+	if !decoded.RestrictedWrites {
+		t.Error("RestrictedWrites should be true")
+	}
+	if decoded.AuthRequired {
+		t.Error("AuthRequired should be false")
+	}
+}

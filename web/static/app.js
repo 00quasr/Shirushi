@@ -426,7 +426,7 @@ class Shirushi {
         }
 
         // Key limitations summary (displayed prominently on card)
-        const limitationsSummary = this.renderRelayLimitationsSummary(info.limitation);
+        const limitationsSummary = this.renderRelayLimitationsSummary(info.limitation, info.fees, info.payments_url);
         if (limitationsSummary) {
             parts.push(limitationsSummary);
         }
@@ -438,32 +438,49 @@ class Shirushi {
         return `<div class="relay-meta">${parts.join('')}</div>`;
     }
 
-    renderRelayLimitationsSummary(limitation) {
-        if (!limitation) {
-            return '';
+    renderRelayLimitationsSummary(limitation, fees, paymentsUrl) {
+        const items = [];
+        const hasPaymentInfo = fees && (fees.admission?.length > 0 || fees.subscription?.length > 0 || fees.publication?.length > 0);
+        const paymentRequired = limitation?.payment_required || hasPaymentInfo;
+
+        // Payment required badge with fees summary (highest priority - shown first)
+        if (paymentRequired) {
+            let feeDetails = [];
+            if (fees?.admission?.length > 0) {
+                const fee = fees.admission[0];
+                feeDetails.push(`Admission: ${this.formatSats(fee.amount, fee.unit)}`);
+            }
+            if (fees?.subscription?.length > 0) {
+                const fee = fees.subscription[0];
+                const period = this.formatPeriod(fee.period);
+                feeDetails.push(`Subscription: ${this.formatSats(fee.amount, fee.unit)}${period}`);
+            }
+            const tooltip = feeDetails.length > 0 ? feeDetails.join(', ') : 'Payment required';
+            const paymentLink = paymentsUrl
+                ? `<a href="${this.escapeHtml(paymentsUrl)}" target="_blank" rel="noopener noreferrer" class="relay-limit-item relay-limit-payment" title="${tooltip}">💰 Paid</a>`
+                : `<span class="relay-limit-item relay-limit-payment" title="${tooltip}">💰 Paid</span>`;
+            items.push(paymentLink);
         }
 
-        const items = [];
+        // Auth required badge
+        if (limitation?.auth_required) {
+            items.push(`<span class="relay-limit-item relay-limit-auth" title="Authentication required (NIP-42)">🔐 Auth</span>`);
+        }
 
-        // Max message length (most important)
-        if (limitation.max_message_length) {
+        // Restricted writes badge
+        if (limitation?.restricted_writes) {
+            items.push(`<span class="relay-limit-item relay-limit-restricted" title="Restricted writes - conditions must be met to publish">✍️ Restricted</span>`);
+        }
+
+        // Max message length
+        if (limitation?.max_message_length) {
             const size = this.formatBytes(limitation.max_message_length);
             items.push(`<span class="relay-limit-item" title="Maximum message size"><span class="relay-limit-icon">📦</span>${size}</span>`);
         }
 
         // Max subscriptions
-        if (limitation.max_subscriptions) {
+        if (limitation?.max_subscriptions) {
             items.push(`<span class="relay-limit-item" title="Maximum concurrent subscriptions"><span class="relay-limit-icon">🔔</span>${limitation.max_subscriptions} subs</span>`);
-        }
-
-        // Auth required badge
-        if (limitation.auth_required) {
-            items.push(`<span class="relay-limit-item relay-limit-auth" title="Authentication required">🔐 Auth</span>`);
-        }
-
-        // Payment required badge
-        if (limitation.payment_required) {
-            items.push(`<span class="relay-limit-item relay-limit-payment" title="Payment required">💰 Paid</span>`);
         }
 
         if (items.length === 0) {
@@ -471,6 +488,105 @@ class Shirushi {
         }
 
         return `<div class="relay-meta-limits">${items.join('')}</div>`;
+    }
+
+    formatSats(amount, unit) {
+        if (!amount) return '';
+        const lowerUnit = (unit || 'msats').toLowerCase();
+        if (lowerUnit === 'msats' || lowerUnit === 'millisatoshis') {
+            // Convert millisatoshis to sats
+            const sats = amount / 1000;
+            if (sats >= 1000000) {
+                return `${(sats / 1000000).toFixed(2)}M sats`;
+            } else if (sats >= 1000) {
+                return `${(sats / 1000).toFixed(1)}k sats`;
+            }
+            return `${sats.toLocaleString()} sats`;
+        } else if (lowerUnit === 'sats' || lowerUnit === 'satoshis') {
+            if (amount >= 1000000) {
+                return `${(amount / 1000000).toFixed(2)}M sats`;
+            } else if (amount >= 1000) {
+                return `${(amount / 1000).toFixed(1)}k sats`;
+            }
+            return `${amount.toLocaleString()} sats`;
+        }
+        return `${amount.toLocaleString()} ${unit}`;
+    }
+
+    formatPeriod(seconds) {
+        if (!seconds) return '';
+        const days = Math.floor(seconds / 86400);
+        if (days >= 365) {
+            const years = Math.floor(days / 365);
+            return ` / ${years} year${years > 1 ? 's' : ''}`;
+        } else if (days >= 30) {
+            const months = Math.floor(days / 30);
+            return ` / ${months} month${months > 1 ? 's' : ''}`;
+        } else if (days >= 7) {
+            const weeks = Math.floor(days / 7);
+            return ` / ${weeks} week${weeks > 1 ? 's' : ''}`;
+        } else if (days > 0) {
+            return ` / ${days} day${days > 1 ? 's' : ''}`;
+        }
+        return ` / ${seconds}s`;
+    }
+
+    renderPaymentSection(info) {
+        const fees = info?.fees;
+        const paymentsUrl = info?.payments_url;
+        const paymentRequired = info?.limitation?.payment_required;
+        const hasPaymentInfo = fees && (fees.admission?.length > 0 || fees.subscription?.length > 0 || fees.publication?.length > 0);
+
+        if (!paymentRequired && !hasPaymentInfo && !paymentsUrl) {
+            return '';
+        }
+
+        let rows = [];
+
+        // Payment status
+        if (paymentRequired) {
+            rows.push('<span class="label">Payment Required:</span><span class="value payment-required-yes">Yes</span>');
+        }
+
+        // Payments URL
+        if (paymentsUrl) {
+            rows.push(`<span class="label">Payment Page:</span><span class="value"><a href="${this.escapeHtml(paymentsUrl)}" target="_blank" rel="noopener noreferrer" class="payment-link">${this.escapeHtml(paymentsUrl)}</a></span>`);
+        }
+
+        // Admission fees
+        if (fees?.admission?.length > 0) {
+            const admissionFees = fees.admission.map(fee =>
+                `${this.formatSats(fee.amount, fee.unit)} (one-time)`
+            ).join(', ');
+            rows.push(`<span class="label">Admission Fee:</span><span class="value">${admissionFees}</span>`);
+        }
+
+        // Subscription fees
+        if (fees?.subscription?.length > 0) {
+            const subscriptionFees = fees.subscription.map(fee => {
+                const period = this.formatPeriod(fee.period).replace(' / ', '');
+                return `${this.formatSats(fee.amount, fee.unit)} / ${period}`;
+            }).join(', ');
+            rows.push(`<span class="label">Subscription:</span><span class="value">${subscriptionFees}</span>`);
+        }
+
+        // Publication fees
+        if (fees?.publication?.length > 0) {
+            const publicationFees = fees.publication.map(fee => {
+                const kindsStr = fee.kinds?.length > 0 ? ` (kinds: ${fee.kinds.join(', ')})` : '';
+                return `${this.formatSats(fee.amount, fee.unit)} per event${kindsStr}`;
+            }).join(', ');
+            rows.push(`<span class="label">Publication Fee:</span><span class="value">${publicationFees}</span>`);
+        }
+
+        return `
+            <div class="relay-info-section relay-payment-section">
+                <h4>💰 Payment Requirements</h4>
+                <div class="relay-info-grid">
+                    ${rows.join('')}
+                </div>
+            </div>
+        `;
     }
 
     formatBytes(bytes) {
@@ -578,10 +694,13 @@ class Shirushi {
             limits.push(`Max content: ${limitation.max_content_length.toLocaleString()}`);
         }
         if (limitation.auth_required) {
-            limits.push('Auth required');
+            limits.push('🔐 Auth required');
         }
         if (limitation.payment_required) {
-            limits.push('Payment required');
+            limits.push('💰 Payment required');
+        }
+        if (limitation.restricted_writes) {
+            limits.push('✍️ Restricted writes');
         }
 
         if (limits.length === 0) {
@@ -656,6 +775,8 @@ class Shirushi {
                 </div>
                 ` : ''}
 
+                ${this.renderPaymentSection(info)}
+
                 ${info.limitation ? `
                 <div class="relay-info-section">
                     <h4>Limitations</h4>
@@ -668,6 +789,7 @@ class Shirushi {
                         ${info.limitation.min_pow_difficulty ? `<span class="label">Min PoW Difficulty:</span><span class="value">${info.limitation.min_pow_difficulty}</span>` : ''}
                         ${info.limitation.auth_required ? `<span class="label">Auth Required:</span><span class="value">Yes</span>` : ''}
                         ${info.limitation.payment_required ? `<span class="label">Payment Required:</span><span class="value">Yes</span>` : ''}
+                        ${info.limitation.restricted_writes ? `<span class="label">Restricted Writes:</span><span class="value">Yes</span>` : ''}
                     </div>
                 </div>
                 ` : ''}

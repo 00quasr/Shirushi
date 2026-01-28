@@ -35,6 +35,8 @@ type RelayInfo struct {
 	Version       string           `json:"version,omitempty"`
 	Icon          string           `json:"icon,omitempty"`
 	Limitation    *RelayLimitation `json:"limitation,omitempty"`
+	PaymentsURL   string           `json:"payments_url,omitempty"`
+	Fees          *RelayFees       `json:"fees,omitempty"`
 }
 
 // RelayLimitation represents the limitation section of NIP-11.
@@ -47,6 +49,22 @@ type RelayLimitation struct {
 	MinPOWDifficulty int  `json:"min_pow_difficulty,omitempty"`
 	AuthRequired     bool `json:"auth_required,omitempty"`
 	PaymentRequired  bool `json:"payment_required,omitempty"`
+	RestrictedWrites bool `json:"restricted_writes,omitempty"`
+}
+
+// RelayFeeEntry represents a single fee entry (admission, subscription, or publication).
+type RelayFeeEntry struct {
+	Amount int    `json:"amount"`
+	Unit   string `json:"unit"`
+	Period int    `json:"period,omitempty"` // For subscription fees (in seconds)
+	Kinds  []int  `json:"kinds,omitempty"`  // For publication fees (event kinds)
+}
+
+// RelayFees represents the fees section of NIP-11.
+type RelayFees struct {
+	Admission    []RelayFeeEntry `json:"admission,omitempty"`
+	Subscription []RelayFeeEntry `json:"subscription,omitempty"`
+	Publication  []RelayFeeEntry `json:"publication,omitempty"`
 }
 
 // RelayStats represents statistics for a relay.

@@ -3436,3 +3436,204 @@ func TestHandleEventPublish_PartialSuccess(t *testing.T) {
 		t.Errorf("expected 1 success and 1 failure, got %d successes and %d failures", successCount, failCount)
 	}
 }
+
+// Tests for NIP-42 payment requirements (fees structure)
+
+func TestHandleRelayInfo_WithPaymentRequirements(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://paid.relay.com": {
+				Name:          "Paid Relay",
+				Description:   "A relay that requires payment",
+				SupportedNIPs: []int{1, 11, 42},
+				PaymentsURL:   "https://paid.relay.com/payments",
+				Limitation: &types.RelayLimitation{
+					PaymentRequired:  true,
+					RestrictedWrites: true,
+					AuthRequired:     true,
+				},
+				Fees: &types.RelayFees{
+					Admission: []types.RelayFeeEntry{
+						{Amount: 1000000, Unit: "msats"},
+					},
+					Subscription: []types.RelayFeeEntry{
+						{Amount: 5000000, Unit: "msats", Period: 2592000},
+					},
+					Publication: []types.RelayFeeEntry{
+						{Amount: 100, Unit: "msats", Kinds: []int{4}},
+					},
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://paid.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Verify payments URL
+	if info.PaymentsURL != "https://paid.relay.com/payments" {
+		t.Errorf("expected payments_url 'https://paid.relay.com/payments', got '%s'", info.PaymentsURL)
+	}
+
+	// Verify limitation flags
+	if info.Limitation == nil {
+		t.Fatal("expected limitation to be set")
+	}
+	if !info.Limitation.PaymentRequired {
+		t.Error("expected payment_required to be true")
+	}
+	if !info.Limitation.RestrictedWrites {
+		t.Error("expected restricted_writes to be true")
+	}
+	if !info.Limitation.AuthRequired {
+		t.Error("expected auth_required to be true")
+	}
+
+	// Verify fees structure
+	if info.Fees == nil {
+		t.Fatal("expected fees to be set")
+	}
+
+	// Check admission fees
+	if len(info.Fees.Admission) != 1 {
+		t.Fatalf("expected 1 admission fee, got %d", len(info.Fees.Admission))
+	}
+	if info.Fees.Admission[0].Amount != 1000000 {
+		t.Errorf("expected admission amount 1000000, got %d", info.Fees.Admission[0].Amount)
+	}
+	if info.Fees.Admission[0].Unit != "msats" {
+		t.Errorf("expected admission unit 'msats', got '%s'", info.Fees.Admission[0].Unit)
+	}
+
+	// Check subscription fees
+	if len(info.Fees.Subscription) != 1 {
+		t.Fatalf("expected 1 subscription fee, got %d", len(info.Fees.Subscription))
+	}
+	if info.Fees.Subscription[0].Amount != 5000000 {
+		t.Errorf("expected subscription amount 5000000, got %d", info.Fees.Subscription[0].Amount)
+	}
+	if info.Fees.Subscription[0].Period != 2592000 {
+		t.Errorf("expected subscription period 2592000, got %d", info.Fees.Subscription[0].Period)
+	}
+
+	// Check publication fees
+	if len(info.Fees.Publication) != 1 {
+		t.Fatalf("expected 1 publication fee, got %d", len(info.Fees.Publication))
+	}
+	if info.Fees.Publication[0].Amount != 100 {
+		t.Errorf("expected publication amount 100, got %d", info.Fees.Publication[0].Amount)
+	}
+	if len(info.Fees.Publication[0].Kinds) != 1 || info.Fees.Publication[0].Kinds[0] != 4 {
+		t.Errorf("expected publication kinds [4], got %v", info.Fees.Publication[0].Kinds)
+	}
+}
+
+func TestHandleRelayInfo_NoFees(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://free.relay.com": {
+				Name:          "Free Relay",
+				Description:   "A free public relay",
+				SupportedNIPs: []int{1, 11},
+				Limitation: &types.RelayLimitation{
+					PaymentRequired:  false,
+					RestrictedWrites: false,
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://free.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Verify no payment requirements
+	if info.PaymentsURL != "" {
+		t.Errorf("expected empty payments_url, got '%s'", info.PaymentsURL)
+	}
+	if info.Fees != nil {
+		t.Errorf("expected nil fees, got %+v", info.Fees)
+	}
+	if info.Limitation.PaymentRequired {
+		t.Error("expected payment_required to be false")
+	}
+}
+
+func TestHandleRelayInfo_MultipleFees(t *testing.T) {
+	// Test relay with multiple fee tiers
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://tiered.relay.com": {
+				Name:        "Tiered Payment Relay",
+				PaymentsURL: "https://tiered.relay.com/subscribe",
+				Fees: &types.RelayFees{
+					Subscription: []types.RelayFeeEntry{
+						{Amount: 3000000, Unit: "msats", Period: 2592000},   // 30 days
+						{Amount: 8000000, Unit: "msats", Period: 7776000},   // 90 days
+						{Amount: 28000000, Unit: "msats", Period: 31536000}, // 1 year
+					},
+					Publication: []types.RelayFeeEntry{
+						{Amount: 50, Unit: "msats", Kinds: []int{1}},     // Regular notes
+						{Amount: 100, Unit: "msats", Kinds: []int{4}},    // DMs
+						{Amount: 200, Unit: "msats", Kinds: []int{9735}}, // Zaps
+					},
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://tiered.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if info.Fees == nil {
+		t.Fatal("expected fees to be set")
+	}
+
+	// Verify multiple subscription tiers
+	if len(info.Fees.Subscription) != 3 {
+		t.Fatalf("expected 3 subscription fees, got %d", len(info.Fees.Subscription))
+	}
+
+	// Verify multiple publication fee types
+	if len(info.Fees.Publication) != 3 {
+		t.Fatalf("expected 3 publication fees, got %d", len(info.Fees.Publication))
+	}
+}
