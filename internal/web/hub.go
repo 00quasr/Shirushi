@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/keanuklestil/shirushi/internal/types"
@@ -24,22 +25,40 @@ type Hub struct {
 	register   chan *Client
 	unregister chan *Client
 	mu         sync.RWMutex
+
+	// Event rate limiting
+	eventBuffer     []types.Event
+	eventBufferMu   sync.Mutex
+	eventTicker     *time.Ticker
+	maxEventsPerSec int
+	stopChan        chan struct{}
 }
 
 // NewHub creates a new Hub.
 func NewHub() *Hub {
-	return &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+	h := &Hub{
+		clients:         make(map[*Client]bool),
+		broadcast:       make(chan []byte, 256),
+		register:        make(chan *Client),
+		unregister:      make(chan *Client),
+		eventBuffer:     make([]types.Event, 0),
+		maxEventsPerSec: 20, // Limit to 20 events per second
+		stopChan:        make(chan struct{}),
 	}
+	return h
 }
 
 // Run starts the hub's main loop.
 func (h *Hub) Run() {
+	// Start the event flush ticker (100ms = 10 flushes per second)
+	h.eventTicker = time.NewTicker(100 * time.Millisecond)
+	defer h.eventTicker.Stop()
+
 	for {
 		select {
+		case <-h.stopChan:
+			return
+
 		case client := <-h.register:
 			h.mu.Lock()
 			h.clients[client] = true
@@ -69,7 +88,47 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mu.RUnlock()
+
+		case <-h.eventTicker.C:
+			h.flushEventBuffer()
 		}
+	}
+}
+
+// Stop gracefully stops the hub.
+func (h *Hub) Stop() {
+	close(h.stopChan)
+}
+
+// flushEventBuffer sends buffered events as a batch to all clients.
+func (h *Hub) flushEventBuffer() {
+	h.eventBufferMu.Lock()
+	if len(h.eventBuffer) == 0 {
+		h.eventBufferMu.Unlock()
+		return
+	}
+
+	// Take up to maxEventsPerSec/10 events per tick (10 ticks per second)
+	maxPerTick := h.maxEventsPerSec / 10
+	if maxPerTick < 1 {
+		maxPerTick = 1
+	}
+
+	eventsToSend := h.eventBuffer
+	if len(eventsToSend) > maxPerTick {
+		eventsToSend = h.eventBuffer[:maxPerTick]
+		h.eventBuffer = h.eventBuffer[maxPerTick:]
+	} else {
+		h.eventBuffer = h.eventBuffer[:0]
+	}
+	h.eventBufferMu.Unlock()
+
+	// Send events as a batch message
+	if len(eventsToSend) > 0 {
+		h.Broadcast(Message{
+			Type: "events_batch",
+			Data: eventsToSend,
+		})
 	}
 }
 
@@ -127,12 +186,18 @@ func (h *Hub) Broadcast(msg Message) {
 	}
 }
 
-// BroadcastEvent sends an event to all clients.
+// BroadcastEvent buffers an event for rate-limited broadcast to all clients.
 func (h *Hub) BroadcastEvent(event types.Event) {
-	h.Broadcast(Message{
-		Type: "event",
-		Data: event,
-	})
+	h.eventBufferMu.Lock()
+	defer h.eventBufferMu.Unlock()
+
+	// Limit buffer size to prevent memory issues
+	const maxBufferSize = 100
+	if len(h.eventBuffer) >= maxBufferSize {
+		// Drop oldest event to make room
+		h.eventBuffer = h.eventBuffer[1:]
+	}
+	h.eventBuffer = append(h.eventBuffer, event)
 }
 
 // BroadcastRelayStatus sends relay status update to all clients.

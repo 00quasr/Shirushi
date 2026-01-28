@@ -30,6 +30,18 @@ func TestNewHub(t *testing.T) {
 	if hub.unregister == nil {
 		t.Error("expected unregister channel to be initialized")
 	}
+
+	if hub.eventBuffer == nil {
+		t.Error("expected eventBuffer to be initialized")
+	}
+
+	if hub.maxEventsPerSec <= 0 {
+		t.Error("expected maxEventsPerSec to be positive")
+	}
+
+	if hub.stopChan == nil {
+		t.Error("expected stopChan to be initialized")
+	}
 }
 
 func TestHub_ClientCount(t *testing.T) {
@@ -63,6 +75,7 @@ func TestHub_BroadcastEvent(t *testing.T) {
 
 	// Start the hub in a goroutine
 	go hub.Run()
+	defer hub.Stop()
 
 	event := types.Event{
 		ID:        "test123",
@@ -76,6 +89,179 @@ func TestHub_BroadcastEvent(t *testing.T) {
 	hub.BroadcastEvent(event)
 
 	time.Sleep(10 * time.Millisecond)
+}
+
+func TestHub_BroadcastEvent_BuffersEvents(t *testing.T) {
+	hub := NewHub()
+
+	// Add multiple events to the buffer
+	for i := 0; i < 5; i++ {
+		event := types.Event{
+			ID:        "test" + string(rune('0'+i)),
+			Kind:      1,
+			PubKey:    "abc123",
+			Content:   "test content",
+			CreatedAt: 1700000000,
+		}
+		hub.BroadcastEvent(event)
+	}
+
+	// Check that events are buffered
+	hub.eventBufferMu.Lock()
+	bufferLen := len(hub.eventBuffer)
+	hub.eventBufferMu.Unlock()
+
+	if bufferLen != 5 {
+		t.Errorf("expected 5 events in buffer, got %d", bufferLen)
+	}
+}
+
+func TestHub_BroadcastEvent_BufferLimit(t *testing.T) {
+	hub := NewHub()
+
+	// Add more events than the buffer limit (100)
+	for i := 0; i < 150; i++ {
+		event := types.Event{
+			ID:        "test" + string(rune(i)),
+			Kind:      1,
+			PubKey:    "abc123",
+			Content:   "test content",
+			CreatedAt: 1700000000,
+		}
+		hub.BroadcastEvent(event)
+	}
+
+	// Check that buffer is limited to 100
+	hub.eventBufferMu.Lock()
+	bufferLen := len(hub.eventBuffer)
+	hub.eventBufferMu.Unlock()
+
+	if bufferLen > 100 {
+		t.Errorf("expected buffer to be limited to 100, got %d", bufferLen)
+	}
+}
+
+func TestHub_FlushEventBuffer_EmptyBuffer(t *testing.T) {
+	hub := NewHub()
+
+	// Should not panic with empty buffer
+	hub.flushEventBuffer()
+}
+
+func TestHub_FlushEventBuffer_SendsBatch(t *testing.T) {
+	hub := NewHub()
+
+	// Add events to buffer (fewer than maxEventsPerSec/10 to ensure single flush clears all)
+	for i := 0; i < 2; i++ {
+		event := types.Event{
+			ID:        "test" + string(rune('0'+i)),
+			Kind:      1,
+			PubKey:    "abc123",
+			Content:   "test content",
+			CreatedAt: 1700000000,
+		}
+		hub.BroadcastEvent(event)
+	}
+
+	// Start hub to process broadcast
+	go hub.Run()
+	defer hub.Stop()
+
+	// Manually flush the buffer multiple times to ensure all events are sent
+	// Since maxEventsPerSec=20, maxPerTick=2, we need one flush for 2 events
+	hub.flushEventBuffer()
+
+	// Wait for processing
+	time.Sleep(20 * time.Millisecond)
+
+	// Buffer should be empty after flush
+	hub.eventBufferMu.Lock()
+	bufferLen := len(hub.eventBuffer)
+	hub.eventBufferMu.Unlock()
+
+	if bufferLen != 0 {
+		t.Errorf("expected buffer to be empty after flush, got %d", bufferLen)
+	}
+}
+
+func TestHub_EventsBatchMessageFormat(t *testing.T) {
+	events := []types.Event{
+		{
+			ID:        "test1",
+			Kind:      1,
+			PubKey:    "abc123",
+			Content:   "test content 1",
+			CreatedAt: 1700000000,
+		},
+		{
+			ID:        "test2",
+			Kind:      1,
+			PubKey:    "abc123",
+			Content:   "test content 2",
+			CreatedAt: 1700000001,
+		},
+	}
+
+	msg := Message{
+		Type: "events_batch",
+		Data: events,
+	}
+
+	jsonData, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("failed to marshal events_batch message: %v", err)
+	}
+
+	// Parse to verify structure
+	var parsed struct {
+		Type string         `json:"type"`
+		Data []types.Event `json:"data"`
+	}
+
+	if err := json.Unmarshal(jsonData, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal message: %v", err)
+	}
+
+	if parsed.Type != "events_batch" {
+		t.Errorf("expected type 'events_batch', got '%s'", parsed.Type)
+	}
+
+	if len(parsed.Data) != 2 {
+		t.Errorf("expected 2 events in batch, got %d", len(parsed.Data))
+	}
+
+	if parsed.Data[0].ID != "test1" {
+		t.Errorf("expected first event ID 'test1', got '%s'", parsed.Data[0].ID)
+	}
+
+	if parsed.Data[1].ID != "test2" {
+		t.Errorf("expected second event ID 'test2', got '%s'", parsed.Data[1].ID)
+	}
+}
+
+func TestHub_Stop(t *testing.T) {
+	hub := NewHub()
+
+	// Start the hub
+	done := make(chan bool)
+	go func() {
+		hub.Run()
+		done <- true
+	}()
+
+	// Give it time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Stop the hub
+	hub.Stop()
+
+	// Wait for the hub to exit
+	select {
+	case <-done:
+		// Success
+	case <-time.After(1 * time.Second):
+		t.Error("hub did not stop within timeout")
+	}
 }
 
 func TestHub_BroadcastRelayStatus(t *testing.T) {

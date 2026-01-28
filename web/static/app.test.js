@@ -10672,6 +10672,272 @@
         });
     });
 
+    // Event Stream Buffering Tests
+    describe('Event Stream Buffering', () => {
+        it('should have eventBuffer property initialized', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertTrue(Array.isArray(instance.eventBuffer), 'eventBuffer should be an array');
+            assertEqual(instance.eventBuffer.length, 0, 'eventBuffer should be empty initially');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have eventRenderScheduled property initialized', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertEqual(instance.eventRenderScheduled, false, 'eventRenderScheduled should be false initially');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have maxEventsPerRender property', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertTrue(instance.maxEventsPerRender > 0, 'maxEventsPerRender should be positive');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have eventRenderInterval property', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertTrue(instance.eventRenderInterval > 0, 'eventRenderInterval should be positive');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have addEvent method', () => {
+            assertDefined(Shirushi.prototype.addEvent, 'addEvent method should exist');
+        });
+
+        it('should have flushEventBuffer method', () => {
+            assertDefined(Shirushi.prototype.flushEventBuffer, 'flushEventBuffer method should exist');
+        });
+
+        it('addEvent should add events to buffer', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.eventRenderScheduled = false;
+
+            // Mock setTimeout to prevent actual scheduling
+            const originalSetTimeout = window.setTimeout;
+            window.setTimeout = function() { return 1; };
+
+            const testEvent = {
+                id: 'test123',
+                kind: 1,
+                pubkey: 'abc123',
+                content: 'test content',
+                created_at: 1700000000
+            };
+
+            instance.addEvent(testEvent);
+
+            assertEqual(instance.eventBuffer.length, 1, 'Event should be added to buffer');
+            assertTrue(instance.eventBuffer[0]._isNew, 'Event should be marked as new');
+
+            window.setTimeout = originalSetTimeout;
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('flushEventBuffer should move events from buffer to events array', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [
+                { id: 'test1', kind: 1, pubkey: 'abc', content: 'test1', created_at: 1 },
+                { id: 'test2', kind: 1, pubkey: 'abc', content: 'test2', created_at: 2 }
+            ];
+            instance.eventRenderScheduled = true;
+            instance.maxEventsPerRender = 10;
+            instance.eventRenderInterval = 100;
+
+            // Mock DOM elements and setTimeout
+            const mockContainer = document.createElement('div');
+            mockContainer.id = 'event-list';
+            document.body.appendChild(mockContainer);
+
+            const mockAutoScroll = document.createElement('input');
+            mockAutoScroll.type = 'checkbox';
+            mockAutoScroll.id = 'auto-scroll';
+            mockAutoScroll.checked = false;
+            document.body.appendChild(mockAutoScroll);
+
+            // Mock methods
+            instance.renderEvents = function() {};
+
+            const originalSetTimeout = window.setTimeout;
+            window.setTimeout = function(fn) { return 1; };
+
+            instance.flushEventBuffer();
+
+            assertEqual(instance.events.length, 2, 'Events should be moved to events array');
+            assertEqual(instance.eventBuffer.length, 0, 'Buffer should be empty after flush');
+
+            // Cleanup
+            document.body.removeChild(mockContainer);
+            document.body.removeChild(mockAutoScroll);
+            window.setTimeout = originalSetTimeout;
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('flushEventBuffer should respect maxEventsPerRender limit', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.eventRenderScheduled = true;
+            instance.maxEventsPerRender = 2;
+            instance.eventRenderInterval = 100;
+
+            // Add 5 events to buffer
+            for (let i = 0; i < 5; i++) {
+                instance.eventBuffer.push({
+                    id: 'test' + i,
+                    kind: 1,
+                    pubkey: 'abc',
+                    content: 'test' + i,
+                    created_at: i
+                });
+            }
+
+            // Mock DOM elements
+            const mockContainer = document.createElement('div');
+            mockContainer.id = 'event-list';
+            document.body.appendChild(mockContainer);
+
+            const mockAutoScroll = document.createElement('input');
+            mockAutoScroll.type = 'checkbox';
+            mockAutoScroll.id = 'auto-scroll';
+            mockAutoScroll.checked = false;
+            document.body.appendChild(mockAutoScroll);
+
+            // Mock methods
+            instance.renderEvents = function() {};
+
+            const originalSetTimeout = window.setTimeout;
+            let scheduledCallback = null;
+            window.setTimeout = function(fn) {
+                scheduledCallback = fn;
+                return 1;
+            };
+
+            instance.flushEventBuffer();
+
+            // Should only flush maxEventsPerRender events
+            assertEqual(instance.events.length, 2, 'Should only flush maxEventsPerRender events');
+            assertEqual(instance.eventBuffer.length, 3, 'Remaining events should stay in buffer');
+
+            // Cleanup
+            document.body.removeChild(mockContainer);
+            document.body.removeChild(mockAutoScroll);
+            window.setTimeout = originalSetTimeout;
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should handle events_batch message type', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.eventRenderScheduled = false;
+            instance.nips = [];
+            instance.renderNipList = function() {};
+
+            // Mock addEvent to track calls
+            let addedEvents = [];
+            instance.addEvent = function(event) {
+                addedEvents.push(event);
+            };
+
+            const batchMessage = {
+                type: 'events_batch',
+                data: [
+                    { id: 'test1', kind: 1, pubkey: 'abc', content: 'test1', created_at: 1 },
+                    { id: 'test2', kind: 1, pubkey: 'abc', content: 'test2', created_at: 2 },
+                    { id: 'test3', kind: 1, pubkey: 'abc', content: 'test3', created_at: 3 }
+                ]
+            };
+
+            instance.handleMessage(batchMessage);
+
+            assertEqual(addedEvents.length, 3, 'Should add all events from batch');
+            assertEqual(addedEvents[0].id, 'test1', 'First event should be test1');
+            assertEqual(addedEvents[2].id, 'test3', 'Third event should be test3');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('flushEventBuffer should limit total events to 100', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.eventRenderScheduled = true;
+            instance.maxEventsPerRender = 150;
+            instance.eventRenderInterval = 100;
+
+            // Add 150 events to buffer
+            for (let i = 0; i < 150; i++) {
+                instance.eventBuffer.push({
+                    id: 'test' + i,
+                    kind: 1,
+                    pubkey: 'abc',
+                    content: 'test' + i,
+                    created_at: i
+                });
+            }
+
+            // Mock DOM elements
+            const mockContainer = document.createElement('div');
+            mockContainer.id = 'event-list';
+            document.body.appendChild(mockContainer);
+
+            const mockAutoScroll = document.createElement('input');
+            mockAutoScroll.type = 'checkbox';
+            mockAutoScroll.id = 'auto-scroll';
+            mockAutoScroll.checked = false;
+            document.body.appendChild(mockAutoScroll);
+
+            // Mock methods
+            instance.renderEvents = function() {};
+
+            const originalSetTimeout = window.setTimeout;
+            window.setTimeout = function(fn) { return 1; };
+
+            instance.flushEventBuffer();
+
+            assertTrue(instance.events.length <= 100, 'Events should be limited to 100');
+
+            // Cleanup
+            document.body.removeChild(mockContainer);
+            document.body.removeChild(mockAutoScroll);
+            window.setTimeout = originalSetTimeout;
+            Shirushi.prototype.init = originalInit;
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

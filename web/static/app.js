@@ -44,6 +44,12 @@ class Shirushi {
         this.pendingKeySequence = null;
         this.keySequenceTimeout = null;
 
+        // Event stream throttling
+        this.eventBuffer = [];
+        this.eventRenderScheduled = false;
+        this.maxEventsPerRender = 10;
+        this.eventRenderInterval = 100; // ms between renders
+
         this.init();
     }
 
@@ -142,6 +148,14 @@ class Shirushi {
                 break;
             case 'event':
                 this.addEvent(data.data);
+                break;
+            case 'events_batch':
+                // Handle batched events from server
+                if (Array.isArray(data.data)) {
+                    for (const event of data.data) {
+                        this.addEvent(event);
+                    }
+                }
                 break;
             case 'relay_status':
                 this.updateRelayStatus(data.data);
@@ -1038,20 +1052,56 @@ class Shirushi {
     addEvent(event) {
         // Mark as new for animation purposes
         event._isNew = true;
-        this.events.unshift(event);
-        if (this.events.length > 100) {
-            this.events.pop();
+
+        // Add to buffer instead of rendering immediately
+        this.eventBuffer.push(event);
+
+        // Schedule a batched render if not already scheduled
+        if (!this.eventRenderScheduled) {
+            this.eventRenderScheduled = true;
+            setTimeout(() => this.flushEventBuffer(), this.eventRenderInterval);
         }
+    }
+
+    flushEventBuffer() {
+        this.eventRenderScheduled = false;
+
+        if (this.eventBuffer.length === 0) {
+            return;
+        }
+
+        // Take up to maxEventsPerRender events from the buffer
+        const eventsToAdd = this.eventBuffer.splice(0, this.maxEventsPerRender);
+
+        // Add events to the main list
+        for (const event of eventsToAdd) {
+            this.events.unshift(event);
+        }
+
+        // Trim to 100 events max
+        if (this.events.length > 100) {
+            this.events.length = 100;
+        }
+
+        // Render once for all buffered events
         this.renderEvents();
 
         // Clear the _isNew flag after animation completes
-        setTimeout(() => {
-            event._isNew = false;
-        }, 1000);
+        for (const event of eventsToAdd) {
+            setTimeout(() => {
+                event._isNew = false;
+            }, 1000);
+        }
 
         if (document.getElementById('auto-scroll').checked) {
             const container = document.getElementById('event-list');
             container.scrollTop = 0;
+        }
+
+        // If there are still events in the buffer, schedule another render
+        if (this.eventBuffer.length > 0) {
+            this.eventRenderScheduled = true;
+            setTimeout(() => this.flushEventBuffer(), this.eventRenderInterval);
         }
     }
 
