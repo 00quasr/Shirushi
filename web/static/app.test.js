@@ -9536,6 +9536,174 @@
         });
     });
 
+    // Tests for WebSocket cleanup before reconnect
+    describe('WebSocket cleanup before reconnect', () => {
+        it('should close existing WebSocket before creating a new one', () => {
+            // Track WebSocket operations
+            let closeCalled = false;
+            let handlersCleared = false;
+
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 1; // OPEN
+                this.onopen = null;
+                this.onclose = null;
+                this.onerror = null;
+                this.onmessage = null;
+            };
+            MockWebSocket.prototype.close = function() {
+                closeCalled = true;
+            };
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                return new MockWebSocket(url);
+            };
+
+            // Create instance with existing WebSocket
+            const instance = Object.create(Shirushi.prototype);
+            instance.setConnectionStatus = function() {};
+            instance.subscribeToEvents = function() {
+                return Promise.resolve({ subscription_id: 'test_sub_123' });
+            };
+
+            // Set up existing WebSocket with handlers
+            instance.ws = new MockWebSocket('wss://old.relay');
+            instance.ws.onopen = function() {};
+            instance.ws.onclose = function() {};
+            instance.ws.onerror = function() {};
+            instance.ws.onmessage = function() {};
+
+            // Call setupWebSocket (simulating reconnect)
+            instance.setupWebSocket();
+
+            // Verify cleanup happened
+            assertTrue(closeCalled, 'close() should be called on existing WebSocket');
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+        });
+
+        it('should clear all event handlers before closing to prevent recursive reconnect', () => {
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 1;
+                this.onopen = null;
+                this.onclose = null;
+                this.onerror = null;
+                this.onmessage = null;
+            };
+            MockWebSocket.prototype.close = function() {};
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                return new MockWebSocket(url);
+            };
+
+            // Create instance with existing WebSocket
+            const instance = Object.create(Shirushi.prototype);
+            instance.setConnectionStatus = function() {};
+            instance.subscribeToEvents = function() {
+                return Promise.resolve({ subscription_id: 'test_sub_123' });
+            };
+
+            // Set up existing WebSocket with handlers
+            const oldWs = new MockWebSocket('wss://old.relay');
+            oldWs.onopen = function() { return 'open'; };
+            oldWs.onclose = function() { return 'close'; };
+            oldWs.onerror = function() { return 'error'; };
+            oldWs.onmessage = function() { return 'message'; };
+            instance.ws = oldWs;
+
+            // Call setupWebSocket
+            instance.setupWebSocket();
+
+            // Verify handlers were cleared on old WebSocket before close
+            assertEqual(oldWs.onopen, null, 'onopen should be cleared');
+            assertEqual(oldWs.onclose, null, 'onclose should be cleared');
+            assertEqual(oldWs.onerror, null, 'onerror should be cleared');
+            assertEqual(oldWs.onmessage, null, 'onmessage should be cleared');
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+        });
+
+        it('should not call close when ws is null on initial setup', () => {
+            let closeCalled = false;
+
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 0;
+            };
+            MockWebSocket.prototype.close = function() {
+                closeCalled = true;
+            };
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                return new MockWebSocket(url);
+            };
+
+            // Create instance without existing WebSocket
+            const instance = Object.create(Shirushi.prototype);
+            instance.ws = null;
+            instance.setConnectionStatus = function() {};
+            instance.subscribeToEvents = function() {
+                return Promise.resolve({ subscription_id: 'test_sub_123' });
+            };
+
+            // Call setupWebSocket (initial setup)
+            instance.setupWebSocket();
+
+            // close should not be called since ws was null
+            assertFalse(closeCalled, 'close() should not be called when ws is null');
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+        });
+
+        it('should create new WebSocket after cleanup', () => {
+            let websocketInstances = [];
+
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 1;
+                this.onopen = null;
+                this.onclose = null;
+                this.onerror = null;
+                this.onmessage = null;
+                websocketInstances.push(this);
+            };
+            MockWebSocket.prototype.close = function() {};
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                return new MockWebSocket(url);
+            };
+
+            // Create instance with existing WebSocket
+            const instance = Object.create(Shirushi.prototype);
+            instance.setConnectionStatus = function() {};
+            instance.subscribeToEvents = function() {
+                return Promise.resolve({ subscription_id: 'test_sub_123' });
+            };
+
+            // Set up existing WebSocket
+            instance.ws = new MockWebSocket('wss://old.relay');
+            const oldWsCount = websocketInstances.length;
+
+            // Call setupWebSocket (simulating reconnect)
+            instance.setupWebSocket();
+
+            // Should have created a new WebSocket
+            assertEqual(websocketInstances.length, oldWsCount + 1, 'New WebSocket should be created');
+            assertTrue(instance.ws !== null, 'instance.ws should not be null after setup');
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+        });
+    });
+
     // ========================================
     // Relay Status Auto-Update Tests
     // ========================================

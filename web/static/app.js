@@ -81,6 +81,16 @@ class Shirushi {
 
     // WebSocket Connection
     setupWebSocket() {
+        // Clean up existing WebSocket before reconnecting
+        if (this.ws) {
+            this.ws.onclose = null; // Prevent recursive reconnect
+            this.ws.onerror = null;
+            this.ws.onmessage = null;
+            this.ws.onopen = null;
+            this.ws.close();
+            this.ws = null;
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
 
