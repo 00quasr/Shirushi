@@ -2222,6 +2222,28 @@ main {
     flex: 1;
 }
 
+.command-reference-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+.docs-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    font-size: 13px;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.docs-link:hover {
+    color: var(--text-1);
+    text-decoration: underline;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
     width: 6px;

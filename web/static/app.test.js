@@ -9035,6 +9035,30 @@
             });
             assertEqual(emptyCount, 0, 'All command items should have non-empty data-command');
         });
+
+        it('should have documentation link footer', () => {
+            const footer = document.querySelector('.command-reference-footer');
+            assertDefined(footer, 'Command reference footer should exist');
+        });
+
+        it('documentation link should point to nak GitHub repository', () => {
+            const docsLink = document.querySelector('.docs-link');
+            assertDefined(docsLink, 'Documentation link should exist');
+            assertEqual(docsLink.href, 'https://github.com/fiatjaf/nak', 'Link should point to nak GitHub repo');
+        });
+
+        it('documentation link should open in new tab', () => {
+            const docsLink = document.querySelector('.docs-link');
+            assertDefined(docsLink, 'Documentation link should exist');
+            assertEqual(docsLink.target, '_blank', 'Link should open in new tab');
+            assertEqual(docsLink.rel, 'noopener noreferrer', 'Link should have security attributes');
+        });
+
+        it('documentation link should have descriptive text', () => {
+            const docsLink = document.querySelector('.docs-link');
+            assertDefined(docsLink, 'Documentation link should exist');
+            assertTrue(docsLink.textContent.includes('documentation'), 'Link text should mention documentation');
+        });
     });
 
     // Export test runner for browser and Node.js
