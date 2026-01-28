@@ -255,37 +255,6 @@ main {
     color: var(--success);
 }
 
-/* Inline copy button for monospace values */
-.copy-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.copy-inline .copy-text {
-    font-family: 'Geist Mono', monospace;
-    font-size: 12px;
-    color: var(--text-2);
-}
-
-.copy-inline .btn.copy-btn {
-    padding: 2px 8px;
-    font-size: 11px;
-    min-width: auto;
-}
-
-/* Copy icon button (icon only) */
-.btn.copy-icon {
-    padding: 4px 6px;
-    min-width: auto;
-    font-size: 14px;
-    line-height: 1;
-}
-
-.btn.copy-icon:hover {
-    background: var(--bg-4);
-}
-
 /* Input Group */
 .input-group {
     display: flex;
@@ -814,38 +783,7 @@ main {
     overflow-y: auto;
 }
 
-.nip-item {
-    padding: 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.nip-item:hover {
-    background: var(--bg-3);
-}
-
-.nip-item.selected {
-    background: var(--bg-3);
-    border-left: 3px solid var(--accent);
-}
-
-.nip-name {
-    font-family: 'Geist Mono', monospace;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-1);
-    display: block;
-}
-
-.nip-title {
-    font-size: 12px;
-    color: var(--text-3);
-    display: block;
-    margin-top: 2px;
-}
-
-/* Enhanced NIP Cards */
+/* NIP Cards */
 .nip-card {
     background: var(--bg-2);
     border: 1px solid var(--border);
@@ -2859,14 +2797,6 @@ main {
     border-radius: 0;
 }
 
-/* Skeleton Badge */
-.skeleton-badge {
-    display: inline-block;
-    width: 60px;
-    height: 20px;
-    border-radius: 4px;
-}
-
 /* Skeleton Card - Relay Card */
 .skeleton-relay-card {
     background: var(--bg-2);
@@ -3634,63 +3564,6 @@ main {
     color: var(--accent);
 }
 
-/* Chart Grid Overlay */
-.chart-grid-overlay {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.1;
-    background-image:
-        linear-gradient(var(--border-light) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border-light) 1px, transparent 1px);
-    background-size: 40px 40px;
-}
-
-/* Chart Wrapper for Multiple Charts */
-.chart-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.chart-wrapper-row {
-    display: flex;
-    gap: 16px;
-}
-
-.chart-wrapper-row .chart-container {
-    flex: 1;
-}
-
-/* Mini Chart Container */
-.chart-container-mini {
-    position: relative;
-    height: 80px;
-    width: 100%;
-    background: var(--bg-2);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.chart-container-mini canvas {
-    width: 100% !important;
-    height: 100% !important;
-    display: block;
-}
-
-/* Sparkline Chart */
-.chart-sparkline {
-    display: inline-block;
-    width: 80px;
-    height: 24px;
-    vertical-align: middle;
-}
-
-.chart-sparkline canvas {
-    width: 100% !important;
-    height: 100% !important;
-}
-
 /* Relay Health Grid */
 .relay-health-grid {
     display: grid;
@@ -3836,261 +3709,6 @@ main {
     border-radius: 4px;
     font-size: 11px;
     color: var(--error);
-}
-
-/* Health Card Component */
-.health-card {
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.health-card:hover {
-    border-color: var(--border-light);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.health-card.health-good {
-    border-left: 3px solid var(--success);
-}
-
-.health-card.health-warning {
-    border-left: 3px solid var(--warning);
-}
-
-.health-card.health-critical {
-    border-left: 3px solid var(--error);
-}
-
-.health-card.health-unknown {
-    border-left: 3px solid var(--text-3);
-    opacity: 0.8;
-}
-
-.health-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 12px;
-}
-
-.health-card-title {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-1);
-}
-
-.health-card-subtitle {
-    font-size: 12px;
-    color: var(--text-3);
-    margin-top: 2px;
-}
-
-.health-card-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.health-card-badge.good {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--success);
-}
-
-.health-card-badge.warning {
-    background: rgba(234, 179, 8, 0.15);
-    color: var(--warning);
-}
-
-.health-card-badge.critical {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--error);
-}
-
-.health-card-badge.unknown {
-    background: rgba(102, 102, 102, 0.15);
-    color: var(--text-2);
-}
-
-.health-card-body {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.health-card-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 12px;
-}
-
-.health-metric {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.health-metric-value {
-    font-family: 'Geist Mono', monospace;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-0);
-}
-
-.health-metric-value.good {
-    color: var(--success);
-}
-
-.health-metric-value.warning {
-    color: var(--warning);
-}
-
-.health-metric-value.critical {
-    color: var(--error);
-}
-
-.health-metric-label {
-    font-size: 11px;
-    color: var(--text-3);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.health-card-progress {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.health-progress-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.health-progress-label {
-    font-size: 12px;
-    color: var(--text-2);
-}
-
-.health-progress-value {
-    font-family: 'Geist Mono', monospace;
-    font-size: 12px;
-    color: var(--text-1);
-}
-
-.health-progress-bar {
-    height: 6px;
-    background: var(--bg-3);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.health-progress-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.3s ease, background 0.3s ease;
-}
-
-.health-progress-fill.good {
-    background: var(--success);
-}
-
-.health-progress-fill.warning {
-    background: var(--warning);
-}
-
-.health-progress-fill.critical {
-    background: var(--error);
-}
-
-.health-card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-    font-size: 12px;
-}
-
-.health-card-timestamp {
-    color: var(--text-3);
-    font-family: 'Geist Mono', monospace;
-}
-
-.health-card-actions {
-    display: flex;
-    gap: 8px;
-}
-
-/* Health Card Grid Layout */
-.health-card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-}
-
-/* Health Card Compact Variant */
-.health-card.compact {
-    padding: 12px;
-}
-
-.health-card.compact .health-card-header {
-    margin-bottom: 8px;
-}
-
-.health-card.compact .health-card-title {
-    font-size: 13px;
-}
-
-.health-card.compact .health-metric-value {
-    font-size: 14px;
-}
-
-.health-card.compact .health-card-metrics {
-    gap: 8px;
-}
-
-/* Health Card Inline Variant */
-.health-card.inline {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
-}
-
-.health-card.inline .health-card-header {
-    margin-bottom: 0;
-    flex-shrink: 0;
-}
-
-.health-card.inline .health-card-body {
-    flex: 1;
-    flex-direction: row;
-    align-items: center;
-}
-
-.health-card.inline .health-card-metrics {
-    display: flex;
-    gap: 24px;
-}
-
-.health-card.inline .health-metric {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 6px;
-}
-
-.health-card.inline .health-metric-label {
-    order: -1;
 }
 
 /* Toast Notifications */
@@ -4875,10 +4493,6 @@ main {
         gap: 8px;
     }
 
-    .chart-wrapper-row {
-        flex-direction: column;
-    }
-
     .monitoring-summary {
         gap: 16px;
     }
@@ -4889,39 +4503,6 @@ main {
 
     .relay-health-url {
         max-width: 150px;
-    }
-
-    .health-card-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .health-card.inline {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .health-card.inline .health-card-body {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .health-card.inline .health-card-metrics {
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-
-    .health-card.inline .health-metric {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 2px;
-    }
-
-    .health-card.inline .health-metric-label {
-        order: 0;
-    }
-
-    .health-card-metrics {
-        grid-template-columns: repeat(2, 1fr);
     }
 
     /* Modal Responsive */

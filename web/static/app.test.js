@@ -4160,23 +4160,6 @@
             assertTrue(hasCopyBtn, 'Should have .copy-btn CSS rule');
             assertTrue(hasCopySuccess, 'Should have .copy-success CSS rule');
         });
-
-        it('copy-inline CSS class should be defined', () => {
-            let hasCopyInline = false;
-
-            for (const sheet of document.styleSheets) {
-                try {
-                    for (const rule of sheet.cssRules) {
-                        const selector = rule.selectorText || '';
-                        if (selector.includes('.copy-inline')) hasCopyInline = true;
-                    }
-                } catch (e) {
-                    // CORS may block access
-                }
-            }
-
-            assertTrue(hasCopyInline, 'Should have .copy-inline CSS rule');
-        });
     });
 
     describe('Relay Card Copy Buttons', () => {
