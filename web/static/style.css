@@ -402,6 +402,41 @@ main {
     border-radius: 3px;
 }
 
+/* Relay limitations summary */
+.relay-meta-limits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--bg-2);
+}
+
+.relay-limit-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-1);
+    background: var(--bg-2);
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.relay-limit-icon {
+    font-size: 11px;
+}
+
+.relay-limit-auth {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+
+.relay-limit-payment {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+}
+
 /* Legacy relay-name (kept for backwards compatibility) */
 .relay-name {
     font-size: 12px;

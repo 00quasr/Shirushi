@@ -425,11 +425,60 @@ class Shirushi {
             parts.push(`<div class="relay-meta-operator">${operatorParts.join('')}</div>`);
         }
 
+        // Key limitations summary (displayed prominently on card)
+        const limitationsSummary = this.renderRelayLimitationsSummary(info.limitation);
+        if (limitationsSummary) {
+            parts.push(limitationsSummary);
+        }
+
         if (parts.length === 0) {
             return '';
         }
 
         return `<div class="relay-meta">${parts.join('')}</div>`;
+    }
+
+    renderRelayLimitationsSummary(limitation) {
+        if (!limitation) {
+            return '';
+        }
+
+        const items = [];
+
+        // Max message length (most important)
+        if (limitation.max_message_length) {
+            const size = this.formatBytes(limitation.max_message_length);
+            items.push(`<span class="relay-limit-item" title="Maximum message size"><span class="relay-limit-icon">📦</span>${size}</span>`);
+        }
+
+        // Max subscriptions
+        if (limitation.max_subscriptions) {
+            items.push(`<span class="relay-limit-item" title="Maximum concurrent subscriptions"><span class="relay-limit-icon">🔔</span>${limitation.max_subscriptions} subs</span>`);
+        }
+
+        // Auth required badge
+        if (limitation.auth_required) {
+            items.push(`<span class="relay-limit-item relay-limit-auth" title="Authentication required">🔐 Auth</span>`);
+        }
+
+        // Payment required badge
+        if (limitation.payment_required) {
+            items.push(`<span class="relay-limit-item relay-limit-payment" title="Payment required">💰 Paid</span>`);
+        }
+
+        if (items.length === 0) {
+            return '';
+        }
+
+        return `<div class="relay-meta-limits">${items.join('')}</div>`;
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
     renderSupportedNIPs(nips) {
@@ -611,9 +660,12 @@ class Shirushi {
                 <div class="relay-info-section">
                     <h4>Limitations</h4>
                     <div class="relay-info-grid">
-                        ${info.limitation.max_message_length ? `<span class="label">Max Message:</span><span class="value">${info.limitation.max_message_length.toLocaleString()} bytes</span>` : ''}
+                        ${info.limitation.max_message_length ? `<span class="label">Max Message:</span><span class="value">${this.formatBytes(info.limitation.max_message_length)} (${info.limitation.max_message_length.toLocaleString()} bytes)</span>` : ''}
                         ${info.limitation.max_subscriptions ? `<span class="label">Max Subscriptions:</span><span class="value">${info.limitation.max_subscriptions}</span>` : ''}
                         ${info.limitation.max_limit ? `<span class="label">Max Limit:</span><span class="value">${info.limitation.max_limit}</span>` : ''}
+                        ${info.limitation.max_event_tags ? `<span class="label">Max Event Tags:</span><span class="value">${info.limitation.max_event_tags}</span>` : ''}
+                        ${info.limitation.max_content_length ? `<span class="label">Max Content Length:</span><span class="value">${this.formatBytes(info.limitation.max_content_length)} (${info.limitation.max_content_length.toLocaleString()} bytes)</span>` : ''}
+                        ${info.limitation.min_pow_difficulty ? `<span class="label">Min PoW Difficulty:</span><span class="value">${info.limitation.min_pow_difficulty}</span>` : ''}
                         ${info.limitation.auth_required ? `<span class="label">Auth Required:</span><span class="value">Yes</span>` : ''}
                         ${info.limitation.payment_required ? `<span class="label">Payment Required:</span><span class="value">Yes</span>` : ''}
                     </div>

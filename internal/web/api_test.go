@@ -2295,6 +2295,75 @@ func TestHandleRelayInfo_WithIcon(t *testing.T) {
 	}
 }
 
+func TestHandleRelayInfo_AllLimitationFields(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://limits.relay.com": {
+				Name:          "Full Limits Relay",
+				Description:   "Relay with all limitation fields",
+				SupportedNIPs: []int{1, 11},
+				Limitation: &types.RelayLimitation{
+					MaxMessageLength: 262144,
+					MaxSubscriptions: 50,
+					MaxLimit:         1000,
+					MaxEventTags:     200,
+					MaxContentLength: 131072,
+					MinPOWDifficulty: 16,
+					AuthRequired:     true,
+					PaymentRequired:  true,
+				},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://limits.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if info.Limitation == nil {
+		t.Fatal("expected limitation to be set")
+	}
+
+	limit := info.Limitation
+
+	if limit.MaxMessageLength != 262144 {
+		t.Errorf("expected max_message_length 262144, got %d", limit.MaxMessageLength)
+	}
+	if limit.MaxSubscriptions != 50 {
+		t.Errorf("expected max_subscriptions 50, got %d", limit.MaxSubscriptions)
+	}
+	if limit.MaxLimit != 1000 {
+		t.Errorf("expected max_limit 1000, got %d", limit.MaxLimit)
+	}
+	if limit.MaxEventTags != 200 {
+		t.Errorf("expected max_event_tags 200, got %d", limit.MaxEventTags)
+	}
+	if limit.MaxContentLength != 131072 {
+		t.Errorf("expected max_content_length 131072, got %d", limit.MaxContentLength)
+	}
+	if limit.MinPOWDifficulty != 16 {
+		t.Errorf("expected min_pow_difficulty 16, got %d", limit.MinPOWDifficulty)
+	}
+	if limit.AuthRequired != true {
+		t.Errorf("expected auth_required true, got %v", limit.AuthRequired)
+	}
+	if limit.PaymentRequired != true {
+		t.Errorf("expected payment_required true, got %v", limit.PaymentRequired)
+	}
+}
+
 // Tests for RelayStatus with NIP support
 
 func TestRelayStatus_WithSupportedNIPs(t *testing.T) {

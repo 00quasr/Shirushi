@@ -605,3 +605,252 @@ func TestNIPInfoJSONFieldNames(t *testing.T) {
 		}
 	}
 }
+
+func TestRelayLimitationJSONSerialization(t *testing.T) {
+	limitation := RelayLimitation{
+		MaxMessageLength: 131072,
+		MaxSubscriptions: 20,
+		MaxLimit:         500,
+		MaxEventTags:     100,
+		MaxContentLength: 65536,
+		MinPOWDifficulty: 16,
+		AuthRequired:     true,
+		PaymentRequired:  false,
+	}
+
+	data, err := json.Marshal(limitation)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayLimitation: %v", err)
+	}
+
+	var decoded RelayLimitation
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayLimitation: %v", err)
+	}
+
+	if decoded.MaxMessageLength != limitation.MaxMessageLength {
+		t.Errorf("MaxMessageLength mismatch: got %d, want %d", decoded.MaxMessageLength, limitation.MaxMessageLength)
+	}
+	if decoded.MaxSubscriptions != limitation.MaxSubscriptions {
+		t.Errorf("MaxSubscriptions mismatch: got %d, want %d", decoded.MaxSubscriptions, limitation.MaxSubscriptions)
+	}
+	if decoded.MaxLimit != limitation.MaxLimit {
+		t.Errorf("MaxLimit mismatch: got %d, want %d", decoded.MaxLimit, limitation.MaxLimit)
+	}
+	if decoded.MaxEventTags != limitation.MaxEventTags {
+		t.Errorf("MaxEventTags mismatch: got %d, want %d", decoded.MaxEventTags, limitation.MaxEventTags)
+	}
+	if decoded.MaxContentLength != limitation.MaxContentLength {
+		t.Errorf("MaxContentLength mismatch: got %d, want %d", decoded.MaxContentLength, limitation.MaxContentLength)
+	}
+	if decoded.MinPOWDifficulty != limitation.MinPOWDifficulty {
+		t.Errorf("MinPOWDifficulty mismatch: got %d, want %d", decoded.MinPOWDifficulty, limitation.MinPOWDifficulty)
+	}
+	if decoded.AuthRequired != limitation.AuthRequired {
+		t.Errorf("AuthRequired mismatch: got %v, want %v", decoded.AuthRequired, limitation.AuthRequired)
+	}
+	if decoded.PaymentRequired != limitation.PaymentRequired {
+		t.Errorf("PaymentRequired mismatch: got %v, want %v", decoded.PaymentRequired, limitation.PaymentRequired)
+	}
+}
+
+func TestRelayLimitationOmitEmpty(t *testing.T) {
+	// Test that zero values are omitted from JSON
+	limitation := RelayLimitation{
+		MaxMessageLength: 131072,
+		MaxSubscriptions: 20,
+	}
+
+	data, err := json.Marshal(limitation)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayLimitation: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	// These should be omitted (zero values)
+	if _, exists := m["max_limit"]; exists {
+		t.Error("zero max_limit should be omitted")
+	}
+	if _, exists := m["max_event_tags"]; exists {
+		t.Error("zero max_event_tags should be omitted")
+	}
+	if _, exists := m["max_content_length"]; exists {
+		t.Error("zero max_content_length should be omitted")
+	}
+	if _, exists := m["min_pow_difficulty"]; exists {
+		t.Error("zero min_pow_difficulty should be omitted")
+	}
+	if _, exists := m["auth_required"]; exists {
+		t.Error("false auth_required should be omitted")
+	}
+	if _, exists := m["payment_required"]; exists {
+		t.Error("false payment_required should be omitted")
+	}
+
+	// These should be present
+	if _, exists := m["max_message_length"]; !exists {
+		t.Error("max_message_length should be present")
+	}
+	if _, exists := m["max_subscriptions"]; !exists {
+		t.Error("max_subscriptions should be present")
+	}
+}
+
+func TestRelayInfoWithLimitation(t *testing.T) {
+	relayInfo := RelayInfo{
+		Name:          "Test Relay",
+		Description:   "A test relay for unit tests",
+		PubKey:        "abcdef1234567890",
+		Contact:       "admin@relay.test",
+		SupportedNIPs: []int{1, 2, 4, 9, 11, 22, 28},
+		Software:      "https://github.com/test/relay",
+		Version:       "1.0.0",
+		Icon:          "https://relay.test/icon.png",
+		Limitation: &RelayLimitation{
+			MaxMessageLength: 262144,
+			MaxSubscriptions: 50,
+			MaxLimit:         1000,
+			MaxEventTags:     200,
+			MaxContentLength: 131072,
+			MinPOWDifficulty: 8,
+			AuthRequired:     false,
+			PaymentRequired:  true,
+		},
+	}
+
+	data, err := json.Marshal(relayInfo)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayInfo: %v", err)
+	}
+
+	var decoded RelayInfo
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayInfo: %v", err)
+	}
+
+	if decoded.Name != relayInfo.Name {
+		t.Errorf("Name mismatch: got %s, want %s", decoded.Name, relayInfo.Name)
+	}
+	if decoded.Description != relayInfo.Description {
+		t.Errorf("Description mismatch: got %s, want %s", decoded.Description, relayInfo.Description)
+	}
+	if decoded.PubKey != relayInfo.PubKey {
+		t.Errorf("PubKey mismatch: got %s, want %s", decoded.PubKey, relayInfo.PubKey)
+	}
+	if decoded.Contact != relayInfo.Contact {
+		t.Errorf("Contact mismatch: got %s, want %s", decoded.Contact, relayInfo.Contact)
+	}
+	if len(decoded.SupportedNIPs) != len(relayInfo.SupportedNIPs) {
+		t.Errorf("SupportedNIPs length mismatch: got %d, want %d", len(decoded.SupportedNIPs), len(relayInfo.SupportedNIPs))
+	}
+	if decoded.Software != relayInfo.Software {
+		t.Errorf("Software mismatch: got %s, want %s", decoded.Software, relayInfo.Software)
+	}
+	if decoded.Version != relayInfo.Version {
+		t.Errorf("Version mismatch: got %s, want %s", decoded.Version, relayInfo.Version)
+	}
+	if decoded.Icon != relayInfo.Icon {
+		t.Errorf("Icon mismatch: got %s, want %s", decoded.Icon, relayInfo.Icon)
+	}
+
+	if decoded.Limitation == nil {
+		t.Fatal("Limitation should not be nil")
+	}
+	if decoded.Limitation.MaxMessageLength != 262144 {
+		t.Errorf("Limitation.MaxMessageLength mismatch: got %d, want %d", decoded.Limitation.MaxMessageLength, 262144)
+	}
+	if decoded.Limitation.MaxSubscriptions != 50 {
+		t.Errorf("Limitation.MaxSubscriptions mismatch: got %d, want %d", decoded.Limitation.MaxSubscriptions, 50)
+	}
+	if decoded.Limitation.MaxLimit != 1000 {
+		t.Errorf("Limitation.MaxLimit mismatch: got %d, want %d", decoded.Limitation.MaxLimit, 1000)
+	}
+	if decoded.Limitation.MaxEventTags != 200 {
+		t.Errorf("Limitation.MaxEventTags mismatch: got %d, want %d", decoded.Limitation.MaxEventTags, 200)
+	}
+	if decoded.Limitation.MaxContentLength != 131072 {
+		t.Errorf("Limitation.MaxContentLength mismatch: got %d, want %d", decoded.Limitation.MaxContentLength, 131072)
+	}
+	if decoded.Limitation.MinPOWDifficulty != 8 {
+		t.Errorf("Limitation.MinPOWDifficulty mismatch: got %d, want %d", decoded.Limitation.MinPOWDifficulty, 8)
+	}
+	if decoded.Limitation.PaymentRequired != true {
+		t.Errorf("Limitation.PaymentRequired mismatch: got %v, want %v", decoded.Limitation.PaymentRequired, true)
+	}
+}
+
+func TestRelayInfoWithoutLimitation(t *testing.T) {
+	relayInfo := RelayInfo{
+		Name:          "Minimal Relay",
+		SupportedNIPs: []int{1},
+	}
+
+	data, err := json.Marshal(relayInfo)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayInfo: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := m["limitation"]; exists {
+		t.Error("nil limitation should be omitted from JSON")
+	}
+}
+
+func TestRelayStatusWithLimitations(t *testing.T) {
+	status := RelayStatus{
+		URL:           "wss://relay.example.com",
+		Connected:     true,
+		Latency:       150,
+		EventsPS:      25.5,
+		SupportedNIPs: []int{1, 2, 4, 11},
+		RelayInfo: &RelayInfo{
+			Name:        "Example Relay",
+			Description: "An example relay",
+			Limitation: &RelayLimitation{
+				MaxMessageLength: 131072,
+				MaxSubscriptions: 20,
+				AuthRequired:     true,
+			},
+		},
+	}
+
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayStatus: %v", err)
+	}
+
+	var decoded RelayStatus
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayStatus: %v", err)
+	}
+
+	if decoded.URL != status.URL {
+		t.Errorf("URL mismatch: got %s, want %s", decoded.URL, status.URL)
+	}
+	if decoded.Connected != status.Connected {
+		t.Errorf("Connected mismatch: got %v, want %v", decoded.Connected, status.Connected)
+	}
+	if decoded.RelayInfo == nil {
+		t.Fatal("RelayInfo should not be nil")
+	}
+	if decoded.RelayInfo.Limitation == nil {
+		t.Fatal("RelayInfo.Limitation should not be nil")
+	}
+	if decoded.RelayInfo.Limitation.MaxMessageLength != 131072 {
+		t.Errorf("Limitation.MaxMessageLength mismatch: got %d, want %d", decoded.RelayInfo.Limitation.MaxMessageLength, 131072)
+	}
+	if decoded.RelayInfo.Limitation.MaxSubscriptions != 20 {
+		t.Errorf("Limitation.MaxSubscriptions mismatch: got %d, want %d", decoded.RelayInfo.Limitation.MaxSubscriptions, 20)
+	}
+	if decoded.RelayInfo.Limitation.AuthRequired != true {
+		t.Errorf("Limitation.AuthRequired mismatch: got %v, want %v", decoded.RelayInfo.Limitation.AuthRequired, true)
+	}
+}
