@@ -1139,6 +1139,7 @@ class Shirushi {
                 ${event.relay ? `<div class="event-relay">via ${this.escapeHtml(event.relay)}</div>` : ''}
                 ${this.renderTagsSection(event)}
                 <div class="event-actions">
+                    <button class="btn small" onclick="app.showEventDetails('${event.id}')">View Details</button>
                     <button class="btn small" onclick="app.showEventJson('${event.id}')">Raw JSON</button>
                     <button class="btn small" onclick="app.showThreadViewer('${event.id}')">View Thread</button>
                     <button class="btn small" onclick="app.exploreProfileByPubkey('${event.pubkey}')">View Profile</button>
@@ -1417,6 +1418,196 @@ class Shirushi {
                 }
             });
         }
+    }
+
+    /**
+     * Show decoded event fields in a detailed modal view
+     * @param {string} eventId - The event ID to display details for
+     */
+    showEventDetails(eventId) {
+        const event = this.events.find(e => e.id === eventId);
+        if (!event) {
+            this.toastError('Error', 'Event not found');
+            return;
+        }
+
+        const truncate = (str, len = 32) => {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len / 2) + '...' + str.substring(str.length - len / 2) : str;
+        };
+
+        const formatTimestamp = (timestamp) => {
+            const date = new Date(timestamp * 1000);
+            return `${date.toLocaleString()} (${timestamp})`;
+        };
+
+        const getKindDescription = (kind) => {
+            const kindDescriptions = {
+                0: 'Metadata (Profile)',
+                1: 'Short Text Note',
+                2: 'Recommend Relay',
+                3: 'Follow List',
+                4: 'Encrypted Direct Message',
+                5: 'Event Deletion',
+                6: 'Repost',
+                7: 'Reaction',
+                8: 'Badge Award',
+                40: 'Channel Creation',
+                41: 'Channel Metadata',
+                42: 'Channel Message',
+                43: 'Channel Hide Message',
+                44: 'Channel Mute User',
+                1984: 'Report',
+                9734: 'Zap Request',
+                9735: 'Zap Receipt',
+                10000: 'Mute List',
+                10001: 'Pin List',
+                10002: 'Relay List Metadata',
+                30000: 'Categorized People List',
+                30001: 'Categorized Bookmark List',
+                30023: 'Long-form Content',
+                30078: 'Application-specific Data'
+            };
+            return kindDescriptions[kind] || 'Unknown';
+        };
+
+        const renderTagsDetails = (tags) => {
+            if (!tags || tags.length === 0) {
+                return '<span class="event-detail-empty">No tags</span>';
+            }
+            return tags.map((tag, index) => {
+                const tagName = tag[0] || '';
+                const tagValues = tag.slice(1);
+                return `
+                    <div class="event-detail-tag">
+                        <span class="event-detail-tag-index">[${index}]</span>
+                        <span class="event-detail-tag-name">${this.escapeHtml(tagName)}</span>
+                        ${tagValues.map(val => `<span class="event-detail-tag-value" title="${this.escapeHtml(val)}">${this.escapeHtml(truncate(val, 40))}</span>`).join('')}
+                        <button class="btn small copy-btn" data-copy-tag='${this.escapeHtml(JSON.stringify(tag))}'>Copy</button>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const modalBody = `
+            <div class="event-details-modal">
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Event Identification</h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Event ID:</span>
+                        <span class="event-detail-value monospace" title="${this.escapeHtml(event.id)}">${this.escapeHtml(event.id)}</span>
+                        <button class="btn small copy-btn" data-copy-field="${this.escapeHtml(event.id)}">Copy</button>
+                    </div>
+                </div>
+
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Author</h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Public Key (hex):</span>
+                        <span class="event-detail-value monospace" title="${this.escapeHtml(event.pubkey)}">${this.escapeHtml(event.pubkey)}</span>
+                        <button class="btn small copy-btn" data-copy-field="${this.escapeHtml(event.pubkey)}">Copy</button>
+                    </div>
+                    <div class="event-detail-row clickable" onclick="app.exploreProfileByPubkey('${event.pubkey}'); app.closeModal();">
+                        <span class="event-detail-label">View Profile:</span>
+                        <span class="event-detail-value link">Click to explore author's profile →</span>
+                    </div>
+                </div>
+
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Event Type</h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Kind:</span>
+                        <span class="event-detail-value">${event.kind}</span>
+                    </div>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Description:</span>
+                        <span class="event-detail-value">${this.escapeHtml(getKindDescription(event.kind))}</span>
+                    </div>
+                </div>
+
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Timestamp</h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Created At:</span>
+                        <span class="event-detail-value">${this.escapeHtml(formatTimestamp(event.created_at))}</span>
+                        <button class="btn small copy-btn" data-copy-field="${event.created_at}">Copy</button>
+                    </div>
+                </div>
+
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Content</h4>
+                    <div class="event-detail-content-box">
+                        <pre class="event-detail-content">${this.escapeHtml(event.content || '(empty)')}</pre>
+                        ${event.content ? `<button class="btn small copy-btn content-copy-btn" data-copy-field="${this.escapeHtml(event.content)}">Copy Content</button>` : ''}
+                    </div>
+                </div>
+
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Tags (${event.tags?.length || 0})</h4>
+                    <div class="event-detail-tags-container">
+                        ${renderTagsDetails(event.tags)}
+                    </div>
+                </div>
+
+                ${event.relay ? `
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Source</h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Relay:</span>
+                        <span class="event-detail-value">${this.escapeHtml(event.relay)}</span>
+                        <button class="btn small copy-btn" data-copy-field="${this.escapeHtml(event.relay)}">Copy</button>
+                    </div>
+                </div>
+                ` : ''}
+
+                ${event.sig ? `
+                <div class="event-detail-section">
+                    <h4 class="event-detail-section-title">Signature</h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Signature:</span>
+                        <span class="event-detail-value monospace" title="${this.escapeHtml(event.sig)}">${this.escapeHtml(event.sig)}</span>
+                        <button class="btn small copy-btn" data-copy-field="${this.escapeHtml(event.sig)}">Copy</button>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+
+        this.showModal({
+            title: 'Decoded Event Fields',
+            body: modalBody,
+            size: 'lg',
+            buttons: [
+                { text: 'View JSON', type: 'default', value: 'json' },
+                { text: 'Close', type: 'primary', value: null }
+            ]
+        }).then(value => {
+            if (value === 'json') {
+                this.showEventJson(eventId);
+            }
+        });
+
+        // Attach copy handlers after modal is shown
+        setTimeout(() => {
+            document.querySelectorAll('.event-details-modal [data-copy-field]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const value = btn.dataset.copyField;
+                    navigator.clipboard.writeText(value)
+                        .then(() => this.toastSuccess('Copied', 'Value copied to clipboard'))
+                        .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
+                });
+            });
+            document.querySelectorAll('.event-details-modal [data-copy-tag]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const value = btn.dataset.copyTag;
+                    navigator.clipboard.writeText(value)
+                        .then(() => this.toastSuccess('Copied', 'Tag copied to clipboard'))
+                        .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
+                });
+            });
+        }, 50);
     }
 
     /**

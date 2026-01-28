@@ -6918,6 +6918,435 @@
         });
     });
 
+    // Event Details Modal Tests
+    describe('showEventDetails', () => {
+        it('should show modal with decoded event fields', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-event-details-123',
+                kind: 1,
+                pubkey: 'abc123def456',
+                content: 'Test content for details',
+                created_at: 1700000000,
+                tags: [['e', 'ref123'], ['p', 'pubkey456']],
+                relay: 'wss://test.relay.com'
+            };
+            app.events = [testEvent];
+
+            let showModalCalled = false;
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                showModalCalled = true;
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-event-details-123');
+
+            assertTrue(showModalCalled, 'showModal should be called');
+            assertEqual(modalOptions.title, 'Decoded Event Fields', 'Modal title should be "Decoded Event Fields"');
+            assertTrue(modalOptions.body.includes('event-details-modal'), 'Modal body should contain event-details-modal class');
+            assertEqual(modalOptions.size, 'lg', 'Modal should use large size');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display event ID in the modal', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'unique-event-id-xyz789',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('unique-event-id-xyz789');
+
+            assertTrue(modalOptions.body.includes('unique-event-id-xyz789'), 'Modal should display event ID');
+            assertTrue(modalOptions.body.includes('Event Identification'), 'Modal should have Event Identification section');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display pubkey in the modal', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-pubkey-details',
+                kind: 1,
+                pubkey: 'abcdef123456789',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-pubkey-details');
+
+            assertTrue(modalOptions.body.includes('abcdef123456789'), 'Modal should display pubkey');
+            assertTrue(modalOptions.body.includes('Author'), 'Modal should have Author section');
+            assertTrue(modalOptions.body.includes('Public Key (hex)'), 'Modal should show Public Key label');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display kind with description', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-kind-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-kind-details');
+
+            assertTrue(modalOptions.body.includes('Event Type'), 'Modal should have Event Type section');
+            assertTrue(modalOptions.body.includes('Short Text Note'), 'Modal should show kind 1 description');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display created_at timestamp formatted', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-timestamp-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-timestamp-details');
+
+            assertTrue(modalOptions.body.includes('Timestamp'), 'Modal should have Timestamp section');
+            assertTrue(modalOptions.body.includes('Created At'), 'Modal should show Created At label');
+            assertTrue(modalOptions.body.includes('1700000000'), 'Modal should include raw timestamp');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display content in the modal', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-content-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'This is the test content for display',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-content-details');
+
+            assertTrue(modalOptions.body.includes('Content'), 'Modal should have Content section');
+            assertTrue(modalOptions.body.includes('This is the test content for display'), 'Modal should display content');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display tags with indices', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-tags-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [['e', 'event123'], ['p', 'pubkey456', 'relay']]
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-tags-details');
+
+            assertTrue(modalOptions.body.includes('Tags (2)'), 'Modal should show tag count');
+            assertTrue(modalOptions.body.includes('[0]'), 'Modal should show tag index 0');
+            assertTrue(modalOptions.body.includes('[1]'), 'Modal should show tag index 1');
+            assertTrue(modalOptions.body.includes('event123'), 'Modal should display tag value');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display relay when present', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-relay-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [],
+                relay: 'wss://relay.example.com'
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-relay-details');
+
+            assertTrue(modalOptions.body.includes('Source'), 'Modal should have Source section');
+            assertTrue(modalOptions.body.includes('wss://relay.example.com'), 'Modal should display relay');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should not show relay section when not present', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-no-relay-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-no-relay-details');
+
+            assertFalse(modalOptions.body.includes('Source'), 'Modal should not have Source section when no relay');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should show toast error for non-existent event', () => {
+            setupToastTests();
+            app.events = [];
+
+            let toastErrorCalled = false;
+            const originalToastError = app.toastError.bind(app);
+            app.toastError = function(title, message) {
+                toastErrorCalled = true;
+                return originalToastError(title, message, 0);
+            };
+
+            app.showEventDetails('non-existent-event');
+
+            assertTrue(toastErrorCalled, 'toastError should be called for non-existent event');
+
+            app.toastError = originalToastError;
+        });
+
+        it('should have View JSON button that opens JSON modal', async () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-view-json-btn',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            let showModalCallCount = 0;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                showModalCallCount++;
+                modalOptions = options;
+                if (showModalCallCount === 1) {
+                    return Promise.resolve('json');
+                }
+                return Promise.resolve(null);
+            };
+
+            await app.showEventDetails('test-view-json-btn');
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            assertTrue(modalOptions.buttons.some(b => b.text === 'View JSON'), 'Modal should have View JSON button');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should display signature when present', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-sig-details',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [],
+                sig: 'abc123signature456xyz'
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-sig-details');
+
+            assertTrue(modalOptions.body.includes('Signature'), 'Modal should have Signature section');
+            assertTrue(modalOptions.body.includes('abc123signature456xyz'), 'Modal should display signature');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should show kind descriptions for various event types', () => {
+            setupToastTests();
+            const kinds = [
+                { kind: 0, description: 'Metadata (Profile)' },
+                { kind: 3, description: 'Follow List' },
+                { kind: 9735, description: 'Zap Receipt' }
+            ];
+
+            kinds.forEach(({ kind, description }) => {
+                const testEvent = {
+                    id: `test-kind-${kind}`,
+                    kind: kind,
+                    pubkey: 'testpubkey',
+                    content: 'Test',
+                    created_at: 1700000000,
+                    tags: []
+                };
+                app.events = [testEvent];
+
+                let modalOptions = null;
+                const originalShowModal = app.showModal.bind(app);
+                app.showModal = function(options) {
+                    modalOptions = options;
+                    return Promise.resolve(null);
+                };
+
+                app.showEventDetails(`test-kind-${kind}`);
+
+                assertTrue(
+                    modalOptions.body.includes(description),
+                    `Modal should show "${description}" for kind ${kind}`
+                );
+
+                app.showModal = originalShowModal;
+                app.events = [];
+            });
+        });
+    });
+
+    // Event Card View Details Button Tests
+    describe('Event Card View Details Button', () => {
+        it('renderEvents should include View Details button', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-render-details-btn',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test content',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.renderEvents();
+
+            const container = document.getElementById('event-list');
+            assertTrue(container !== null, 'Event list container should exist');
+
+            const html = container.innerHTML;
+            assertTrue(html.includes('View Details'), 'Event card should have View Details button');
+            assertTrue(html.includes("showEventDetails('test-render-details-btn')"), 'Button should call showEventDetails with event id');
+        });
+
+        it('View Details button should appear before Raw JSON button', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-button-order',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test content',
+                created_at: 1700000000,
+                tags: []
+            };
+            app.events = [testEvent];
+
+            app.renderEvents();
+
+            const container = document.getElementById('event-list');
+            const html = container.innerHTML;
+            const detailsIndex = html.indexOf('View Details');
+            const jsonIndex = html.indexOf('Raw JSON');
+
+            assertTrue(detailsIndex < jsonIndex, 'View Details button should appear before Raw JSON button');
+        });
+    });
+
     // Thread Viewer (NIP-10) Tests
     describe('parseNIP10Tags', () => {
         it('should parse marked e tags correctly', () => {
