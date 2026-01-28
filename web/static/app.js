@@ -1183,9 +1183,18 @@ class Shirushi {
                     <div class="note-meta">
                         <span class="note-time">${this.formatTime(note.created_at)}</span>
                         <span class="note-id">${note.id.substring(0, 8)}...</span>
+                        <button class="btn small copy-btn" data-copy-note-id="${this.escapeHtml(note.id)}" title="Copy note ID">Copy ID</button>
                     </div>
                 </div>
             `).join('');
+
+            // Add click handlers for copy buttons
+            container.querySelectorAll('[data-copy-note-id]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.copyToClipboard(btn.dataset.copyNoteId, btn, 'Copy ID');
+                });
+            });
         } catch (error) {
             this.hideSkeleton('profile-notes-skeleton');
             container.innerHTML = `<p class="error">Failed to load notes: ${this.escapeHtml(error.message)}</p>`;
@@ -1230,12 +1239,23 @@ class Shirushi {
             }
 
             container.innerHTML = follows.slice(0, 50).map(follow => `
-                <div class="follow-card" onclick="app.exploreProfileByPubkey('${follow.pubkey}')">
-                    <span class="follow-pubkey">${follow.pubkey.substring(0, 16)}...</span>
-                    ${follow.petname ? `<span class="follow-petname">${this.escapeHtml(follow.petname)}</span>` : ''}
-                    ${follow.relay ? `<span class="follow-relay">${this.escapeHtml(follow.relay)}</span>` : ''}
+                <div class="follow-card">
+                    <div class="follow-card-info" onclick="app.exploreProfileByPubkey('${follow.pubkey}')">
+                        <span class="follow-pubkey">${follow.pubkey.substring(0, 16)}...</span>
+                        ${follow.petname ? `<span class="follow-petname">${this.escapeHtml(follow.petname)}</span>` : ''}
+                        ${follow.relay ? `<span class="follow-relay">${this.escapeHtml(follow.relay)}</span>` : ''}
+                    </div>
+                    <button class="btn small copy-btn" data-copy-follow-pubkey="${follow.pubkey}" title="Copy pubkey">Copy</button>
                 </div>
             `).join('');
+
+            // Add click handlers for copy buttons
+            container.querySelectorAll('[data-copy-follow-pubkey]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.copyToClipboard(btn.dataset.copyFollowPubkey, btn, 'Copy');
+                });
+            });
         } catch (error) {
             this.hideSkeleton('profile-following-skeleton');
             container.innerHTML = `<p class="error">Failed to load following: ${this.escapeHtml(error.message)}</p>`;
@@ -1309,12 +1329,23 @@ class Shirushi {
 
             container.innerHTML = parsedZaps.map((zap, index) => `
                 <div class="zap-card zap-animate zap-stagger">
-                    <span class="zap-amount">${this.renderLightningBolt(true)} ${zap.amount.toLocaleString()} sats</span>
-                    <span class="zap-sender">${zap.sender ? zap.sender.substring(0, 16) + '...' : 'Anonymous'}</span>
-                    <span class="zap-time">${this.formatTime(zap.created_at)}</span>
-                    ${zap.content ? `<span class="zap-message">${this.escapeHtml(zap.content)}</span>` : ''}
+                    <div class="zap-card-info">
+                        <span class="zap-amount">${this.renderLightningBolt(true)} ${zap.amount.toLocaleString()} sats</span>
+                        <span class="zap-sender">${zap.sender ? zap.sender.substring(0, 16) + '...' : 'Anonymous'}</span>
+                        <span class="zap-time">${this.formatTime(zap.created_at)}</span>
+                        ${zap.content ? `<span class="zap-message">${this.escapeHtml(zap.content)}</span>` : ''}
+                    </div>
+                    ${zap.sender ? `<button class="btn small copy-btn" data-copy-zap-sender="${zap.sender}" title="Copy sender pubkey">Copy</button>` : ''}
                 </div>
             `).join('');
+
+            // Add click handlers for copy buttons
+            container.querySelectorAll('[data-copy-zap-sender]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.copyToClipboard(btn.dataset.copyZapSender, btn, 'Copy');
+                });
+            });
 
             // Add glow animation after initial strike animation completes
             setTimeout(() => {
@@ -1704,9 +1735,18 @@ class Shirushi {
                         <div class="relay-counts-bar" style="width: ${pct}%"></div>
                     </div>
                     <span class="relay-counts-value">${count}</span>
+                    <button class="btn small copy-btn" data-copy-relay-url="${this.escapeHtml(url)}" title="Copy relay URL">Copy</button>
                 </div>
             `;
         }).join('');
+
+        // Add click handlers for copy buttons
+        content.querySelectorAll('[data-copy-relay-url]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.copyToClipboard(btn.dataset.copyRelayUrl, btn, 'Copy');
+            });
+        });
     }
 
     /**
@@ -1805,8 +1845,17 @@ class Shirushi {
                 <div class="agg-list-item">
                     <span class="agg-list-item-label" title="${a.pubkey}">${a.pubkey.substring(0, 16)}...</span>
                     <span class="agg-list-item-count">${a.count}</span>
+                    <button class="btn small copy-btn" data-copy-agg-author="${a.pubkey}" title="Copy pubkey">Copy</button>
                 </div>
             `).join('');
+
+            // Add click handlers for author copy buttons
+            authorCountsEl.querySelectorAll('[data-copy-agg-author]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.copyToClipboard(btn.dataset.copyAggAuthor, btn, 'Copy');
+                });
+            });
         } else {
             authorCountsEl.innerHTML = '<div class="agg-empty">No authors</div>';
         }
@@ -1827,8 +1876,17 @@ class Shirushi {
                         </div>
                     </div>
                     <span class="agg-list-item-count">${r.count}</span>
+                    <button class="btn small copy-btn" data-copy-agg-relay="${this.escapeHtml(r.url)}" title="Copy relay URL">Copy</button>
                 </div>
             `}).join('');
+
+            // Add click handlers for relay copy buttons
+            relayCountsEl.querySelectorAll('[data-copy-agg-relay]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.copyToClipboard(btn.dataset.copyAggRelay, btn, 'Copy');
+                });
+            });
         } else {
             relayCountsEl.innerHTML = '<div class="agg-empty">No relay data</div>';
         }
@@ -1880,11 +1938,20 @@ class Shirushi {
                             <div class="agg-tag-item">
                                 <span class="agg-tag-value" title="${this.escapeHtml(v.value)}">${this.escapeHtml(this.truncateTagValue(v.value))}</span>
                                 <span class="agg-tag-count">${v.count}</span>
+                                <button class="btn small copy-btn" data-copy-agg-tag="${this.escapeHtml(v.value)}" title="Copy tag value">Copy</button>
                             </div>
                         `).join('')}
                     </div>
                 </div>
             `).join('');
+
+            // Add click handlers for tag copy buttons
+            tagCountsEl.querySelectorAll('[data-copy-agg-tag]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.copyToClipboard(btn.dataset.copyAggTag, btn, 'Copy');
+                });
+            });
         } else {
             tagCountsEl.innerHTML = '<div class="agg-empty">No tag data</div>';
         }

@@ -3396,10 +3396,22 @@ a.nip-badge:hover {
 
 .note-meta {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 12px;
     font-size: 12px;
     color: var(--text-3);
+}
+
+.note-meta .note-time {
+    flex-shrink: 0;
+}
+
+.note-meta .note-id {
+    flex: 1;
+}
+
+.note-meta .copy-btn {
+    flex-shrink: 0;
 }
 
 .note-time {
@@ -3425,12 +3437,24 @@ a.nip-badge:hover {
     background: var(--bg-2);
     border: 1px solid var(--border);
     border-radius: 6px;
-    cursor: pointer;
     transition: background 0.15s;
 }
 
 .follow-card:hover {
     background: var(--bg-3);
+}
+
+.follow-card-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.follow-card .copy-btn {
+    flex-shrink: 0;
 }
 
 /* Follow card avatar */
@@ -3506,13 +3530,25 @@ a.nip-badge:hover {
 
 .zap-card {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     padding: 12px;
     background: var(--bg-2);
     border: 1px solid var(--border);
     border-radius: 6px;
+}
+
+.zap-card-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.zap-card .copy-btn {
+    flex-shrink: 0;
 }
 
 .zap-amount {
@@ -8381,12 +8417,17 @@ a.nip-badge:hover {
 
 .relay-counts-row {
     display: grid;
-    grid-template-columns: minmax(120px, 200px) 1fr 50px;
+    grid-template-columns: minmax(120px, 200px) 1fr 50px auto;
     gap: 12px;
     align-items: center;
     padding: 6px 8px;
     background: var(--bg-2);
     border-radius: 6px;
+}
+
+.relay-counts-row .copy-btn {
+    padding: 4px 8px;
+    font-size: 11px;
 }
 
 .relay-counts-url {
@@ -8527,12 +8568,18 @@ a.nip-badge:hover {
 
 .agg-list-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 8px;
     padding: 6px 8px;
     background: var(--bg-3);
     border-radius: 4px;
     font-size: 12px;
+}
+
+.agg-list-item .copy-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    flex-shrink: 0;
 }
 
 .agg-list-item-label {
@@ -8644,12 +8691,18 @@ a.nip-badge:hover {
 
 .agg-tag-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 6px;
     font-size: 11px;
     padding: 4px 6px;
     background: var(--bg-1);
     border-radius: 3px;
+}
+
+.agg-tag-item .copy-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+    flex-shrink: 0;
 }
 
 .agg-tag-value {

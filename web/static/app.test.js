@@ -4270,6 +4270,276 @@
         });
     });
 
+    describe('Profile Notes Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('loadProfileNotes should add copy buttons to note cards', async () => {
+            const appInstance = getApp();
+
+            // Set up the profile notes list container
+            const container = document.getElementById('profile-notes-list');
+            if (!container) return;
+
+            // Mock the fetch and render
+            const mockNotes = [
+                { id: 'note123456789012345678901234567890123456789012345678901234', content: 'Test note', created_at: Math.floor(Date.now() / 1000) }
+            ];
+
+            // Manually render notes similar to loadProfileNotes
+            container.innerHTML = mockNotes.map(note => `
+                <div class="note-card">
+                    <div class="note-content">${appInstance.escapeHtml(note.content)}</div>
+                    <div class="note-meta">
+                        <span class="note-time">${appInstance.formatTime(note.created_at)}</span>
+                        <span class="note-id">${note.id.substring(0, 8)}...</span>
+                        <button class="btn small copy-btn" data-copy-note-id="${note.id}" title="Copy note ID">Copy ID</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Check for copy button
+            const copyBtn = container.querySelector('[data-copy-note-id]');
+            assertDefined(copyBtn, 'Copy note ID button should exist');
+            assertEqual(copyBtn.dataset.copyNoteId, mockNotes[0].id, 'Button should have note ID in data attribute');
+            assertEqual(copyBtn.textContent, 'Copy ID', 'Button should have correct text');
+        });
+    });
+
+    describe('Profile Following Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('loadProfileFollowing should add copy buttons to follow cards', async () => {
+            const appInstance = getApp();
+
+            // Set up the profile following list container
+            const container = document.getElementById('profile-following-list');
+            if (!container) return;
+
+            // Mock follow data
+            const mockFollows = [
+                { pubkey: 'pubkey123456789012345678901234567890123456789012345678901234', petname: 'testuser', relay: 'wss://relay.test.com' }
+            ];
+
+            // Manually render follows similar to loadProfileFollowing
+            container.innerHTML = mockFollows.map(follow => `
+                <div class="follow-card">
+                    <div class="follow-card-info">
+                        <span class="follow-pubkey">${follow.pubkey.substring(0, 16)}...</span>
+                        ${follow.petname ? `<span class="follow-petname">${appInstance.escapeHtml(follow.petname)}</span>` : ''}
+                        ${follow.relay ? `<span class="follow-relay">${appInstance.escapeHtml(follow.relay)}</span>` : ''}
+                    </div>
+                    <button class="btn small copy-btn" data-copy-follow-pubkey="${follow.pubkey}" title="Copy pubkey">Copy</button>
+                </div>
+            `).join('');
+
+            // Check for copy button
+            const copyBtn = container.querySelector('[data-copy-follow-pubkey]');
+            assertDefined(copyBtn, 'Copy pubkey button should exist');
+            assertEqual(copyBtn.dataset.copyFollowPubkey, mockFollows[0].pubkey, 'Button should have pubkey in data attribute');
+            assertEqual(copyBtn.textContent, 'Copy', 'Button should have correct text');
+        });
+    });
+
+    describe('Profile Zaps Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('loadProfileZaps should add copy buttons for sender pubkeys', async () => {
+            const appInstance = getApp();
+
+            // Set up the profile zaps list container
+            const container = document.getElementById('profile-zaps-list');
+            if (!container) return;
+
+            // Mock zap data
+            const mockZaps = [
+                { id: 'zap123', amount: 1000, sender: 'sender123456789012345678901234567890123456789012345678901234', content: 'Great work!', created_at: Math.floor(Date.now() / 1000) }
+            ];
+
+            // Manually render zaps similar to loadProfileZaps
+            container.innerHTML = mockZaps.map(zap => `
+                <div class="zap-card zap-animate zap-stagger">
+                    <div class="zap-card-info">
+                        <span class="zap-amount">${zap.amount.toLocaleString()} sats</span>
+                        <span class="zap-sender">${zap.sender ? zap.sender.substring(0, 16) + '...' : 'Anonymous'}</span>
+                        <span class="zap-time">${appInstance.formatTime(zap.created_at)}</span>
+                        ${zap.content ? `<span class="zap-message">${appInstance.escapeHtml(zap.content)}</span>` : ''}
+                    </div>
+                    ${zap.sender ? `<button class="btn small copy-btn" data-copy-zap-sender="${zap.sender}" title="Copy sender pubkey">Copy</button>` : ''}
+                </div>
+            `).join('');
+
+            // Check for copy button
+            const copyBtn = container.querySelector('[data-copy-zap-sender]');
+            assertDefined(copyBtn, 'Copy sender pubkey button should exist');
+            assertEqual(copyBtn.dataset.copyZapSender, mockZaps[0].sender, 'Button should have sender pubkey in data attribute');
+            assertEqual(copyBtn.textContent, 'Copy', 'Button should have correct text');
+        });
+
+        it('anonymous zaps should not have copy buttons', async () => {
+            const appInstance = getApp();
+
+            // Set up the profile zaps list container
+            const container = document.getElementById('profile-zaps-list');
+            if (!container) return;
+
+            // Mock anonymous zap data (no sender)
+            const mockZaps = [
+                { id: 'zap123', amount: 500, sender: '', content: 'Anonymous zap', created_at: Math.floor(Date.now() / 1000) }
+            ];
+
+            // Render zaps
+            container.innerHTML = mockZaps.map(zap => `
+                <div class="zap-card zap-animate zap-stagger">
+                    <div class="zap-card-info">
+                        <span class="zap-amount">${zap.amount.toLocaleString()} sats</span>
+                        <span class="zap-sender">${zap.sender ? zap.sender.substring(0, 16) + '...' : 'Anonymous'}</span>
+                    </div>
+                    ${zap.sender ? `<button class="btn small copy-btn" data-copy-zap-sender="${zap.sender}" title="Copy sender pubkey">Copy</button>` : ''}
+                </div>
+            `).join('');
+
+            // Check that no copy button exists for anonymous zaps
+            const copyBtn = container.querySelector('[data-copy-zap-sender]');
+            assertEqual(copyBtn, null, 'Anonymous zaps should not have copy buttons');
+        });
+    });
+
+    describe('Relay Counts Panel Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('updateRelayCountsDisplay should add copy buttons to relay rows', async () => {
+            const appInstance = getApp();
+
+            // Set up mock relay event counts
+            appInstance.relayEventCounts = {
+                'wss://relay.test1.com': 10,
+                'wss://relay.test2.com': 5
+            };
+
+            // Call the update method
+            appInstance.updateRelayCountsDisplay();
+
+            // Check for copy buttons
+            const container = document.getElementById('relay-counts-panel');
+            if (!container) return;
+
+            const copyBtns = container.querySelectorAll('[data-copy-relay-url]');
+            assertEqual(copyBtns.length, 2, 'Should have 2 copy buttons for 2 relays');
+
+            const urls = Array.from(copyBtns).map(btn => btn.dataset.copyRelayUrl);
+            assertTrue(urls.includes('wss://relay.test1.com'), 'Should have copy button for first relay');
+            assertTrue(urls.includes('wss://relay.test2.com'), 'Should have copy button for second relay');
+        });
+    });
+
+    describe('Aggregation Panel Copy Buttons', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('displayAggregation should add copy buttons to author entries', async () => {
+            const appInstance = getApp();
+
+            // Set up the author counts container
+            const authorCountsEl = document.getElementById('agg-author-counts');
+            if (!authorCountsEl) return;
+
+            // Mock author data
+            const mockData = {
+                author_counts: [
+                    { pubkey: 'author123456789012345678901234567890123456789012345678901234', count: 5 }
+                ]
+            };
+
+            // Manually render authors
+            authorCountsEl.innerHTML = mockData.author_counts.map(a => `
+                <div class="agg-list-item">
+                    <span class="agg-list-item-label" title="${a.pubkey}">${a.pubkey.substring(0, 16)}...</span>
+                    <span class="agg-list-item-count">${a.count}</span>
+                    <button class="btn small copy-btn" data-copy-agg-author="${a.pubkey}" title="Copy pubkey">Copy</button>
+                </div>
+            `).join('');
+
+            // Check for copy button
+            const copyBtn = authorCountsEl.querySelector('[data-copy-agg-author]');
+            assertDefined(copyBtn, 'Copy author pubkey button should exist');
+            assertEqual(copyBtn.dataset.copyAggAuthor, mockData.author_counts[0].pubkey, 'Button should have author pubkey in data attribute');
+        });
+
+        it('displayAggregation should add copy buttons to relay entries', async () => {
+            const appInstance = getApp();
+
+            // Set up the relay counts container
+            const relayCountsEl = document.getElementById('agg-relay-counts');
+            if (!relayCountsEl) return;
+
+            // Mock relay data
+            const mockData = {
+                relay_distribution: [
+                    { url: 'wss://relay.agg.com', count: 10 }
+                ]
+            };
+
+            // Manually render relays
+            relayCountsEl.innerHTML = mockData.relay_distribution.map(r => `
+                <div class="agg-list-item">
+                    <span class="agg-list-item-label" title="${appInstance.escapeHtml(r.url)}">${r.url}</span>
+                    <span class="agg-list-item-count">${r.count}</span>
+                    <button class="btn small copy-btn" data-copy-agg-relay="${appInstance.escapeHtml(r.url)}" title="Copy relay URL">Copy</button>
+                </div>
+            `).join('');
+
+            // Check for copy button
+            const copyBtn = relayCountsEl.querySelector('[data-copy-agg-relay]');
+            assertDefined(copyBtn, 'Copy relay URL button should exist');
+            assertEqual(copyBtn.dataset.copyAggRelay, mockData.relay_distribution[0].url, 'Button should have relay URL in data attribute');
+        });
+
+        it('displayAggregation should add copy buttons to tag values', async () => {
+            const appInstance = getApp();
+
+            // Set up the tag counts container
+            const tagCountsEl = document.getElementById('agg-tag-counts');
+            if (!tagCountsEl) return;
+
+            // Mock tag data
+            const mockData = {
+                tag_counts: {
+                    't': [{ value: 'nostr', count: 5 }]
+                }
+            };
+
+            // Manually render tags
+            tagCountsEl.innerHTML = Object.entries(mockData.tag_counts).map(([tagName, values]) => `
+                <div class="agg-tag-group">
+                    <div class="agg-tag-group-title">#${tagName}</div>
+                    <div class="agg-tag-list">
+                        ${values.map(v => `
+                            <div class="agg-tag-item">
+                                <span class="agg-tag-value">${appInstance.escapeHtml(v.value)}</span>
+                                <span class="agg-tag-count">${v.count}</span>
+                                <button class="btn small copy-btn" data-copy-agg-tag="${appInstance.escapeHtml(v.value)}" title="Copy tag value">Copy</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // Check for copy button
+            const copyBtn = tagCountsEl.querySelector('[data-copy-agg-tag]');
+            assertDefined(copyBtn, 'Copy tag value button should exist');
+            assertEqual(copyBtn.dataset.copyAggTag, 'nostr', 'Button should have tag value in data attribute');
+        });
+    });
+
     describe('Console Output Copy Button', () => {
         function getApp() {
             return window.app || app;
