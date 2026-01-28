@@ -55,6 +55,9 @@ class Shirushi {
         // Event deduplication
         this.seenEventIds = new Set();
 
+        // Relay event counts for result count per relay display
+        this.relayEventCounts = {};
+
         this.init();
     }
 
@@ -1346,6 +1349,8 @@ class Shirushi {
             this.events = [];
             this.eventBuffer = [];
             this.seenEventIds.clear();
+            this.relayEventCounts = {};
+            this.updateRelayCountsDisplay();
             this.renderEvents();
         });
 
@@ -1563,10 +1568,15 @@ class Shirushi {
                 this.events = data || [];
                 this.hideFetchTiming();
             }
-            // Update seen event IDs to include loaded events
+            // Update seen event IDs and relay counts for loaded events
+            this.relayEventCounts = {};
             for (const event of this.events) {
                 this.seenEventIds.add(event.id);
+                if (event.relay) {
+                    this.relayEventCounts[event.relay] = (this.relayEventCounts[event.relay] || 0) + 1;
+                }
             }
+            this.updateRelayCountsDisplay();
             this.renderEvents();
         } catch (error) {
             console.error('Failed to load events:', error);
@@ -1648,6 +1658,47 @@ class Shirushi {
         if (panel) {
             panel.classList.add('hidden');
         }
+    }
+
+    /**
+     * Update the relay counts display showing result count per relay
+     */
+    updateRelayCountsDisplay() {
+        const container = document.getElementById('relay-counts-panel');
+        if (!container) return;
+
+        const entries = Object.entries(this.relayEventCounts);
+        const totalEvents = entries.reduce((sum, [, count]) => sum + count, 0);
+
+        if (entries.length === 0) {
+            container.classList.add('hidden');
+            return;
+        }
+
+        // Sort by count descending
+        entries.sort((a, b) => b[1] - a[1]);
+        const maxCount = entries[0][1];
+
+        container.classList.remove('hidden');
+
+        const totalSpan = container.querySelector('.relay-counts-total');
+        totalSpan.textContent = `Total: ${totalEvents} event${totalEvents !== 1 ? 's' : ''}`;
+
+        const content = container.querySelector('.relay-counts-content');
+        content.innerHTML = entries.map(([url, count]) => {
+            const truncatedUrl = url.length > 35 ? url.substring(0, 32) + '...' : url;
+            const pct = Math.min(100, (count / maxCount) * 100);
+
+            return `
+                <div class="relay-counts-row">
+                    <span class="relay-counts-url" title="${this.escapeHtml(url)}">${this.escapeHtml(truncatedUrl)}</span>
+                    <div class="relay-counts-bar-container">
+                        <div class="relay-counts-bar" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="relay-counts-value">${count}</span>
+                </div>
+            `;
+        }).join('');
     }
 
     /**
@@ -1887,6 +1938,12 @@ class Shirushi {
             return;
         }
         this.seenEventIds.add(event.id);
+
+        // Track relay event count
+        if (event.relay) {
+            this.relayEventCounts[event.relay] = (this.relayEventCounts[event.relay] || 0) + 1;
+            this.updateRelayCountsDisplay();
+        }
 
         // Limit seen event IDs set size to prevent memory issues
         const maxSeenEvents = 1000;

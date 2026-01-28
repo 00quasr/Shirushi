@@ -13305,6 +13305,273 @@
         });
     });
 
+    // ==========================================
+    // Relay Event Counts Tests
+    // ==========================================
+    describe('Relay Event Counts', () => {
+        it('should initialize relayEventCounts as empty object', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            assertDefined(instance.relayEventCounts, 'relayEventCounts should be defined');
+            assertEqual(Object.keys(instance.relayEventCounts).length, 0, 'relayEventCounts should be empty initially');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should have updateRelayCountsDisplay method', () => {
+            assertDefined(Shirushi.prototype.updateRelayCountsDisplay, 'updateRelayCountsDisplay method should exist');
+        });
+
+        it('addEvent should track relay event counts', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.relayEventCounts = {};
+            instance.seenEventIds = new Set();
+            instance.eventRenderScheduled = false;
+            instance.maxBufferSize = 50;
+
+            // Mock setTimeout to prevent actual scheduling
+            const originalSetTimeout = window.setTimeout;
+            window.setTimeout = function() { return 1; };
+
+            // Mock DOM element
+            const mockPanel = document.createElement('div');
+            mockPanel.id = 'relay-counts-panel';
+            mockPanel.className = 'relay-counts-panel hidden';
+            mockPanel.innerHTML = '<span class="relay-counts-total"></span><div class="relay-counts-content"></div>';
+            document.body.appendChild(mockPanel);
+
+            // Mock escapeHtml
+            instance.escapeHtml = function(str) { return str; };
+
+            const testEvent1 = {
+                id: 'test123',
+                kind: 1,
+                pubkey: 'abc123',
+                content: 'test content',
+                created_at: 1700000000,
+                relay: 'wss://relay1.example.com'
+            };
+
+            const testEvent2 = {
+                id: 'test456',
+                kind: 1,
+                pubkey: 'abc123',
+                content: 'test content 2',
+                created_at: 1700000001,
+                relay: 'wss://relay1.example.com'
+            };
+
+            const testEvent3 = {
+                id: 'test789',
+                kind: 1,
+                pubkey: 'abc123',
+                content: 'test content 3',
+                created_at: 1700000002,
+                relay: 'wss://relay2.example.com'
+            };
+
+            instance.addEvent(testEvent1);
+            instance.addEvent(testEvent2);
+            instance.addEvent(testEvent3);
+
+            assertEqual(instance.relayEventCounts['wss://relay1.example.com'], 2, 'relay1 should have 2 events');
+            assertEqual(instance.relayEventCounts['wss://relay2.example.com'], 1, 'relay2 should have 1 event');
+
+            // Cleanup
+            document.body.removeChild(mockPanel);
+            window.setTimeout = originalSetTimeout;
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('addEvent should not count events without relay field', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.relayEventCounts = {};
+            instance.seenEventIds = new Set();
+            instance.eventRenderScheduled = false;
+            instance.maxBufferSize = 50;
+
+            // Mock setTimeout to prevent actual scheduling
+            const originalSetTimeout = window.setTimeout;
+            window.setTimeout = function() { return 1; };
+
+            // Mock DOM element
+            const mockPanel = document.createElement('div');
+            mockPanel.id = 'relay-counts-panel';
+            mockPanel.className = 'relay-counts-panel hidden';
+            mockPanel.innerHTML = '<span class="relay-counts-total"></span><div class="relay-counts-content"></div>';
+            document.body.appendChild(mockPanel);
+
+            // Mock escapeHtml
+            instance.escapeHtml = function(str) { return str; };
+
+            const testEvent = {
+                id: 'test123',
+                kind: 1,
+                pubkey: 'abc123',
+                content: 'test content',
+                created_at: 1700000000
+                // No relay field
+            };
+
+            instance.addEvent(testEvent);
+
+            assertEqual(Object.keys(instance.relayEventCounts).length, 0, 'No relay counts should be tracked for events without relay field');
+
+            // Cleanup
+            document.body.removeChild(mockPanel);
+            window.setTimeout = originalSetTimeout;
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('updateRelayCountsDisplay should show panel when counts exist', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.relayEventCounts = {
+                'wss://relay1.example.com': 5,
+                'wss://relay2.example.com': 3
+            };
+
+            // Mock DOM element
+            const mockPanel = document.createElement('div');
+            mockPanel.id = 'relay-counts-panel';
+            mockPanel.className = 'relay-counts-panel hidden';
+            mockPanel.innerHTML = '<span class="relay-counts-total"></span><div class="relay-counts-content"></div>';
+            document.body.appendChild(mockPanel);
+
+            // Mock escapeHtml
+            instance.escapeHtml = function(str) { return str; };
+
+            instance.updateRelayCountsDisplay();
+
+            assertFalse(mockPanel.classList.contains('hidden'), 'Panel should not be hidden when counts exist');
+
+            const totalSpan = mockPanel.querySelector('.relay-counts-total');
+            assertEqual(totalSpan.textContent, 'Total: 8 events', 'Total should show 8 events');
+
+            const content = mockPanel.querySelector('.relay-counts-content');
+            assertTrue(content.innerHTML.includes('relay1.example.com'), 'Content should include relay1');
+            assertTrue(content.innerHTML.includes('relay2.example.com'), 'Content should include relay2');
+
+            // Cleanup
+            document.body.removeChild(mockPanel);
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('updateRelayCountsDisplay should hide panel when no counts', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.relayEventCounts = {};
+
+            // Mock DOM element
+            const mockPanel = document.createElement('div');
+            mockPanel.id = 'relay-counts-panel';
+            mockPanel.className = 'relay-counts-panel';
+            mockPanel.innerHTML = '<span class="relay-counts-total"></span><div class="relay-counts-content"></div>';
+            document.body.appendChild(mockPanel);
+
+            instance.updateRelayCountsDisplay();
+
+            assertTrue(mockPanel.classList.contains('hidden'), 'Panel should be hidden when no counts');
+
+            // Cleanup
+            document.body.removeChild(mockPanel);
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('updateRelayCountsDisplay should sort relays by count descending', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.relayEventCounts = {
+                'wss://relay1.example.com': 2,
+                'wss://relay2.example.com': 10,
+                'wss://relay3.example.com': 5
+            };
+
+            // Mock DOM element
+            const mockPanel = document.createElement('div');
+            mockPanel.id = 'relay-counts-panel';
+            mockPanel.className = 'relay-counts-panel hidden';
+            mockPanel.innerHTML = '<span class="relay-counts-total"></span><div class="relay-counts-content"></div>';
+            document.body.appendChild(mockPanel);
+
+            // Mock escapeHtml
+            instance.escapeHtml = function(str) { return str; };
+
+            instance.updateRelayCountsDisplay();
+
+            const rows = mockPanel.querySelectorAll('.relay-counts-row');
+            assertEqual(rows.length, 3, 'Should have 3 rows');
+
+            // Check order: relay2 (10) > relay3 (5) > relay1 (2)
+            const values = Array.from(rows).map(row => row.querySelector('.relay-counts-value').textContent);
+            assertEqual(values[0], '10', 'First row should have highest count');
+            assertEqual(values[1], '5', 'Second row should have middle count');
+            assertEqual(values[2], '2', 'Third row should have lowest count');
+
+            // Cleanup
+            document.body.removeChild(mockPanel);
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('clear events should reset relay counts', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+            instance.events = [{ id: '1' }];
+            instance.eventBuffer = [{ id: '2' }];
+            instance.seenEventIds = new Set(['1', '2']);
+            instance.relayEventCounts = {
+                'wss://relay1.example.com': 5
+            };
+
+            // Mock DOM elements
+            const mockPanel = document.createElement('div');
+            mockPanel.id = 'relay-counts-panel';
+            mockPanel.className = 'relay-counts-panel';
+            mockPanel.innerHTML = '<span class="relay-counts-total"></span><div class="relay-counts-content"></div>';
+            document.body.appendChild(mockPanel);
+
+            const mockEventList = document.createElement('div');
+            mockEventList.id = 'event-list';
+            document.body.appendChild(mockEventList);
+
+            // Simulate clear events
+            instance.events = [];
+            instance.eventBuffer = [];
+            instance.seenEventIds.clear();
+            instance.relayEventCounts = {};
+            instance.updateRelayCountsDisplay();
+            instance.renderEvents = function() {};
+
+            assertEqual(Object.keys(instance.relayEventCounts).length, 0, 'relayEventCounts should be empty after clear');
+            assertTrue(mockPanel.classList.contains('hidden'), 'Panel should be hidden after clear');
+
+            // Cleanup
+            document.body.removeChild(mockPanel);
+            document.body.removeChild(mockEventList);
+            Shirushi.prototype.init = originalInit;
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
