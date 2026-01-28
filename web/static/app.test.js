@@ -12447,6 +12447,267 @@
 
             Shirushi.prototype.init = originalInit;
         });
+
+        it('should render side-by-side comparison table with correct structure', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock diff result element
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'diff-result';
+            resultDiv.className = 'diff-result hidden';
+            resultDiv.innerHTML = '<div class="diff-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const eventA = {
+                id: 'aaaaaa',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['p', 'user1']],
+                content: 'Hello A',
+                sig: 'sig_a'
+            };
+
+            const eventB = {
+                id: 'bbbbbb',
+                pubkey: 'pubkey123',
+                created_at: 1700000001,
+                kind: 1,
+                tags: [['p', 'user2']],
+                content: 'Hello B',
+                sig: 'sig_b'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+            instance.showDiffResult(diff, eventA, eventB);
+
+            // Verify table structure
+            const table = resultDiv.querySelector('.diff-table');
+            assertDefined(table, 'Should create a comparison table');
+
+            const thead = table.querySelector('thead');
+            assertDefined(thead, 'Table should have a thead');
+
+            const headers = thead.querySelectorAll('th');
+            assertEqual(headers.length, 4, 'Table should have 4 columns (Field, Event A, Event B, Status)');
+
+            const tbody = table.querySelector('tbody');
+            assertDefined(tbody, 'Table should have a tbody');
+
+            const rows = tbody.querySelectorAll('tr');
+            assertEqual(rows.length, 6, 'Table should have 6 rows (one for each field)');
+
+            // Verify table header content
+            const headerTexts = Array.from(headers).map(h => h.textContent.trim());
+            assertEqual(headerTexts[0], 'Field', 'First column should be Field');
+            assertEqual(headerTexts[1], 'Event A', 'Second column should be Event A');
+            assertEqual(headerTexts[2], 'Event B', 'Third column should be Event B');
+            assertEqual(headerTexts[3], 'Status', 'Fourth column should be Status');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should show status badges with correct classes in table', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock diff result element
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'diff-result';
+            resultDiv.className = 'diff-result hidden';
+            resultDiv.innerHTML = '<div class="diff-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const eventA = {
+                id: 'same_id',
+                pubkey: 'same_pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Different A',
+                sig: 'same_sig'
+            };
+
+            const eventB = {
+                id: 'same_id',
+                pubkey: 'same_pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Different B',
+                sig: 'same_sig'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+            instance.showDiffResult(diff, eventA, eventB);
+
+            // Check for equal and changed badges
+            const equalBadges = resultDiv.querySelectorAll('.diff-status-badge.equal');
+            const changedBadges = resultDiv.querySelectorAll('.diff-status-badge.changed');
+
+            assertTrue(equalBadges.length > 0, 'Should have badges with equal class');
+            assertTrue(changedBadges.length > 0, 'Should have badges with changed class');
+
+            // Verify badge text
+            assertEqual(equalBadges[0].textContent, 'Same', 'Equal badge should say Same');
+            assertEqual(changedBadges[0].textContent, 'Different', 'Changed badge should say Different');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should render tags comparison table when events have tags', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock diff result element
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'diff-result';
+            resultDiv.className = 'diff-result hidden';
+            resultDiv.innerHTML = '<div class="diff-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const eventA = {
+                id: 'id1',
+                pubkey: 'pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['p', 'user1'], ['t', 'nostr']],
+                content: 'Test',
+                sig: 'sig'
+            };
+
+            const eventB = {
+                id: 'id1',
+                pubkey: 'pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['p', 'user2'], ['e', 'event1']],
+                content: 'Test',
+                sig: 'sig'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+            instance.showDiffResult(diff, eventA, eventB);
+
+            // Verify tags comparison table exists
+            const tagsTable = resultDiv.querySelector('.diff-tags-table');
+            assertDefined(tagsTable, 'Should create a tags comparison table');
+
+            const tagsRows = tagsTable.querySelectorAll('tbody tr');
+            assertEqual(tagsRows.length, 2, 'Tags table should show 2 rows (max of both tag arrays)');
+
+            // Verify tags section header
+            const tagsHeader = resultDiv.querySelector('.diff-tags-header');
+            assertDefined(tagsHeader, 'Should have tags section header');
+            assertEqual(tagsHeader.textContent, 'Tags Comparison', 'Tags header should say Tags Comparison');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should display tag change summary badges', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock diff result element
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'diff-result';
+            resultDiv.className = 'diff-result hidden';
+            resultDiv.innerHTML = '<div class="diff-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const eventA = {
+                id: 'id1',
+                pubkey: 'pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['p', 'removed_user']],
+                content: 'Test',
+                sig: 'sig'
+            };
+
+            const eventB = {
+                id: 'id1',
+                pubkey: 'pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['t', 'added_tag']],
+                content: 'Test',
+                sig: 'sig'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+            instance.showDiffResult(diff, eventA, eventB);
+
+            // Verify tag change summary
+            const tagsSummary = resultDiv.querySelector('.diff-tags-summary');
+            assertDefined(tagsSummary, 'Should have tags summary section');
+
+            const removedBadge = resultDiv.querySelector('.diff-tags-count.removed');
+            const addedBadge = resultDiv.querySelector('.diff-tags-count.added');
+
+            assertDefined(removedBadge, 'Should have removed count badge');
+            assertDefined(addedBadge, 'Should have added count badge');
+
+            assertTrue(removedBadge.textContent.includes('1 removed'), 'Removed badge should show count');
+            assertTrue(addedBadge.textContent.includes('1 added'), 'Added badge should show count');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should apply correct CSS classes for colored columns', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock diff result element
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'diff-result';
+            resultDiv.className = 'diff-result hidden';
+            resultDiv.innerHTML = '<div class="diff-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const eventA = { id: 'a', pubkey: 'p', created_at: 1, kind: 1, tags: [], content: 'A', sig: 's' };
+            const eventB = { id: 'b', pubkey: 'p', created_at: 1, kind: 1, tags: [], content: 'B', sig: 's' };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+            instance.showDiffResult(diff, eventA, eventB);
+
+            // Check column A has red styling class
+            const colA = resultDiv.querySelectorAll('.diff-table-a');
+            assertTrue(colA.length > 0, 'Should have elements with diff-table-a class');
+
+            // Check column B has green styling class
+            const colB = resultDiv.querySelectorAll('.diff-table-b');
+            assertTrue(colB.length > 0, 'Should have elements with diff-table-b class');
+
+            // Verify both headers and cells have these classes
+            const headerA = resultDiv.querySelector('th.diff-table-a');
+            const cellA = resultDiv.querySelector('td.diff-table-a');
+            const headerB = resultDiv.querySelector('th.diff-table-b');
+            const cellB = resultDiv.querySelector('td.diff-table-b');
+
+            assertDefined(headerA, 'Event A header should have diff-table-a class');
+            assertDefined(cellA, 'Event A cell should have diff-table-a class');
+            assertDefined(headerB, 'Event B header should have diff-table-b class');
+            assertDefined(cellB, 'Event B cell should have diff-table-b class');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
     });
 
     // Export test runner for browser and Node.js

@@ -2863,9 +2863,7 @@ class Shirushi {
             `;
         }
 
-        // Field comparisons
-        html += '<div class="diff-fields">';
-
+        // Side-by-side comparison table
         const fieldLabels = {
             id: 'Event ID',
             pubkey: 'Author',
@@ -2874,6 +2872,20 @@ class Shirushi {
             content: 'Content',
             sig: 'Signature'
         };
+
+        html += `
+            <div class="diff-table-container">
+                <table class="diff-table">
+                    <thead>
+                        <tr>
+                            <th class="diff-table-field">Field</th>
+                            <th class="diff-table-value diff-table-a">Event A</th>
+                            <th class="diff-table-value diff-table-b">Event B</th>
+                            <th class="diff-table-status">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
 
         for (const [field, info] of Object.entries(diff.fields)) {
             const statusClass = info.equal ? 'equal' : 'changed';
@@ -2893,46 +2905,77 @@ class Shirushi {
             const displayB = this.truncateForDiff(valueB);
 
             html += `
-                <div class="diff-field ${statusClass}">
-                    <div class="diff-field-header">
-                        <span class="diff-field-label">${this.escapeHtml(label)}</span>
-                        <span class="diff-field-status ${statusClass}">${info.equal ? 'Same' : 'Different'}</span>
-                    </div>
-                    <div class="diff-field-values">
-                        <div class="diff-value diff-value-a" title="${this.escapeHtml(String(info.a || ''))}">
-                            <span class="diff-value-label">A:</span>
-                            <span class="diff-value-content">${this.escapeHtml(displayA)}</span>
-                        </div>
-                        <div class="diff-value diff-value-b" title="${this.escapeHtml(String(info.b || ''))}">
-                            <span class="diff-value-label">B:</span>
-                            <span class="diff-value-content">${this.escapeHtml(displayB)}</span>
-                        </div>
-                    </div>
-                </div>
+                <tr class="diff-table-row ${statusClass}">
+                    <td class="diff-table-field">${this.escapeHtml(label)}</td>
+                    <td class="diff-table-value diff-table-a" title="${this.escapeHtml(String(info.a || ''))}">${this.escapeHtml(displayA)}</td>
+                    <td class="diff-table-value diff-table-b" title="${this.escapeHtml(String(info.b || ''))}">${this.escapeHtml(displayB)}</td>
+                    <td class="diff-table-status"><span class="diff-status-badge ${statusClass}">${info.equal ? 'Same' : 'Different'}</span></td>
+                </tr>
             `;
         }
 
-        html += '</div>';
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
 
-        // Tag changes
-        if (diff.tags.added.length > 0 || diff.tags.removed.length > 0) {
+        // Tag changes comparison table
+        if (diff.tags.added.length > 0 || diff.tags.removed.length > 0 || (eventA.tags && eventA.tags.length > 0) || (eventB.tags && eventB.tags.length > 0)) {
             html += '<div class="diff-tags">';
-            html += '<div class="diff-tags-header">Tag Changes</div>';
+            html += '<div class="diff-tags-header">Tags Comparison</div>';
 
-            if (diff.tags.removed.length > 0) {
-                html += '<div class="diff-tags-section removed">';
-                html += '<span class="diff-tags-label">Removed from A:</span>';
-                for (const tag of diff.tags.removed) {
-                    html += `<div class="diff-tag removed">${this.escapeHtml(JSON.stringify(tag))}</div>`;
+            // Build a combined tag comparison table
+            const tagsA = eventA.tags || [];
+            const tagsB = eventB.tags || [];
+            const maxTags = Math.max(tagsA.length, tagsB.length);
+
+            if (maxTags > 0) {
+                html += `
+                    <div class="diff-table-container">
+                        <table class="diff-table diff-tags-table">
+                            <thead>
+                                <tr>
+                                    <th class="diff-table-index">#</th>
+                                    <th class="diff-table-value diff-table-a">Event A Tags</th>
+                                    <th class="diff-table-value diff-table-b">Event B Tags</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                for (let i = 0; i < maxTags; i++) {
+                    const tagA = tagsA[i];
+                    const tagB = tagsB[i];
+                    const tagAStr = tagA ? JSON.stringify(tagA) : '';
+                    const tagBStr = tagB ? JSON.stringify(tagB) : '';
+                    const tagsEqual = tagAStr === tagBStr;
+                    const rowClass = tagsEqual ? 'equal' : 'changed';
+
+                    html += `
+                        <tr class="diff-table-row ${rowClass}">
+                            <td class="diff-table-index">${i + 1}</td>
+                            <td class="diff-table-value diff-table-a ${!tagA ? 'empty' : ''}" title="${this.escapeHtml(tagAStr)}">${tagA ? this.escapeHtml(this.truncateForDiff(tagAStr)) : '<span class="diff-empty">—</span>'}</td>
+                            <td class="diff-table-value diff-table-b ${!tagB ? 'empty' : ''}" title="${this.escapeHtml(tagBStr)}">${tagB ? this.escapeHtml(this.truncateForDiff(tagBStr)) : '<span class="diff-empty">—</span>'}</td>
+                        </tr>
+                    `;
                 }
-                html += '</div>';
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
             }
 
-            if (diff.tags.added.length > 0) {
-                html += '<div class="diff-tags-section added">';
-                html += '<span class="diff-tags-label">Added in B:</span>';
-                for (const tag of diff.tags.added) {
-                    html += `<div class="diff-tag added">${this.escapeHtml(JSON.stringify(tag))}</div>`;
+            // Summary of tag changes
+            if (diff.tags.removed.length > 0 || diff.tags.added.length > 0) {
+                html += '<div class="diff-tags-summary">';
+                if (diff.tags.removed.length > 0) {
+                    html += `<span class="diff-tags-count removed">${diff.tags.removed.length} removed</span>`;
+                }
+                if (diff.tags.added.length > 0) {
+                    html += `<span class="diff-tags-count added">${diff.tags.added.length} added</span>`;
                 }
                 html += '</div>';
             }

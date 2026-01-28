@@ -7003,42 +7003,128 @@ a.nip-badge:hover {
     font-size: 13px;
 }
 
-.diff-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.diff-field {
-    padding: 12px;
-    border-radius: 4px;
+/* Side-by-side comparison table */
+.diff-table-container {
+    overflow-x: auto;
+    border-radius: 6px;
     border: 1px solid var(--border);
     background: var(--bg-1);
 }
 
-.diff-field.changed {
-    border-color: var(--warning);
-    background: color-mix(in srgb, var(--warning) 3%, var(--bg-1));
-}
-
-.diff-field.equal {
-    opacity: 0.7;
-}
-
-.diff-field-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.diff-field-label {
+.diff-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 12px;
+}
+
+.diff-table thead {
+    background: var(--bg-3);
+    position: sticky;
+    top: 0;
+}
+
+.diff-table th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.diff-table th.diff-table-field {
+    width: 100px;
+    min-width: 100px;
+}
+
+.diff-table th.diff-table-index {
+    width: 40px;
+    min-width: 40px;
+    text-align: center;
+}
+
+.diff-table th.diff-table-a {
+    background: color-mix(in srgb, var(--error) 10%, var(--bg-3));
+    border-left: 3px solid var(--error);
+}
+
+.diff-table th.diff-table-b {
+    background: color-mix(in srgb, var(--success) 10%, var(--bg-3));
+    border-left: 3px solid var(--success);
+}
+
+.diff-table th.diff-table-status {
+    width: 80px;
+    min-width: 80px;
+    text-align: center;
+}
+
+.diff-table tbody tr {
+    transition: background 0.15s ease;
+}
+
+.diff-table tbody tr:hover {
+    background: var(--bg-2);
+}
+
+.diff-table tbody tr.changed {
+    background: color-mix(in srgb, var(--warning) 5%, var(--bg-1));
+}
+
+.diff-table tbody tr.changed:hover {
+    background: color-mix(in srgb, var(--warning) 10%, var(--bg-1));
+}
+
+.diff-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+
+.diff-table td.diff-table-field {
     font-weight: 600;
     color: var(--text-2);
 }
 
-.diff-field-status {
+.diff-table td.diff-table-index {
+    text-align: center;
+    color: var(--text-3);
+    font-weight: 500;
+}
+
+.diff-table td.diff-table-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-1);
+    word-break: break-all;
+    max-width: 300px;
+}
+
+.diff-table td.diff-table-a {
+    border-left: 3px solid var(--error);
+    background: color-mix(in srgb, var(--error) 3%, transparent);
+}
+
+.diff-table td.diff-table-b {
+    border-left: 3px solid var(--success);
+    background: color-mix(in srgb, var(--success) 3%, transparent);
+}
+
+.diff-table td.diff-table-status {
+    text-align: center;
+}
+
+.diff-table td.empty {
+    color: var(--text-3);
+    font-style: italic;
+}
+
+.diff-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.diff-status-badge {
+    display: inline-block;
     font-size: 10px;
     font-weight: 500;
     padding: 2px 8px;
@@ -7047,51 +7133,47 @@ a.nip-badge:hover {
     letter-spacing: 0.5px;
 }
 
-.diff-field-status.equal {
+.diff-status-badge.equal {
     background: var(--bg-3);
     color: var(--text-3);
 }
 
-.diff-field-status.changed {
+.diff-status-badge.changed {
     background: color-mix(in srgb, var(--warning) 20%, var(--bg-3));
     color: var(--warning);
 }
 
-.diff-field-values {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.diff-value {
-    display: flex;
-    gap: 8px;
-    font-size: 12px;
-    font-family: var(--font-mono);
-    padding: 6px 8px;
-    border-radius: 3px;
-    background: var(--bg-2);
-}
-
-.diff-value-a {
-    border-left: 3px solid var(--error);
-}
-
-.diff-value-b {
-    border-left: 3px solid var(--success);
-}
-
-.diff-value-label {
+.diff-empty {
     color: var(--text-3);
-    flex-shrink: 0;
-    font-weight: 600;
 }
 
-.diff-value-content {
-    color: var(--text-1);
-    word-break: break-all;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.diff-tags-summary {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.diff-tags-count {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+}
+
+.diff-tags-count.removed {
+    background: color-mix(in srgb, var(--error) 15%, var(--bg-2));
+    color: var(--error);
+}
+
+.diff-tags-count.added {
+    background: color-mix(in srgb, var(--success) 15%, var(--bg-2));
+    color: var(--success);
+}
+
+.diff-tags-table {
+    margin-top: 12px;
 }
 
 .diff-tags {
@@ -7163,6 +7245,42 @@ a.nip-badge:hover {
 
     .diff-actions .btn {
         width: 100%;
+    }
+
+    .diff-table {
+        font-size: 11px;
+    }
+
+    .diff-table th,
+    .diff-table td {
+        padding: 6px 8px;
+    }
+
+    .diff-table th.diff-table-field,
+    .diff-table td.diff-table-field {
+        width: 80px;
+        min-width: 80px;
+    }
+
+    .diff-table td.diff-table-value {
+        font-size: 10px;
+        max-width: 150px;
+    }
+
+    .diff-table th.diff-table-status,
+    .diff-table td.diff-table-status {
+        width: 60px;
+        min-width: 60px;
+    }
+
+    .diff-status-badge {
+        font-size: 9px;
+        padding: 2px 6px;
+    }
+
+    .diff-tags-summary {
+        flex-direction: column;
+        gap: 8px;
     }
 }
 
