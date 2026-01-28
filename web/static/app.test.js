@@ -1587,9 +1587,6 @@
                     <div id="monitoring-total-events">0</div>
                     <div id="relay-health-list"></div>
                     <div class="chart-container" style="width: 400px; height: 200px;">
-                        <canvas id="event-rate-chart"></canvas>
-                    </div>
-                    <div class="chart-container" style="width: 400px; height: 200px;">
                         <canvas id="latency-chart"></canvas>
                     </div>
                     <div class="chart-container-full" style="width: 800px; height: 300px;">
@@ -1643,33 +1640,17 @@
 
             const instance = new Shirushi();
             assertDefined(instance.charts, 'charts object should be initialized');
-            assertEqual(instance.charts.eventRate, null, 'eventRate chart should be null initially');
             assertEqual(instance.charts.latency, null, 'latency chart should be null initially');
             assertEqual(instance.charts.healthScore, null, 'healthScore chart should be null initially');
 
             Shirushi.prototype.init = originalInit;
         });
 
-        it('should create event rate chart when canvas exists', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.initializeCharts();
-
-            assertDefined(instance.charts.eventRate, 'Event rate chart should be created');
-            assertDefined(instance.charts.eventRate.draw, 'Event rate chart should have draw method');
-            assertDefined(instance.charts.eventRate.addPoint, 'Event rate chart should have addPoint method');
-            assertDefined(instance.charts.eventRate.setData, 'Event rate chart should have setData method');
-
-            removeMockDOM(container);
-        });
-
         it('should create latency chart when canvas exists', () => {
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             assertDefined(instance.charts.latency, 'Latency chart should be created');
@@ -1683,7 +1664,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             assertDefined(instance.charts.healthScore, 'Health score chart should be created');
@@ -1696,15 +1677,10 @@
 
         it('should handle missing canvas elements gracefully', () => {
             // Temporarily hide the existing canvas elements
-            const existingEventRate = document.getElementById('event-rate-chart');
             const existingLatency = document.getElementById('latency-chart');
             const existingHealth = document.getElementById('health-score-chart');
 
             const originalIds = [];
-            if (existingEventRate) {
-                originalIds.push({ el: existingEventRate, id: 'event-rate-chart' });
-                existingEventRate.id = 'event-rate-chart-hidden';
-            }
             if (existingLatency) {
                 originalIds.push({ el: existingLatency, id: 'latency-chart' });
                 existingLatency.id = 'latency-chart-hidden';
@@ -1715,7 +1691,7 @@
             }
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
 
             // Should not throw error when canvas elements don't exist
             let errorThrown = false;
@@ -1738,7 +1714,7 @@
 
             const instance = Object.create(Shirushi.prototype);
             // Find our test canvas specifically
-            const testCanvas = container.querySelector('#event-rate-chart');
+            const testCanvas = container.querySelector('#latency-chart');
             if (!testCanvas) {
                 // Skip if canvas not found in test container
                 removeMockDOM(container);
@@ -1766,7 +1742,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const testCanvas = container.querySelector('#event-rate-chart');
+            const testCanvas = container.querySelector('#latency-chart');
             if (!testCanvas) {
                 removeMockDOM(container);
                 return;
@@ -1796,7 +1772,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             const ctx = canvas.getContext('2d');
 
             const chart = instance.createLineChart(ctx, 'Test Label', 'test/sec');
@@ -1847,7 +1823,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.parentElement.style.width = '400px';
             canvas.parentElement.style.height = '200px';
             const ctx = canvas.getContext('2d');
@@ -1866,7 +1842,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.parentElement.style.width = '400px';
             canvas.parentElement.style.height = '200px';
             const ctx = canvas.getContext('2d');
@@ -1888,7 +1864,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.parentElement.style.width = '400px';
             canvas.parentElement.style.height = '200px';
             const ctx = canvas.getContext('2d');
@@ -1948,15 +1924,13 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.eventRateHistory = [];
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
 
             const testMonitoringData = {
                 events_per_sec: 5.5,
-                event_rate_history: [{ value: 1 }, { value: 2 }, { value: 3 }],
                 relays: [
                     { url: 'wss://relay1.com', connected: true, latency_ms: 150, health_score: 90, latency_history: [{ value: 150 }] },
                     { url: 'wss://relay2.com', connected: true, latency_ms: 300, health_score: 75, latency_history: [{ value: 300 }] }
@@ -1980,8 +1954,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.eventRateHistory = [];
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2005,7 +1978,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             let errorThrown = false;
@@ -2067,9 +2040,6 @@
                     <div id="monitoring-total-events">0</div>
                     <div id="relay-health-list"></div>
                     <div class="chart-container" style="width: 400px; height: 200px;">
-                        <canvas id="event-rate-chart"></canvas>
-                    </div>
-                    <div class="chart-container" style="width: 400px; height: 200px;">
                         <canvas id="latency-chart"></canvas>
                     </div>
                     <div class="chart-container-full" style="width: 800px; height: 300px;">
@@ -2080,10 +2050,6 @@
             document.body.appendChild(el);
             return el;
         }
-
-        it('should have updateEventRateChart method', () => {
-            assertDefined(Shirushi.prototype.updateEventRateChart, 'updateEventRateChart method should exist');
-        });
 
         it('should have updateLatencyChart method', () => {
             assertDefined(Shirushi.prototype.updateLatencyChart, 'updateLatencyChart method should exist');
@@ -2130,79 +2096,11 @@
             Shirushi.prototype.init = originalInit;
         });
 
-        it('should update event rate chart with history from backend', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.eventRateHistory = [];
-            instance.maxHistoryPoints = 60;
-            instance.initializeCharts();
-
-            const dataWithHistory = {
-                events_per_sec: 10.5,
-                event_rate_history: [
-                    { value: 5.0, timestamp: 1000 },
-                    { value: 7.5, timestamp: 2000 },
-                    { value: 10.5, timestamp: 3000 }
-                ]
-            };
-
-            instance.updateEventRateChart(dataWithHistory);
-
-            assertEqual(instance.charts.eventRate.data.length, 3, 'Chart should have 3 data points from backend history');
-
-            removeMockDOM(container);
-        });
-
-        it('should update event rate chart with local tracking when no backend history', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.eventRateHistory = [];
-            instance.maxHistoryPoints = 60;
-            instance.initializeCharts();
-
-            const dataWithoutHistory = {
-                events_per_sec: 8.5
-            };
-
-            instance.updateEventRateChart(dataWithoutHistory);
-            instance.updateEventRateChart({ events_per_sec: 9.0 });
-            instance.updateEventRateChart({ events_per_sec: 9.5 });
-
-            assertEqual(instance.eventRateHistory.length, 3, 'Local history should have 3 points');
-            assertEqual(instance.eventRateHistory[2].value, 9.5, 'Last point should have latest value');
-
-            removeMockDOM(container);
-        });
-
-        it('should trim event rate history to maxHistoryPoints', () => {
-            container = createChartMockDOM();
-
-            const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.eventRateHistory = [];
-            instance.maxHistoryPoints = 60;
-            instance.initializeCharts();
-
-            // Add more than maxHistoryPoints
-            for (let i = 0; i < 70; i++) {
-                instance.updateEventRateChart({ events_per_sec: i });
-            }
-
-            assertEqual(instance.eventRateHistory.length, 60, 'History should not exceed maxHistoryPoints');
-            assertEqual(instance.eventRateHistory[0].value, 10, 'Oldest points should be removed');
-
-            removeMockDOM(container);
-        });
-
         it('should update latency chart with connected relays only', () => {
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             const data = {
@@ -2226,7 +2124,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             const data = {
@@ -2249,7 +2147,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             const relays = [];
@@ -2268,7 +2166,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2294,7 +2192,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2319,7 +2217,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2341,7 +2239,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2373,7 +2271,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2399,13 +2297,11 @@
             instance.charts = { healthScore: { series: { 'wss://test.com': [] } } };
 
             // Add some history
-            instance.eventRateHistory = [{ value: 1 }, { value: 2 }];
             instance.healthScoreHistory = { 'wss://test.com': [{ value: 90 }] };
             instance.relayLatencyHistory = { 'wss://test.com': [{ value: 100 }] };
 
             instance.resetMonitoringHistory();
 
-            assertEqual(instance.eventRateHistory.length, 0, 'eventRateHistory should be empty');
             assertEqual(Object.keys(instance.healthScoreHistory).length, 0, 'healthScoreHistory should be empty');
             assertEqual(Object.keys(instance.relayLatencyHistory).length, 0, 'relayLatencyHistory should be empty');
             assertEqual(Object.keys(instance.charts.healthScore.series).length, 0, 'chart series should be empty');
@@ -2432,25 +2328,9 @@
             assertTrue(severeScore < 60, 'Severe relay should have score < 60');
         });
 
-        it('should handle null charts gracefully in updateEventRateChart', () => {
-            const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
-            instance.eventRateHistory = [];
-            instance.maxHistoryPoints = 60;
-
-            let errorThrown = false;
-            try {
-                instance.updateEventRateChart({ events_per_sec: 5 });
-            } catch (e) {
-                errorThrown = true;
-            }
-
-            assertFalse(errorThrown, 'Should not throw with null chart');
-        });
-
         it('should handle null charts gracefully in updateLatencyChart', () => {
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
 
             let errorThrown = false;
             try {
@@ -2464,7 +2344,7 @@
 
         it('should handle null charts gracefully in updateHealthScoreChart', () => {
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
 
@@ -2482,7 +2362,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.initializeCharts();
 
             let errorThrown = false;
@@ -2503,7 +2383,7 @@
             container = createChartMockDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            instance.charts = { eventRate: null, latency: null, healthScore: null };
+            instance.charts = { latency: null, healthScore: null };
             instance.healthScoreHistory = {};
             instance.maxHistoryPoints = 60;
             instance.initializeCharts();
@@ -2538,9 +2418,6 @@
                     <div id="monitoring-total-events">0</div>
                     <div id="relay-health-list"></div>
                     <div class="chart-container" style="width: 400px; height: 200px;">
-                        <canvas id="event-rate-chart" width="400" height="200"></canvas>
-                    </div>
-                    <div class="chart-container" style="width: 400px; height: 200px;">
                         <canvas id="latency-chart" width="400" height="200"></canvas>
                     </div>
                     <div class="chart-container-full" style="width: 800px; height: 300px;">
@@ -2556,12 +2433,12 @@
             container = createChartRenderDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.width = 400;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');
 
-            const chart = instance.createLineChart(ctx, 'Event Rate', 'events/sec');
+            const chart = instance.createLineChart(ctx, 'Latency', 'ms');
 
             // Add data points
             chart.addPoint(5.0);
@@ -2662,7 +2539,7 @@
             container = createChartRenderDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.width = 400;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');
@@ -2696,7 +2573,7 @@
             container = createChartRenderDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.width = 400;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');
@@ -2772,7 +2649,7 @@
             container = createChartRenderDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.width = 400;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');
@@ -2796,7 +2673,7 @@
             container = createChartRenderDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.width = 400;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');
@@ -2824,7 +2701,7 @@
             container = createChartRenderDOM();
 
             const instance = Object.create(Shirushi.prototype);
-            const canvas = document.getElementById('event-rate-chart');
+            const canvas = document.getElementById('latency-chart');
             canvas.width = 400;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');

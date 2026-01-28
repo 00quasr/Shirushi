@@ -16,11 +16,9 @@ class Shirushi {
 
         // Monitoring state
         this.monitoringData = null;
-        this.eventRateHistory = [];
         this.healthScoreHistory = {};
         this.relayLatencyHistory = {};
         this.charts = {
-            eventRate: null,
             latency: null,
             healthScore: null
         };
@@ -3157,7 +3155,6 @@ class Shirushi {
     initializeCharts() {
         // Set up canvas elements with proper sizing
         const canvasConfigs = [
-            { id: 'event-rate-chart', type: 'line', label: 'Event Rate', unit: 'events/sec' },
             { id: 'latency-chart', type: 'bar', label: 'Latency Distribution', unit: 'ms' },
             { id: 'health-score-chart', type: 'multiLine', label: 'Health Score', unit: '%' }
         ];
@@ -3180,9 +3177,6 @@ class Shirushi {
 
             // Create the appropriate chart type
             switch (config.type) {
-                case 'line':
-                    this.charts.eventRate = this.createLineChart(ctx, config.label, config.unit);
-                    break;
                 case 'bar':
                     this.charts.latency = this.createBarChart(ctx, config.label);
                     break;
@@ -3250,7 +3244,7 @@ class Shirushi {
     }
 
     resizeAllCharts() {
-        const canvasIds = ['event-rate-chart', 'latency-chart', 'health-score-chart'];
+        const canvasIds = ['latency-chart', 'health-score-chart'];
 
         canvasIds.forEach(id => {
             const canvas = document.getElementById(id);
@@ -3260,9 +3254,6 @@ class Shirushi {
         });
 
         // Redraw all charts with new sizes
-        if (this.charts.eventRate) {
-            this.charts.eventRate.draw();
-        }
         if (this.charts.latency) {
             this.charts.latency.draw();
         }
@@ -3541,41 +3532,11 @@ class Shirushi {
     }
 
     updateCharts(data) {
-        // Update event rate chart with aggregated event rate
-        this.updateEventRateChart(data);
-
         // Update latency distribution chart
         this.updateLatencyChart(data);
 
         // Update health score history chart
         this.updateHealthScoreChart(data);
-    }
-
-    updateEventRateChart(data) {
-        if (!this.charts.eventRate) return;
-
-        // If backend provides event rate history, use it
-        if (data.event_rate_history && data.event_rate_history.length > 0) {
-            const points = data.event_rate_history.map(p => ({
-                value: p.value,
-                timestamp: p.timestamp
-            }));
-            this.charts.eventRate.setData(points);
-        } else {
-            // Otherwise, track history locally
-            const currentRate = data.events_per_sec || 0;
-            this.eventRateHistory.push({
-                value: currentRate,
-                timestamp: Date.now()
-            });
-
-            // Trim to max points
-            if (this.eventRateHistory.length > this.maxHistoryPoints) {
-                this.eventRateHistory.shift();
-            }
-
-            this.charts.eventRate.setData(this.eventRateHistory);
-        }
     }
 
     updateLatencyChart(data) {
@@ -3669,7 +3630,6 @@ class Shirushi {
 
     // Reset monitoring history when relays change significantly
     resetMonitoringHistory() {
-        this.eventRateHistory = [];
         this.healthScoreHistory = {};
         this.relayLatencyHistory = {};
 
