@@ -30,6 +30,7 @@ type RelayPool interface {
 	GetRelayInfo(url string) *types.RelayInfo
 	RefreshRelayInfo(url string) error
 	SetStatusCallback(callback func(url string, connected bool, err string))
+	SetOnRelayInfo(callback func(url string, info *types.RelayInfo))
 	PublishEventJSON(eventJSON []byte, relayURLs []string) (string, []types.PublishResult)
 }
 

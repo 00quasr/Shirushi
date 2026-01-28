@@ -281,6 +281,119 @@ func TestHub_BroadcastRelayStatus(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 }
 
+func TestHub_BroadcastRelayInfo(t *testing.T) {
+	hub := NewHub()
+
+	go hub.Run()
+
+	info := &types.RelayInfo{
+		Name:          "Test Relay",
+		Description:   "A test relay for testing",
+		SupportedNIPs: []int{1, 2, 5, 11},
+		Software:      "test-relay",
+		Version:       "1.0.0",
+	}
+
+	hub.BroadcastRelayInfo("wss://relay.example.com", info)
+
+	time.Sleep(10 * time.Millisecond)
+}
+
+func TestHub_BroadcastRelayInfo_MessageFormat(t *testing.T) {
+	_ = NewHub() // Hub not needed for this message format test
+
+	info := &types.RelayInfo{
+		Name:          "Test Relay",
+		Description:   "A test relay for testing",
+		SupportedNIPs: []int{1, 2, 5, 11},
+		Software:      "test-relay",
+		Version:       "1.0.0",
+		Limitation: &types.RelayLimitation{
+			MaxMessageLength: 65536,
+			MaxSubscriptions: 20,
+			AuthRequired:     true,
+		},
+	}
+
+	msg := Message{
+		Type: "relay_info",
+		Data: map[string]interface{}{
+			"url":  "wss://relay.example.com",
+			"info": info,
+		},
+	}
+
+	jsonData, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("failed to marshal relay_info message: %v", err)
+	}
+
+	// Parse to verify structure
+	var parsed struct {
+		Type string `json:"type"`
+		Data struct {
+			URL  string `json:"url"`
+			Info struct {
+				Name          string `json:"name"`
+				Description   string `json:"description"`
+				SupportedNIPs []int  `json:"supported_nips"`
+				Software      string `json:"software"`
+				Version       string `json:"version"`
+				Limitation    struct {
+					MaxMessageLength int  `json:"max_message_length"`
+					MaxSubscriptions int  `json:"max_subscriptions"`
+					AuthRequired     bool `json:"auth_required"`
+				} `json:"limitation"`
+			} `json:"info"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(jsonData, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal message: %v", err)
+	}
+
+	if parsed.Type != "relay_info" {
+		t.Errorf("expected type 'relay_info', got '%s'", parsed.Type)
+	}
+
+	if parsed.Data.URL != "wss://relay.example.com" {
+		t.Errorf("expected URL 'wss://relay.example.com', got '%s'", parsed.Data.URL)
+	}
+
+	if parsed.Data.Info.Name != "Test Relay" {
+		t.Errorf("expected Name 'Test Relay', got '%s'", parsed.Data.Info.Name)
+	}
+
+	if len(parsed.Data.Info.SupportedNIPs) != 4 {
+		t.Errorf("expected 4 supported NIPs, got %d", len(parsed.Data.Info.SupportedNIPs))
+	}
+
+	if parsed.Data.Info.Limitation.MaxMessageLength != 65536 {
+		t.Errorf("expected MaxMessageLength 65536, got %d", parsed.Data.Info.Limitation.MaxMessageLength)
+	}
+
+	if !parsed.Data.Info.Limitation.AuthRequired {
+		t.Error("expected AuthRequired to be true")
+	}
+}
+
+func TestHub_BroadcastRelayInfo_WithNilLimitation(t *testing.T) {
+	hub := NewHub()
+
+	go hub.Run()
+
+	info := &types.RelayInfo{
+		Name:          "Test Relay",
+		Description:   "A test relay without limitations",
+		SupportedNIPs: []int{1, 2},
+	}
+
+	// Should not panic
+	hub.BroadcastRelayInfo("wss://relay.example.com", info)
+
+	time.Sleep(10 * time.Millisecond)
+}
+
 func TestHub_BroadcastTestResult(t *testing.T) {
 	hub := NewHub()
 

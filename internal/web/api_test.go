@@ -87,14 +87,15 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
-	events         []types.Event
-	eventsByID     map[string]types.Event
-	repliesMap     map[string][]types.Event
-	err            error
-	monitoringData *types.MonitoringData
-	relayList      []types.RelayStatus
-	relayInfoMap   map[string]*types.RelayInfo
-	statusCallback func(url string, connected bool, err string)
+	events           []types.Event
+	eventsByID       map[string]types.Event
+	repliesMap       map[string][]types.Event
+	err              error
+	monitoringData   *types.MonitoringData
+	relayList        []types.RelayStatus
+	relayInfoMap     map[string]*types.RelayInfo
+	statusCallback   func(url string, connected bool, err string)
+	relayInfoCallback func(url string, info *types.RelayInfo)
 }
 
 func (m *mockRelayPool) Add(url string) error { return nil }
@@ -148,6 +149,9 @@ func (m *mockRelayPool) RefreshRelayInfo(url string) error {
 }
 func (m *mockRelayPool) SetStatusCallback(callback func(url string, connected bool, err string)) {
 	m.statusCallback = callback
+}
+func (m *mockRelayPool) SetOnRelayInfo(callback func(url string, info *types.RelayInfo)) {
+	m.relayInfoCallback = callback
 }
 func (m *mockRelayPool) PublishEventJSON(eventJSON []byte, relayURLs []string) (string, []types.PublishResult) {
 	// Parse event to get ID

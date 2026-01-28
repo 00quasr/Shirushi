@@ -20,6 +20,9 @@ import (
 // and err contains any error message (empty if connected successfully).
 type StatusChangeCallback func(url string, connected bool, err string)
 
+// RelayInfoCallback is called when NIP-11 relay info is fetched for a relay.
+type RelayInfoCallback func(url string, info *types.RelayInfo)
+
 // Pool manages connections to multiple Nostr relays.
 type Pool struct {
 	relays         map[string]*RelayConn
@@ -31,6 +34,7 @@ type Pool struct {
 	subCounter     int
 	subMu          sync.Mutex
 	onStatusChange StatusChangeCallback
+	onRelayInfo    func(url string, info *types.RelayInfo)
 }
 
 // RelayConn represents a connection to a single relay.
@@ -102,6 +106,26 @@ func (p *Pool) SetStatusCallback(callback func(url string, connected bool, err s
 	p.SetOnStatusChange(callback)
 }
 
+// SetOnRelayInfo sets the callback function that is invoked when NIP-11
+// relay information is fetched for a relay.
+func (p *Pool) SetOnRelayInfo(callback func(url string, info *types.RelayInfo)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.onRelayInfo = callback
+}
+
+// notifyRelayInfo invokes the relay info callback if set.
+// Must be called without holding the mutex.
+func (p *Pool) notifyRelayInfo(url string, info *types.RelayInfo) {
+	p.mu.RLock()
+	callback := p.onRelayInfo
+	p.mu.RUnlock()
+
+	if callback != nil {
+		callback(url, info)
+	}
+}
+
 // notifyStatusChange invokes the status change callback if set.
 // Must be called without holding the mutex.
 func (p *Pool) notifyStatusChange(url string, connected bool, errMsg string) {
@@ -161,15 +185,15 @@ func (p *Pool) fetchRelayInfo(url string) {
 	}
 
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	conn, exists := p.relays[url]
 	if !exists {
+		p.mu.Unlock()
 		return
 	}
 
 	// Convert nip11.RelayInformationDocument to types.RelayInfo
-	conn.Info = &types.RelayInfo{
+	relayInfo := &types.RelayInfo{
 		Name:          info.Name,
 		Description:   info.Description,
 		PubKey:        info.PubKey,
@@ -182,7 +206,7 @@ func (p *Pool) fetchRelayInfo(url string) {
 
 	// Copy limitation info if available
 	if info.Limitation != nil {
-		conn.Info.Limitation = &types.RelayLimitation{
+		relayInfo.Limitation = &types.RelayLimitation{
 			MaxMessageLength: info.Limitation.MaxMessageLength,
 			MaxSubscriptions: info.Limitation.MaxSubscriptions,
 			MaxLimit:         info.Limitation.MaxLimit,
@@ -194,9 +218,15 @@ func (p *Pool) fetchRelayInfo(url string) {
 		}
 	}
 
+	conn.Info = relayInfo
 	conn.SupportedNIPs = info.SupportedNIPs
 
 	log.Printf("[Relay] Fetched NIP-11 info for %s: %s (supports %d NIPs)", url, info.Name, len(info.SupportedNIPs))
+
+	p.mu.Unlock()
+
+	// Notify callback after releasing mutex
+	p.notifyRelayInfo(url, relayInfo)
 }
 
 // Remove removes a relay from the pool.

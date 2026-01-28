@@ -9395,6 +9395,159 @@
         });
     });
 
+    // ========================================
+    // Relay Info (NIP-11) Auto-Update Tests
+    // ========================================
+
+    describe('Relay Info (NIP-11) Auto-Updates', () => {
+        it('should have updateRelayInfo method', () => {
+            assertDefined(Shirushi.prototype.updateRelayInfo, 'updateRelayInfo method should exist');
+        });
+
+        it('should update relay info when receiving relay_info message', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true, error: '' }
+            ];
+            let renderCalled = false;
+            instance.renderRelays = function() {
+                renderCalled = true;
+            };
+
+            // Simulate receiving a relay_info update
+            instance.updateRelayInfo({
+                url: 'wss://relay1.example.com',
+                info: {
+                    name: 'Test Relay',
+                    description: 'A test relay',
+                    supported_nips: [1, 2, 5, 11]
+                }
+            });
+
+            const relay = instance.relays.find(r => r.url === 'wss://relay1.example.com');
+            assertDefined(relay.relay_info, 'Relay should have relay_info');
+            assertEqual(relay.relay_info.name, 'Test Relay', 'Relay name should be set');
+            assertEqual(relay.relay_info.description, 'A test relay', 'Relay description should be set');
+            assertEqual(relay.supported_nips.length, 4, 'Relay should have supported_nips');
+            assertTrue(renderCalled, 'renderRelays should be called');
+        });
+
+        it('should update supported_nips from relay_info', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true }
+            ];
+            instance.renderRelays = function() {};
+
+            instance.updateRelayInfo({
+                url: 'wss://relay1.example.com',
+                info: {
+                    name: 'Test Relay',
+                    supported_nips: [1, 2, 5, 11, 42]
+                }
+            });
+
+            const relay = instance.relays.find(r => r.url === 'wss://relay1.example.com');
+            assertEqual(relay.supported_nips.length, 5, 'Relay should have 5 supported NIPs');
+            assertTrue(relay.supported_nips.includes(42), 'supported_nips should include 42');
+        });
+
+        it('should not update non-existent relay with relay_info', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true }
+            ];
+            let renderCalled = false;
+            instance.renderRelays = function() {
+                renderCalled = true;
+            };
+
+            instance.updateRelayInfo({
+                url: 'wss://unknown.relay.com',
+                info: {
+                    name: 'Unknown Relay'
+                }
+            });
+
+            assertFalse(renderCalled, 'renderRelays should not be called for unknown relay');
+        });
+
+        it('should handle relay_info message type in handleMessage', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://test.relay', connected: true }
+            ];
+            let updateCalled = false;
+            let receivedData = null;
+            instance.updateRelayInfo = function(data) {
+                updateCalled = true;
+                receivedData = data;
+            };
+
+            instance.handleMessage({
+                type: 'relay_info',
+                data: {
+                    url: 'wss://test.relay',
+                    info: {
+                        name: 'Test Relay',
+                        supported_nips: [1, 11]
+                    }
+                }
+            });
+
+            assertTrue(updateCalled, 'updateRelayInfo should be called');
+            assertEqual(receivedData.url, 'wss://test.relay', 'URL should match');
+            assertEqual(receivedData.info.name, 'Test Relay', 'Info name should match');
+        });
+
+        it('should handle relay_info with limitation data', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true }
+            ];
+            instance.renderRelays = function() {};
+
+            instance.updateRelayInfo({
+                url: 'wss://relay1.example.com',
+                info: {
+                    name: 'Test Relay',
+                    limitation: {
+                        max_message_length: 65536,
+                        max_subscriptions: 20,
+                        auth_required: true
+                    }
+                }
+            });
+
+            const relay = instance.relays.find(r => r.url === 'wss://relay1.example.com');
+            assertDefined(relay.relay_info.limitation, 'Relay should have limitation data');
+            assertEqual(relay.relay_info.limitation.max_message_length, 65536, 'max_message_length should be set');
+            assertEqual(relay.relay_info.limitation.max_subscriptions, 20, 'max_subscriptions should be set');
+            assertTrue(relay.relay_info.limitation.auth_required, 'auth_required should be true');
+        });
+
+        it('should handle relay_info without supported_nips', () => {
+            const instance = Object.create(Shirushi.prototype);
+            instance.relays = [
+                { url: 'wss://relay1.example.com', connected: true }
+            ];
+            instance.renderRelays = function() {};
+
+            // Info without supported_nips should not throw
+            instance.updateRelayInfo({
+                url: 'wss://relay1.example.com',
+                info: {
+                    name: 'Minimal Relay'
+                }
+            });
+
+            const relay = instance.relays.find(r => r.url === 'wss://relay1.example.com');
+            assertEqual(relay.relay_info.name, 'Minimal Relay', 'Relay name should be set');
+            // supported_nips should not be set if not provided
+            assertTrue(relay.supported_nips === undefined || relay.supported_nips === null || relay.supported_nips.length === 0, 'supported_nips should not be set');
+        });
+    });
+
     describe('Command Reference Panel', () => {
         function getApp() {
             return window.app || app;

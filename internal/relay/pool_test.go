@@ -669,3 +669,166 @@ func TestPublishEventJSON_MultipleRelays(t *testing.T) {
 		t.Error("missing result for wss://relay2.com")
 	}
 }
+
+// Tests for NIP-11 relay info callback
+
+func TestSetOnRelayInfo(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Initially nil
+	if pool.onRelayInfo != nil {
+		t.Error("expected onRelayInfo to be nil initially")
+	}
+
+	// Set a callback
+	called := false
+	pool.SetOnRelayInfo(func(url string, info *types.RelayInfo) {
+		called = true
+	})
+
+	if pool.onRelayInfo == nil {
+		t.Error("expected onRelayInfo to be set")
+	}
+
+	// Invoke it to verify it's working
+	pool.notifyRelayInfo("wss://test.relay.com", &types.RelayInfo{Name: "Test"})
+	if !called {
+		t.Error("expected callback to be called")
+	}
+}
+
+func TestNotifyRelayInfoWithNilCallback(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Should not panic when callback is nil
+	pool.notifyRelayInfo("wss://test.relay.com", &types.RelayInfo{Name: "Test"})
+}
+
+func TestNotifyRelayInfoInvokesCallback(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	var receivedURL string
+	var receivedInfo *types.RelayInfo
+	var mu sync.Mutex
+
+	pool.SetOnRelayInfo(func(url string, info *types.RelayInfo) {
+		mu.Lock()
+		defer mu.Unlock()
+		receivedURL = url
+		receivedInfo = info
+	})
+
+	testInfo := &types.RelayInfo{
+		Name:          "Test Relay",
+		Description:   "A test relay",
+		SupportedNIPs: []int{1, 2, 5, 11},
+		Software:      "test-relay",
+		Version:       "1.0.0",
+	}
+
+	pool.notifyRelayInfo("wss://test.relay.com", testInfo)
+
+	mu.Lock()
+	if receivedURL != "wss://test.relay.com" {
+		t.Errorf("expected URL wss://test.relay.com, got %s", receivedURL)
+	}
+	if receivedInfo == nil {
+		t.Fatal("expected receivedInfo to be non-nil")
+	}
+	if receivedInfo.Name != "Test Relay" {
+		t.Errorf("expected Name 'Test Relay', got %s", receivedInfo.Name)
+	}
+	if receivedInfo.Description != "A test relay" {
+		t.Errorf("expected Description 'A test relay', got %s", receivedInfo.Description)
+	}
+	if len(receivedInfo.SupportedNIPs) != 4 {
+		t.Errorf("expected 4 supported NIPs, got %d", len(receivedInfo.SupportedNIPs))
+	}
+	mu.Unlock()
+}
+
+func TestRelayInfoCallbackIsConcurrencySafe(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	var count int
+	var mu sync.Mutex
+
+	pool.SetOnRelayInfo(func(url string, info *types.RelayInfo) {
+		mu.Lock()
+		count++
+		mu.Unlock()
+	})
+
+	// Fire many notifications concurrently
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			pool.notifyRelayInfo("wss://test.relay.com", &types.RelayInfo{Name: "Test"})
+		}(i)
+	}
+	wg.Wait()
+
+	mu.Lock()
+	if count != 100 {
+		t.Errorf("expected 100 notifications, got %d", count)
+	}
+	mu.Unlock()
+}
+
+func TestNotifyRelayInfoWithLimitation(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	var receivedInfo *types.RelayInfo
+	var mu sync.Mutex
+
+	pool.SetOnRelayInfo(func(url string, info *types.RelayInfo) {
+		mu.Lock()
+		defer mu.Unlock()
+		receivedInfo = info
+	})
+
+	testInfo := &types.RelayInfo{
+		Name: "Test Relay",
+		Limitation: &types.RelayLimitation{
+			MaxMessageLength: 65536,
+			MaxSubscriptions: 20,
+			AuthRequired:     true,
+			PaymentRequired:  false,
+		},
+	}
+
+	pool.notifyRelayInfo("wss://test.relay.com", testInfo)
+
+	mu.Lock()
+	if receivedInfo == nil {
+		t.Fatal("expected receivedInfo to be non-nil")
+	}
+	if receivedInfo.Limitation == nil {
+		t.Fatal("expected Limitation to be non-nil")
+	}
+	if receivedInfo.Limitation.MaxMessageLength != 65536 {
+		t.Errorf("expected MaxMessageLength 65536, got %d", receivedInfo.Limitation.MaxMessageLength)
+	}
+	if receivedInfo.Limitation.MaxSubscriptions != 20 {
+		t.Errorf("expected MaxSubscriptions 20, got %d", receivedInfo.Limitation.MaxSubscriptions)
+	}
+	if !receivedInfo.Limitation.AuthRequired {
+		t.Error("expected AuthRequired to be true")
+	}
+	if receivedInfo.Limitation.PaymentRequired {
+		t.Error("expected PaymentRequired to be false")
+	}
+	mu.Unlock()
+}

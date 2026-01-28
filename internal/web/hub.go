@@ -208,6 +208,17 @@ func (h *Hub) BroadcastRelayStatus(status types.RelayStatus) {
 	})
 }
 
+// BroadcastRelayInfo sends NIP-11 relay info update to all clients.
+func (h *Hub) BroadcastRelayInfo(url string, info *types.RelayInfo) {
+	h.Broadcast(Message{
+		Type: "relay_info",
+		Data: map[string]interface{}{
+			"url":  url,
+			"info": info,
+		},
+	})
+}
+
 // BroadcastTestResult sends a test result to all clients.
 func (h *Hub) BroadcastTestResult(result types.TestResult) {
 	h.Broadcast(Message{

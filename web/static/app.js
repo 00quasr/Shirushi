@@ -162,6 +162,9 @@ class Shirushi {
             case 'relay_status':
                 this.updateRelayStatus(data.data);
                 break;
+            case 'relay_info':
+                this.updateRelayInfo(data.data);
+                break;
             case 'test_result':
                 this.showTestResult(data.data);
                 break;
@@ -680,6 +683,17 @@ class Shirushi {
         const relay = this.relays.find(r => r.url === status.url);
         if (relay) {
             Object.assign(relay, status);
+            this.renderRelays();
+        }
+    }
+
+    updateRelayInfo(data) {
+        const relay = this.relays.find(r => r.url === data.url);
+        if (relay) {
+            relay.relay_info = data.info;
+            if (data.info && data.info.supported_nips) {
+                relay.supported_nips = data.info.supported_nips;
+            }
             this.renderRelays();
         }
     }

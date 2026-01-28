@@ -50,6 +50,11 @@ func NewServer(addr string, staticFS fs.FS, api *API) *Server {
 				Error:     errMsg,
 			})
 		})
+
+		// Wire up NIP-11 relay info updates to broadcast via WebSocket
+		api.relayPool.SetOnRelayInfo(func(url string, info *types.RelayInfo) {
+			hub.BroadcastRelayInfo(url, info)
+		})
 	}
 
 	return &Server{
