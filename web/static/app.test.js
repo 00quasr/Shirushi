@@ -8771,6 +8771,157 @@
         });
     });
 
+    describe('subscribeToEvents', () => {
+        it('should have subscribeToEvents method', () => {
+            assertDefined(Shirushi.prototype.subscribeToEvents, 'subscribeToEvents method should exist');
+        });
+
+        it('should be an async function', () => {
+            const asyncFnPrototype = Object.getPrototypeOf(async function() {});
+            assertTrue(
+                Object.getPrototypeOf(Shirushi.prototype.subscribeToEvents) === asyncFnPrototype,
+                'subscribeToEvents should be an async function'
+            );
+        });
+
+        it('should call /api/events/subscribe endpoint with POST method', async () => {
+            setMockFetch({ data: { subscription_id: 'sub_12345678' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            await instance.subscribeToEvents({});
+
+            assertEqual(lastFetchUrl, '/api/events/subscribe', 'Should call correct endpoint');
+            assertEqual(lastFetchOptions.method, 'POST', 'Should use POST method');
+
+            restoreFetch();
+        });
+
+        it('should send kinds and authors in request body', async () => {
+            setMockFetch({ data: { subscription_id: 'sub_12345678' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            const kinds = [1, 7];
+            const authors = ['pubkey1', 'pubkey2'];
+            await instance.subscribeToEvents({ kinds, authors });
+
+            const body = JSON.parse(lastFetchOptions.body);
+            assertEqual(body.kinds.length, 2, 'Should include kinds in body');
+            assertEqual(body.kinds[0], 1, 'Should include correct kind value');
+            assertEqual(body.kinds[1], 7, 'Should include correct kind value');
+            assertEqual(body.authors.length, 2, 'Should include authors in body');
+            assertEqual(body.authors[0], 'pubkey1', 'Should include correct author value');
+            assertEqual(body.authors[1], 'pubkey2', 'Should include correct author value');
+
+            restoreFetch();
+        });
+
+        it('should default to empty arrays when no options provided', async () => {
+            setMockFetch({ data: { subscription_id: 'sub_12345678' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            await instance.subscribeToEvents();
+
+            const body = JSON.parse(lastFetchOptions.body);
+            assertTrue(Array.isArray(body.kinds), 'kinds should be an array');
+            assertEqual(body.kinds.length, 0, 'kinds should be empty by default');
+            assertTrue(Array.isArray(body.authors), 'authors should be an array');
+            assertEqual(body.authors.length, 0, 'authors should be empty by default');
+
+            restoreFetch();
+        });
+
+        it('should return subscription_id on success', async () => {
+            const expectedId = 'sub_abcdef123456';
+            setMockFetch({ data: { subscription_id: expectedId } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            const result = await instance.subscribeToEvents({ kinds: [1] });
+
+            assertEqual(result.subscription_id, expectedId, 'Should return subscription_id');
+
+            restoreFetch();
+        });
+
+        it('should throw error when response is not ok', async () => {
+            setMockFetch({ ok: false, status: 400, data: { error: 'Invalid request' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            let errorThrown = false;
+            let errorMessage = '';
+            try {
+                await instance.subscribeToEvents({ kinds: [1] });
+            } catch (error) {
+                errorThrown = true;
+                errorMessage = error.message;
+            }
+
+            assertTrue(errorThrown, 'Should throw error on bad response');
+            assertEqual(errorMessage, 'Invalid request', 'Should include error message from response');
+
+            restoreFetch();
+        });
+
+        it('should use default error message when response has no error field', async () => {
+            setMockFetch({ ok: false, status: 500, data: {} });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            let errorMessage = '';
+            try {
+                await instance.subscribeToEvents({ kinds: [1] });
+            } catch (error) {
+                errorMessage = error.message;
+            }
+
+            assertEqual(errorMessage, 'Failed to subscribe to events', 'Should use default error message');
+
+            restoreFetch();
+        });
+
+        it('should call toastSuccess on successful subscription', async () => {
+            setMockFetch({ data: { subscription_id: 'sub_12345678' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            let toastCalled = false;
+            let toastTitle = '';
+            instance.toastSuccess = function(title) {
+                toastCalled = true;
+                toastTitle = title;
+            };
+
+            await instance.subscribeToEvents({ kinds: [1] });
+
+            assertTrue(toastCalled, 'Should call toastSuccess');
+            assertEqual(toastTitle, 'Subscribed', 'Should have correct toast title');
+
+            restoreFetch();
+        });
+
+        it('should set Content-Type header to application/json', async () => {
+            setMockFetch({ data: { subscription_id: 'sub_12345678' } });
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.toastSuccess = function() {};
+
+            await instance.subscribeToEvents({});
+
+            assertEqual(lastFetchOptions.headers['Content-Type'], 'application/json', 'Should set Content-Type header');
+
+            restoreFetch();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

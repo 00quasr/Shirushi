@@ -1348,6 +1348,33 @@ class Shirushi {
         }
     }
 
+    /**
+     * Subscribe to events with optional filters.
+     * Events matching the subscription will be broadcast via WebSocket.
+     * @param {Object} options - Subscription options
+     * @param {number[]} [options.kinds] - Event kinds to subscribe to
+     * @param {string[]} [options.authors] - Author pubkeys to filter by
+     * @returns {Promise<{subscription_id: string}>} - The subscription ID
+     */
+    async subscribeToEvents(options = {}) {
+        const { kinds = [], authors = [] } = options;
+
+        const response = await fetch('/api/events/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kinds, authors })
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to subscribe to events' }));
+            throw new Error(error.error || 'Failed to subscribe to events');
+        }
+
+        const result = await response.json();
+        this.toastSuccess('Subscribed', `Subscription created: ${result.subscription_id.substring(0, 8)}...`);
+        return result;
+    }
+
     // Publish Tab
     setupPublish() {
         // Kind selector
