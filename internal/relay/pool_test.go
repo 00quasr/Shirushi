@@ -181,6 +181,58 @@ func TestRemoveNonExistentRelay(t *testing.T) {
 	}
 }
 
+func TestSetStatusCallback(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Initially nil
+	if pool.onStatusChange != nil {
+		t.Error("expected onStatusChange to be nil initially")
+	}
+
+	// Set a callback using SetStatusCallback
+	var receivedURL string
+	var receivedConnected bool
+	var receivedErr string
+
+	pool.SetStatusCallback(func(url string, connected bool, err string) {
+		receivedURL = url
+		receivedConnected = connected
+		receivedErr = err
+	})
+
+	if pool.onStatusChange == nil {
+		t.Error("expected onStatusChange to be set via SetStatusCallback")
+	}
+
+	// Invoke notification to verify it's working
+	pool.notifyStatusChange("wss://test.relay.com", true, "")
+
+	if receivedURL != "wss://test.relay.com" {
+		t.Errorf("expected URL wss://test.relay.com, got %s", receivedURL)
+	}
+	if !receivedConnected {
+		t.Error("expected connected to be true")
+	}
+	if receivedErr != "" {
+		t.Errorf("expected empty error, got %s", receivedErr)
+	}
+
+	// Test with disconnection error
+	pool.notifyStatusChange("wss://other.relay.com", false, "timeout")
+
+	if receivedURL != "wss://other.relay.com" {
+		t.Errorf("expected URL wss://other.relay.com, got %s", receivedURL)
+	}
+	if receivedConnected {
+		t.Error("expected connected to be false")
+	}
+	if receivedErr != "timeout" {
+		t.Errorf("expected error 'timeout', got %s", receivedErr)
+	}
+}
+
 func TestStatusChangeCallbackIsConcurrencySafe(t *testing.T) {
 	pool := &Pool{
 		relays: make(map[string]*RelayConn),
