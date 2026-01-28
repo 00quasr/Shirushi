@@ -38,10 +38,20 @@ type TestRunner interface {
 	RunTest(ctx context.Context, nipID string, params map[string]interface{}) (*types.TestResult, error)
 }
 
+// NakClient defines the interface for nak CLI operations
+type NakClient interface {
+	GenerateKey() (*nak.Keypair, error)
+	Decode(input string) (*nak.Decoded, error)
+	Encode(typ string, hex string) (string, error)
+	CreateEvent(opts nak.CreateEventOptions) (*nak.Event, error)
+	Verify(eventJSON string) (bool, error)
+	Run(args ...string) (string, error)
+}
+
 // API handles REST API requests.
 type API struct {
 	cfg         *config.Config
-	nak         *nak.Nak
+	nak         NakClient
 	relayPool   RelayPool
 	testRunner  TestRunner
 	hub         *Hub
@@ -52,7 +62,7 @@ type API struct {
 // maxTestHistoryEntries is the maximum number of test history entries to keep.
 const maxTestHistoryEntries = 100
 
-func NewAPI(cfg *config.Config, nakClient *nak.Nak, relayPool RelayPool, testRunner TestRunner) *API {
+func NewAPI(cfg *config.Config, nakClient NakClient, relayPool RelayPool, testRunner TestRunner) *API {
 	return &API{
 		cfg:         cfg,
 		nak:         nakClient,

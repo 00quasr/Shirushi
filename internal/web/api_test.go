@@ -202,6 +202,46 @@ func (m *mockRelayPool) PublishEventJSON(eventJSON []byte, relayURLs []string) (
 	return event.ID, results
 }
 
+// mockNakClient is a mock implementation of NakClient for testing.
+type mockNakClient struct {
+	verifyResult bool
+	verifyErr    error
+	generateKey  *nak.Keypair
+	generateErr  error
+	decoded      *nak.Decoded
+	decodeErr    error
+	encoded      string
+	encodeErr    error
+	createdEvent *nak.Event
+	createErr    error
+	runOutput    string
+	runErr       error
+}
+
+func (m *mockNakClient) GenerateKey() (*nak.Keypair, error) {
+	return m.generateKey, m.generateErr
+}
+
+func (m *mockNakClient) Decode(input string) (*nak.Decoded, error) {
+	return m.decoded, m.decodeErr
+}
+
+func (m *mockNakClient) Encode(typ string, hex string) (string, error) {
+	return m.encoded, m.encodeErr
+}
+
+func (m *mockNakClient) CreateEvent(opts nak.CreateEventOptions) (*nak.Event, error) {
+	return m.createdEvent, m.createErr
+}
+
+func (m *mockNakClient) Verify(eventJSON string) (bool, error) {
+	return m.verifyResult, m.verifyErr
+}
+
+func (m *mockNakClient) Run(args ...string) (string, error) {
+	return m.runOutput, m.runErr
+}
+
 func TestHandleProfileLookup_Success(t *testing.T) {
 	profileContent := `{"name":"testuser","display_name":"Test User","about":"A test profile","picture":"https://example.com/avatar.png","website":"https://example.com","nip05":"test@example.com","lud16":"test@getalby.com"}`
 
@@ -2939,6 +2979,99 @@ func TestHandleEventVerify_InvalidJSON(t *testing.T) {
 	if resp["valid"] != false {
 		t.Errorf("expected valid to be false for invalid JSON, got %v", resp["valid"])
 	}
+}
+
+func TestHandleEventVerify_ValidSignature(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := &mockNakClient{verifyResult: true}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	// A properly structured signed event
+	body := `{"id":"abc123","pubkey":"def456","kind":1,"content":"Hello","created_at":1234567890,"tags":[],"sig":"validSig123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/verify", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["valid"] != true {
+		t.Errorf("expected valid to be true, got %v", resp["valid"])
+	}
+}
+
+func TestHandleEventVerify_InvalidSignature(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := &mockNakClient{verifyResult: false}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	// Event with invalid signature
+	body := `{"id":"abc123","pubkey":"def456","kind":1,"content":"Hello","created_at":1234567890,"tags":[],"sig":"invalidSig"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/verify", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["valid"] != false {
+		t.Errorf("expected valid to be false for invalid signature, got %v", resp["valid"])
+	}
+}
+
+func TestHandleEventVerify_VerifyError(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := &mockNakClient{
+		verifyResult: false,
+		verifyErr:    &testError{"signature verification failed"},
+	}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{"id":"abc123","pubkey":"def456","kind":1,"content":"Hello","created_at":1234567890,"tags":[],"sig":"sig123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/verify", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["valid"] != false {
+		t.Errorf("expected valid to be false when error occurs, got %v", resp["valid"])
+	}
+
+	if resp["error"] == nil {
+		t.Error("expected error message in response")
+	}
+}
+
+// testError is a simple error type for testing
+type testError struct {
+	msg string
+}
+
+func (e *testError) Error() string {
+	return e.msg
 }
 
 // Additional tests for HandleEventPublish endpoint
