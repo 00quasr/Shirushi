@@ -14,16 +14,22 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip11"
 )
 
+// StatusChangeCallback is called when a relay's connection status changes.
+// url is the relay URL, connected indicates the new connection state,
+// and err contains any error message (empty if connected successfully).
+type StatusChangeCallback func(url string, connected bool, err string)
+
 // Pool manages connections to multiple Nostr relays.
 type Pool struct {
-	relays     map[string]*RelayConn
-	mu         sync.RWMutex
-	pool       *nostr.SimplePool
-	monitor    *Monitor
-	ctx        context.Context
-	cancel     context.CancelFunc
-	subCounter int
-	subMu      sync.Mutex
+	relays         map[string]*RelayConn
+	mu             sync.RWMutex
+	pool           *nostr.SimplePool
+	monitor        *Monitor
+	ctx            context.Context
+	cancel         context.CancelFunc
+	subCounter     int
+	subMu          sync.Mutex
+	onStatusChange StatusChangeCallback
 }
 
 // RelayConn represents a connection to a single relay.
@@ -81,6 +87,26 @@ func (p *Pool) Add(url string) error {
 	return nil
 }
 
+// SetOnStatusChange sets the callback function that is invoked when a relay's
+// connection status changes.
+func (p *Pool) SetOnStatusChange(callback StatusChangeCallback) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.onStatusChange = callback
+}
+
+// notifyStatusChange invokes the status change callback if set.
+// Must be called without holding the mutex.
+func (p *Pool) notifyStatusChange(url string, connected bool, errMsg string) {
+	p.mu.RLock()
+	callback := p.onStatusChange
+	p.mu.RUnlock()
+
+	if callback != nil {
+		callback(url, connected, errMsg)
+	}
+}
+
 // connect attempts to connect to a relay.
 func (p *Pool) connect(url string) {
 	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
@@ -100,6 +126,7 @@ func (p *Pool) connect(url string) {
 		conn.Error = err.Error()
 		log.Printf("[Relay] Failed to connect to %s: %v", url, err)
 		p.mu.Unlock()
+		p.notifyStatusChange(url, false, err.Error())
 		return
 	}
 
@@ -108,6 +135,8 @@ func (p *Pool) connect(url string) {
 	conn.Error = ""
 	log.Printf("[Relay] Connected to %s", url)
 	p.mu.Unlock()
+
+	p.notifyStatusChange(url, true, "")
 
 	// Fetch NIP-11 relay info in background
 	go p.fetchRelayInfo(url)
@@ -166,19 +195,25 @@ func (p *Pool) fetchRelayInfo(url string) {
 // Remove removes a relay from the pool.
 func (p *Pool) Remove(url string) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	conn, exists := p.relays[url]
 	if !exists {
+		p.mu.Unlock()
 		return
 	}
 
+	wasConnected := conn.Connected
 	if conn.Relay != nil {
 		conn.Relay.Close()
 	}
 
 	delete(p.relays, url)
 	log.Printf("[Relay] Removed %s", url)
+	p.mu.Unlock()
+
+	// Notify if the relay was connected (now disconnected due to removal)
+	if wasConnected {
+		p.notifyStatusChange(url, false, "removed")
+	}
 }
 
 // List returns all relays with their status.
