@@ -9794,6 +9794,16 @@
                     <div id="publish-history" class="publish-history"></div>
                 </section>
                 <div id="toast-container" class="toast-container"></div>
+                <div id="modal-overlay" class="modal-overlay hidden" aria-hidden="true">
+                    <div class="modal" role="dialog" aria-modal="true">
+                        <div class="modal-header">
+                            <h2 id="modal-title" class="modal-title"></h2>
+                            <button class="modal-close" id="modal-close-btn" aria-label="Close modal">&times;</button>
+                        </div>
+                        <div id="modal-body" class="modal-body"></div>
+                        <div id="modal-footer" class="modal-footer"></div>
+                    </div>
+                </div>
             `;
             document.body.appendChild(container);
             appInstance = new Shirushi();
@@ -10055,6 +10065,235 @@
             assertTrue(jsonContent.includes('eventid123'), 'JSON should include event id');
             assertTrue(jsonContent.includes('pubkey456'), 'JSON should include pubkey');
             assertTrue(jsonContent.includes('Hello world'), 'JSON should include content');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have showEventPreviewModal method', function() {
+            const app = createSignPublishTestApp();
+
+            assertDefined(app.showEventPreviewModal, 'showEventPreviewModal method should be defined');
+            assertEqual(typeof app.showEventPreviewModal, 'function', 'showEventPreviewModal should be a function');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should show event preview modal with signed event data', async function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'abc123def456abc123def456abc123def456abc123def456abc123def456abc123',
+                pubkey: 'pub123pub456pub123pub456pub123pub456pub123pub456pub123pub456pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['t', 'nostr']],
+                content: 'Hello, Nostr!',
+                sig: 'sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456sig123sig456'
+            };
+
+            const selectedRelays = ['wss://relay.example.com', 'wss://relay2.example.com'];
+
+            // Show the modal (returns a promise)
+            const modalPromise = app.showEventPreviewModal(mockSignedEvent, selectedRelays);
+
+            // Check that modal is displayed with correct content
+            const modalOverlay = container.querySelector('#modal-overlay');
+            assertFalse(modalOverlay.classList.contains('hidden'), 'Modal should be visible');
+
+            const modalTitle = container.querySelector('#modal-title');
+            assertEqual(modalTitle.textContent, 'Review Event Before Publishing', 'Modal title should be correct');
+
+            const modalBody = container.querySelector('#modal-body');
+            assertTrue(modalBody.innerHTML.includes('abc123def456'), 'Modal should show event ID');
+            assertTrue(modalBody.innerHTML.includes('pub123pub456'), 'Modal should show pubkey');
+            assertTrue(modalBody.innerHTML.includes('Hello, Nostr!'), 'Modal should show content');
+            assertTrue(modalBody.innerHTML.includes('1 (Short Text Note)'), 'Modal should show kind with description');
+            assertTrue(modalBody.innerHTML.includes('relay.example.com'), 'Modal should show relay list');
+            assertTrue(modalBody.innerHTML.includes('relay2.example.com'), 'Modal should show all relays');
+            assertTrue(modalBody.innerHTML.includes('Publishing to 2 relays'), 'Modal should show relay count');
+
+            // Check that JSON preview is present
+            const jsonPreview = modalBody.querySelector('.event-preview-json');
+            assertDefined(jsonPreview, 'Modal should have JSON preview');
+            assertTrue(jsonPreview.textContent.includes('abc123def456'), 'JSON preview should contain event ID');
+            assertTrue(jsonPreview.textContent.includes('"sig"'), 'JSON preview should contain signature field');
+
+            // Check for Cancel and Publish buttons
+            const modalFooter = container.querySelector('#modal-footer');
+            assertTrue(modalFooter.innerHTML.includes('Cancel'), 'Modal should have Cancel button');
+            assertTrue(modalFooter.innerHTML.includes('Publish'), 'Modal should have Publish button');
+
+            // Close modal to resolve promise
+            app.closeModal(false);
+
+            // Wait for modal promise to resolve
+            const result = await modalPromise;
+            assertEqual(result, false, 'Modal should resolve with false when cancelled');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should resolve with true when Publish button is clicked in preview modal', async function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'signature'
+            };
+
+            const selectedRelays = ['wss://relay.example.com'];
+
+            // Show the modal
+            const modalPromise = app.showEventPreviewModal(mockSignedEvent, selectedRelays);
+
+            // Click the Publish button (second button in footer)
+            const publishBtn = container.querySelector('#modal-footer button[data-modal-value="1"]');
+            assertDefined(publishBtn, 'Publish button should exist');
+            publishBtn.click();
+
+            // Wait for modal promise to resolve
+            const result = await modalPromise;
+            assertEqual(result, true, 'Modal should resolve with true when Publish is clicked');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should resolve with false when Cancel button is clicked in preview modal', async function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'signature'
+            };
+
+            const selectedRelays = ['wss://relay.example.com'];
+
+            // Show the modal
+            const modalPromise = app.showEventPreviewModal(mockSignedEvent, selectedRelays);
+
+            // Click the Cancel button (first button in footer)
+            const cancelBtn = container.querySelector('#modal-footer button[data-modal-value="0"]');
+            assertDefined(cancelBtn, 'Cancel button should exist');
+            cancelBtn.click();
+
+            // Wait for modal promise to resolve
+            const result = await modalPromise;
+            assertEqual(result, false, 'Modal should resolve with false when Cancel is clicked');
+
+            cleanupSignPublishTest();
+        });
+
+        it('should display event kind description in preview modal', async function() {
+            const app = createSignPublishTestApp();
+
+            // Test kind 0 (Metadata)
+            const metadataEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 0,
+                tags: [],
+                content: '{"name":"test"}',
+                sig: 'signature'
+            };
+
+            const modalPromise = app.showEventPreviewModal(metadataEvent, ['wss://relay.example.com']);
+
+            const modalBody = container.querySelector('#modal-body');
+            assertTrue(modalBody.innerHTML.includes('0 (User Metadata)'), 'Modal should show kind 0 description');
+
+            app.closeModal(false);
+            await modalPromise;
+
+            cleanupSignPublishTest();
+        });
+
+        it('should have Copy button in event preview modal', async function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test content',
+                sig: 'signature'
+            };
+
+            const modalPromise = app.showEventPreviewModal(mockSignedEvent, ['wss://relay.example.com']);
+
+            // Wait a bit for the copy button handler to be attached
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const copyBtn = container.querySelector('.event-preview-modal .copy-preview-json');
+            assertDefined(copyBtn, 'Copy button should exist in modal');
+            assertEqual(copyBtn.textContent, 'Copy', 'Copy button should have correct text');
+
+            app.closeModal(false);
+            await modalPromise;
+
+            cleanupSignPublishTest();
+        });
+
+        it('should truncate long content in event preview modal', async function() {
+            const app = createSignPublishTestApp();
+
+            const longContent = 'A'.repeat(250); // More than 200 chars
+            const mockSignedEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: longContent,
+                sig: 'signature'
+            };
+
+            const modalPromise = app.showEventPreviewModal(mockSignedEvent, ['wss://relay.example.com']);
+
+            const modalBody = container.querySelector('#modal-body');
+            const contentPreview = modalBody.querySelector('.content-preview');
+            assertDefined(contentPreview, 'Content preview should exist');
+            assertTrue(contentPreview.textContent.includes('...'), 'Long content should be truncated with ellipsis');
+            assertTrue(contentPreview.textContent.length < longContent.length + 10, 'Content should be truncated');
+
+            app.closeModal(false);
+            await modalPromise;
+
+            cleanupSignPublishTest();
+        });
+
+        it('should show tags count in event preview modal', async function() {
+            const app = createSignPublishTestApp();
+
+            const mockSignedEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['t', 'nostr'], ['p', 'somepubkey'], ['e', 'someeventid']],
+                content: 'Test',
+                sig: 'signature'
+            };
+
+            const modalPromise = app.showEventPreviewModal(mockSignedEvent, ['wss://relay.example.com']);
+
+            const modalBody = container.querySelector('#modal-body');
+            assertTrue(modalBody.innerHTML.includes('3 tags'), 'Modal should show tag count');
+
+            app.closeModal(false);
+            await modalPromise;
 
             cleanupSignPublishTest();
         });

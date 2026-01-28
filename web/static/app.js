@@ -1921,9 +1921,10 @@ class Shirushi {
             return;
         }
 
-        await this.withLoading('sign-publish', async () => {
-            let signedEvent;
+        let signedEvent;
 
+        // First, sign the event
+        await this.withLoading('sign-publish', async () => {
             if (useExtension) {
                 // Sign with NIP-07 extension
                 const unsignedEvent = {
@@ -1958,8 +1959,28 @@ class Shirushi {
 
                 signedEvent = await signResponse.json();
             }
+        }, {
+            button: signPublishBtn,
+            buttonText: 'Signing...',
+            showErrorToast: true
+        });
 
-            // Display signed event
+        // If signing failed, signedEvent will be undefined
+        if (!signedEvent) {
+            return;
+        }
+
+        // Show event preview modal and wait for user confirmation
+        const shouldPublish = await this.showEventPreviewModal(signedEvent, selectedRelays);
+
+        if (!shouldPublish) {
+            this.toastInfo('Cancelled', 'Event publishing cancelled');
+            return;
+        }
+
+        // User confirmed, now publish
+        await this.withLoading('sign-publish', async () => {
+            // Display signed event in sidebar
             this.displaySignedEvent(signedEvent);
 
             // Publish to selected relays (single API call)
@@ -2014,9 +2035,99 @@ class Shirushi {
             }
         }, {
             button: signPublishBtn,
-            buttonText: 'Signing & Publishing...',
+            buttonText: 'Publishing...',
             showErrorToast: true
         });
+    }
+
+    /**
+     * Show event preview modal before publishing
+     * @param {Object} signedEvent - The signed Nostr event
+     * @param {string[]} selectedRelays - Array of relay URLs to publish to
+     * @returns {Promise<boolean>} True if user confirms, false if cancelled
+     */
+    showEventPreviewModal(signedEvent, selectedRelays) {
+        const eventJson = JSON.stringify(signedEvent, null, 2);
+        const kindDescription = this.getEventKindDescription(signedEvent.kind) || 'Unknown';
+
+        const modalBody = `
+            <div class="event-preview-modal">
+                <div class="event-preview-summary">
+                    <div class="preview-summary-row">
+                        <span class="preview-label">Kind</span>
+                        <span class="preview-value">${signedEvent.kind} (${this.escapeHtml(kindDescription)})</span>
+                    </div>
+                    <div class="preview-summary-row">
+                        <span class="preview-label">Event ID</span>
+                        <span class="preview-value mono">${signedEvent.id}</span>
+                    </div>
+                    <div class="preview-summary-row">
+                        <span class="preview-label">Pubkey</span>
+                        <span class="preview-value mono">${signedEvent.pubkey}</span>
+                    </div>
+                    <div class="preview-summary-row">
+                        <span class="preview-label">Created</span>
+                        <span class="preview-value">${this.formatTime(signedEvent.created_at)}</span>
+                    </div>
+                    ${signedEvent.content ? `
+                    <div class="preview-summary-row">
+                        <span class="preview-label">Content</span>
+                        <span class="preview-value content-preview">${this.escapeHtml(signedEvent.content.substring(0, 200))}${signedEvent.content.length > 200 ? '...' : ''}</span>
+                    </div>
+                    ` : ''}
+                    ${signedEvent.tags.length > 0 ? `
+                    <div class="preview-summary-row">
+                        <span class="preview-label">Tags</span>
+                        <span class="preview-value">${signedEvent.tags.length} tag${signedEvent.tags.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="event-preview-json-section">
+                    <div class="json-section-header">
+                        <span class="json-section-title">Event JSON</span>
+                        <button class="btn btn-small copy-preview-json" title="Copy JSON">Copy</button>
+                    </div>
+                    <pre class="event-preview-json">${this.escapeHtml(eventJson)}</pre>
+                </div>
+
+                <div class="event-preview-relays">
+                    <span class="relays-label">Publishing to ${selectedRelays.length} relay${selectedRelays.length !== 1 ? 's' : ''}:</span>
+                    <div class="relays-list">
+                        ${selectedRelays.map(url => `<span class="relay-tag">${this.escapeHtml(this.shortenRelayUrl(url))}</span>`).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Show modal and return promise
+        const modalPromise = this.showModal({
+            title: 'Review Event Before Publishing',
+            body: modalBody,
+            buttons: [
+                { text: 'Cancel', type: 'default', value: false },
+                { text: 'Publish', type: 'primary', value: true }
+            ],
+            size: 'lg',
+            closeOnOverlay: true
+        });
+
+        // Add copy handler after modal is shown
+        setTimeout(() => {
+            const copyBtn = document.querySelector('.event-preview-modal .copy-preview-json');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(eventJson).then(() => {
+                        copyBtn.textContent = 'Copied!';
+                        setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+                    }).catch(() => {
+                        this.toastError('Copy Failed', 'Failed to copy to clipboard');
+                    });
+                });
+            }
+        }, 50);
+
+        return modalPromise;
     }
 
     addToPublishHistory(entry) {
