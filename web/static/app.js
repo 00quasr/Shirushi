@@ -2628,23 +2628,39 @@ class Shirushi {
             return str.length > len ? str.substring(0, len / 2) + '...' + str.substring(str.length - len / 2) : str;
         };
 
-        // Sort results: found first, then by latency
+        // Calculate counts for availability summary
+        const hasEventCount = result.found_count;
+        const errorCount = result.results.filter(r => r.error).length;
+        const missingCount = result.total_relays - hasEventCount - errorCount;
+        const total = result.total_relays;
+
+        // Calculate percentages for progress bar
+        const hasEventPct = total > 0 ? (hasEventCount / total) * 100 : 0;
+        const missingPct = total > 0 ? (missingCount / total) * 100 : 0;
+        const errorPct = total > 0 ? (errorCount / total) * 100 : 0;
+
+        // Sort results: found first, then not-found, then errors, each sorted by latency
         const sortedResults = [...result.results].sort((a, b) => {
-            if (a.found !== b.found) return b.found ? 1 : -1;
+            // Sort order: found (0) > not-found (1) > error (2)
+            const getPriority = (r) => r.found ? 0 : (r.error ? 2 : 1);
+            const priorityDiff = getPriority(a) - getPriority(b);
+            if (priorityDiff !== 0) return priorityDiff;
             return a.latency_ms - b.latency_ms;
         });
 
         const renderRelayResults = () => {
             return sortedResults.map(r => {
-                const statusIcon = r.found ? '&#10003;' : (r.error ? '&#10007;' : '&#8212;');
+                const statusIcon = r.found ? '&#10003;' : (r.error ? '&#10007;' : '&#10060;');
                 const statusClass = r.found ? 'found' : (r.error ? 'error' : 'not-found');
-                const statusText = r.found ? 'Found' : (r.error ? this.escapeHtml(r.error) : 'Not found');
+                const badgeClass = r.found ? 'has-event' : (r.error ? 'error' : 'missing');
+                const badgeText = r.found ? 'Has Event' : (r.error ? 'Error' : 'Missing');
+                const statusTitle = r.error ? this.escapeHtml(r.error) : (r.found ? 'Event found on this relay' : 'Event not found on this relay');
 
                 return `
                     <div class="relay-result-row ${statusClass}">
-                        <span class="relay-result-icon ${statusClass}">${statusIcon}</span>
+                        <span class="relay-result-icon ${statusClass}" title="${statusTitle}">${statusIcon}</span>
                         <span class="relay-result-url" title="${this.escapeHtml(r.url)}">${this.escapeHtml(truncate(r.url, 40))}</span>
-                        <span class="relay-result-status">${statusText}</span>
+                        <span class="relay-result-status"><span class="relay-status-badge ${badgeClass}">${badgeText}</span></span>
                         <span class="relay-result-latency">${r.latency_ms}ms</span>
                     </div>
                 `;
@@ -2653,19 +2669,45 @@ class Shirushi {
 
         const html = `
             <div class="all-relays-header">
-                <span class="all-relays-title">Relay Results for Event</span>
-                <span class="all-relays-summary">${result.found_count} of ${result.total_relays} relays have this event</span>
+                <span class="all-relays-title">Relay Availability</span>
+                <span class="all-relays-summary">${hasEventCount} of ${total} relays have this event</span>
             </div>
             <div class="all-relays-event-id">
                 <span class="all-relays-label">Event ID:</span>
                 <span class="all-relays-id monospace" title="${this.escapeHtml(result.event_id)}">${this.escapeHtml(truncate(result.event_id, 40))}</span>
                 <button class="btn small copy-btn" onclick="app.copyToClipboard('${this.escapeHtml(result.event_id)}')">Copy</button>
             </div>
+            <div class="relay-availability-bar">
+                <div class="relay-availability-progress">
+                    <div class="has-event-bar" style="width: ${hasEventPct}%"></div>
+                    <div class="missing-bar" style="width: ${missingPct}%"></div>
+                    <div class="error-bar" style="width: ${errorPct}%"></div>
+                </div>
+                <div class="relay-availability-legend">
+                    <div class="relay-availability-legend-item">
+                        <span class="legend-dot has-event"></span>
+                        <span class="legend-count">${hasEventCount}</span>
+                        <span>Has Event</span>
+                    </div>
+                    <div class="relay-availability-legend-item">
+                        <span class="legend-dot missing"></span>
+                        <span class="legend-count">${missingCount}</span>
+                        <span>Missing</span>
+                    </div>
+                    ${errorCount > 0 ? `
+                    <div class="relay-availability-legend-item">
+                        <span class="legend-dot error"></span>
+                        <span class="legend-count">${errorCount}</span>
+                        <span>Error</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
             <div class="all-relays-list">
                 <div class="relay-results-header">
                     <span class="relay-header-status">Status</span>
                     <span class="relay-header-url">Relay</span>
-                    <span class="relay-header-result">Result</span>
+                    <span class="relay-header-result">Availability</span>
                     <span class="relay-header-latency">Latency</span>
                 </div>
                 ${renderRelayResults()}

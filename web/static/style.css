@@ -6682,6 +6682,14 @@ a.nip-badge:hover {
     background: color-mix(in srgb, var(--error) 12%, var(--bg-2));
 }
 
+.relay-result-row.not-found {
+    background: color-mix(in srgb, var(--warning) 5%, var(--bg-2));
+}
+
+.relay-result-row.not-found:hover {
+    background: color-mix(in srgb, var(--warning) 10%, var(--bg-2));
+}
+
 .relay-result-icon {
     font-size: 14px;
     text-align: center;
@@ -6696,7 +6704,7 @@ a.nip-badge:hover {
 }
 
 .relay-result-icon.not-found {
-    color: var(--text-3);
+    color: var(--warning);
 }
 
 .relay-result-url {
@@ -6723,6 +6731,112 @@ a.nip-badge:hover {
 
 .relay-result-row.error .relay-result-status {
     color: var(--error);
+}
+
+.relay-result-row.not-found .relay-result-status {
+    color: var(--warning);
+}
+
+/* Relay availability status badge */
+.relay-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.relay-status-badge.has-event {
+    background: color-mix(in srgb, var(--success) 20%, transparent);
+    color: var(--success);
+    border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.relay-status-badge.missing {
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
+    border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
+}
+
+.relay-status-badge.error {
+    background: color-mix(in srgb, var(--error) 15%, transparent);
+    color: var(--error);
+    border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
+}
+
+/* Relay availability summary bar */
+.relay-availability-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bg-1);
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.relay-availability-progress {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-3);
+}
+
+.relay-availability-progress .has-event-bar {
+    background: var(--success);
+    transition: width 0.3s ease;
+}
+
+.relay-availability-progress .missing-bar {
+    background: var(--warning);
+    transition: width 0.3s ease;
+}
+
+.relay-availability-progress .error-bar {
+    background: var(--error);
+    transition: width 0.3s ease;
+}
+
+.relay-availability-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.relay-availability-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-2);
+}
+
+.relay-availability-legend-item .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.relay-availability-legend-item .legend-dot.has-event {
+    background: var(--success);
+}
+
+.relay-availability-legend-item .legend-dot.missing {
+    background: var(--warning);
+}
+
+.relay-availability-legend-item .legend-dot.error {
+    background: var(--error);
+}
+
+.relay-availability-legend-item .legend-count {
+    font-weight: 600;
+    color: var(--text-1);
 }
 
 .relay-result-latency {

@@ -12710,6 +12710,323 @@
         });
     });
 
+    // ========================================
+    // Relay Availability Highlighting Tests
+    // ========================================
+    describe('Relay Availability Highlighting', () => {
+        it('should have showAllRelaysResult method', () => {
+            assertDefined(Shirushi.prototype.showAllRelaysResult, 'showAllRelaysResult method should exist');
+        });
+
+        it('should display relay availability bar with progress segments', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 3,
+                total_relays: 5,
+                results: [
+                    { url: 'wss://relay1.example.com', found: true, latency_ms: 50 },
+                    { url: 'wss://relay2.example.com', found: true, latency_ms: 75 },
+                    { url: 'wss://relay3.example.com', found: true, latency_ms: 100 },
+                    { url: 'wss://relay4.example.com', found: false, latency_ms: 60 },
+                    { url: 'wss://relay5.example.com', found: false, latency_ms: 80 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify availability bar exists
+            const availabilityBar = resultDiv.querySelector('.relay-availability-bar');
+            assertDefined(availabilityBar, 'Should have relay availability bar');
+
+            // Verify progress bar segments
+            const hasEventBar = resultDiv.querySelector('.has-event-bar');
+            const missingBar = resultDiv.querySelector('.missing-bar');
+            assertDefined(hasEventBar, 'Should have has-event progress segment');
+            assertDefined(missingBar, 'Should have missing progress segment');
+
+            // Verify legend items
+            const legendItems = resultDiv.querySelectorAll('.relay-availability-legend-item');
+            assertTrue(legendItems.length >= 2, 'Should have at least 2 legend items');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should display status badges with correct classes', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 1,
+                total_relays: 3,
+                results: [
+                    { url: 'wss://relay1.example.com', found: true, latency_ms: 50 },
+                    { url: 'wss://relay2.example.com', found: false, latency_ms: 60 },
+                    { url: 'wss://relay3.example.com', found: false, error: 'Connection timeout', latency_ms: 5000 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify status badges
+            const hasEventBadge = resultDiv.querySelector('.relay-status-badge.has-event');
+            const missingBadge = resultDiv.querySelector('.relay-status-badge.missing');
+            const errorBadge = resultDiv.querySelector('.relay-status-badge.error');
+
+            assertDefined(hasEventBadge, 'Should have has-event badge');
+            assertDefined(missingBadge, 'Should have missing badge');
+            assertDefined(errorBadge, 'Should have error badge');
+
+            assertTrue(hasEventBadge.textContent.includes('Has Event'), 'Has-event badge should say "Has Event"');
+            assertTrue(missingBadge.textContent.includes('Missing'), 'Missing badge should say "Missing"');
+            assertTrue(errorBadge.textContent.includes('Error'), 'Error badge should say "Error"');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should sort relays by status (found first, then missing, then errors)', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 1,
+                total_relays: 4,
+                results: [
+                    { url: 'wss://error-relay.com', found: false, error: 'Timeout', latency_ms: 5000 },
+                    { url: 'wss://missing-relay.com', found: false, latency_ms: 60 },
+                    { url: 'wss://found-relay.com', found: true, latency_ms: 50 },
+                    { url: 'wss://another-missing.com', found: false, latency_ms: 70 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Get all result rows
+            const rows = resultDiv.querySelectorAll('.relay-result-row');
+            assertEqual(rows.length, 4, 'Should have 4 result rows');
+
+            // First row should be found
+            assertTrue(rows[0].classList.contains('found'), 'First row should have found class');
+
+            // Last row should be error
+            assertTrue(rows[3].classList.contains('error'), 'Last row should have error class');
+
+            // Middle rows should be not-found
+            assertTrue(rows[1].classList.contains('not-found'), 'Second row should have not-found class');
+            assertTrue(rows[2].classList.contains('not-found'), 'Third row should have not-found class');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should calculate correct percentages for availability bar', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 2,
+                total_relays: 4,
+                results: [
+                    { url: 'wss://relay1.com', found: true, latency_ms: 50 },
+                    { url: 'wss://relay2.com', found: true, latency_ms: 60 },
+                    { url: 'wss://relay3.com', found: false, latency_ms: 70 },
+                    { url: 'wss://relay4.com', found: false, error: 'Error', latency_ms: 5000 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify the has-event bar width (2/4 = 50%)
+            const hasEventBar = resultDiv.querySelector('.has-event-bar');
+            assertTrue(hasEventBar.style.width === '50%', 'Has-event bar should be 50% width');
+
+            // Verify the missing bar width (1/4 = 25%)
+            const missingBar = resultDiv.querySelector('.missing-bar');
+            assertTrue(missingBar.style.width === '25%', 'Missing bar should be 25% width');
+
+            // Verify the error bar width (1/4 = 25%)
+            const errorBar = resultDiv.querySelector('.error-bar');
+            assertTrue(errorBar.style.width === '25%', 'Error bar should be 25% width');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should display correct counts in legend', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 5,
+                total_relays: 10,
+                results: [
+                    { url: 'wss://r1.com', found: true, latency_ms: 50 },
+                    { url: 'wss://r2.com', found: true, latency_ms: 50 },
+                    { url: 'wss://r3.com', found: true, latency_ms: 50 },
+                    { url: 'wss://r4.com', found: true, latency_ms: 50 },
+                    { url: 'wss://r5.com', found: true, latency_ms: 50 },
+                    { url: 'wss://r6.com', found: false, latency_ms: 60 },
+                    { url: 'wss://r7.com', found: false, latency_ms: 60 },
+                    { url: 'wss://r8.com', found: false, latency_ms: 60 },
+                    { url: 'wss://r9.com', found: false, error: 'Error', latency_ms: 5000 },
+                    { url: 'wss://r10.com', found: false, error: 'Error', latency_ms: 5000 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Get legend counts
+            const legendCounts = resultDiv.querySelectorAll('.legend-count');
+            assertTrue(legendCounts.length >= 2, 'Should have at least 2 legend counts');
+
+            // Verify has-event count (5)
+            const hasEventLegend = resultDiv.querySelector('.legend-dot.has-event').parentElement;
+            const hasEventCount = hasEventLegend.querySelector('.legend-count');
+            assertEqual(hasEventCount.textContent, '5', 'Has-event count should be 5');
+
+            // Verify missing count (3)
+            const missingLegend = resultDiv.querySelector('.legend-dot.missing').parentElement;
+            const missingCount = missingLegend.querySelector('.legend-count');
+            assertEqual(missingCount.textContent, '3', 'Missing count should be 3');
+
+            // Verify error count (2)
+            const errorLegend = resultDiv.querySelector('.legend-dot.error');
+            if (errorLegend) {
+                const errorCount = errorLegend.parentElement.querySelector('.legend-count');
+                assertEqual(errorCount.textContent, '2', 'Error count should be 2');
+            }
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should hide error legend when no errors', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 2,
+                total_relays: 3,
+                results: [
+                    { url: 'wss://relay1.com', found: true, latency_ms: 50 },
+                    { url: 'wss://relay2.com', found: true, latency_ms: 60 },
+                    { url: 'wss://relay3.com', found: false, latency_ms: 70 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Error legend should not exist when there are no errors
+            const errorLegend = resultDiv.querySelector('.legend-dot.error');
+            assertTrue(errorLegend === null, 'Error legend should not exist when no errors');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should apply correct row classes for found/not-found/error states', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+            Shirushi.prototype.init = originalInit;
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 1,
+                total_relays: 3,
+                results: [
+                    { url: 'wss://found.com', found: true, latency_ms: 50 },
+                    { url: 'wss://missing.com', found: false, latency_ms: 60 },
+                    { url: 'wss://error.com', found: false, error: 'Connection failed', latency_ms: 5000 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify row classes
+            const foundRows = resultDiv.querySelectorAll('.relay-result-row.found');
+            const notFoundRows = resultDiv.querySelectorAll('.relay-result-row.not-found');
+            const errorRows = resultDiv.querySelectorAll('.relay-result-row.error');
+
+            assertEqual(foundRows.length, 1, 'Should have 1 found row');
+            assertEqual(notFoundRows.length, 1, 'Should have 1 not-found row');
+            assertEqual(errorRows.length, 1, 'Should have 1 error row');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
