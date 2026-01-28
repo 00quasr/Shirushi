@@ -52,6 +52,9 @@ class Shirushi {
         this.maxBufferSize = 50; // Discard oldest events if buffer exceeds this
         this.maxDisplayedEvents = 100;
 
+        // Event deduplication
+        this.seenEventIds = new Set();
+
         this.init();
     }
 
@@ -1341,6 +1344,8 @@ class Shirushi {
 
         document.getElementById('clear-events-btn').addEventListener('click', () => {
             this.events = [];
+            this.eventBuffer = [];
+            this.seenEventIds.clear();
             this.renderEvents();
         });
 
@@ -1557,6 +1562,10 @@ class Shirushi {
                 // Legacy response format (just events array)
                 this.events = data || [];
                 this.hideFetchTiming();
+            }
+            // Update seen event IDs to include loaded events
+            for (const event of this.events) {
+                this.seenEventIds.add(event.id);
             }
             this.renderEvents();
         } catch (error) {
@@ -1873,6 +1882,24 @@ class Shirushi {
     }
 
     addEvent(event) {
+        // Deduplicate by event ID
+        if (this.seenEventIds.has(event.id)) {
+            return;
+        }
+        this.seenEventIds.add(event.id);
+
+        // Limit seen event IDs set size to prevent memory issues
+        const maxSeenEvents = 1000;
+        if (this.seenEventIds.size > maxSeenEvents) {
+            // Keep only the IDs of events currently in buffer and displayed list
+            const currentIds = new Set([
+                ...this.eventBuffer.map(e => e.id),
+                ...this.events.map(e => e.id)
+            ]);
+            this.seenEventIds = currentIds;
+            this.seenEventIds.add(event.id);
+        }
+
         // Mark as new for animation purposes
         event._isNew = true;
 

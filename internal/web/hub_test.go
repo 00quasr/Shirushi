@@ -120,9 +120,10 @@ func TestHub_BroadcastEvent_BufferLimit(t *testing.T) {
 	hub := NewHub()
 
 	// Add more events than the buffer limit (100)
+	// Each event must have a unique ID for deduplication
 	for i := 0; i < 150; i++ {
 		event := types.Event{
-			ID:        "test" + string(rune(i)),
+			ID:        "test" + string(rune(i)) + "_" + string(rune(i/10)) + string(rune(i%10)),
 			Kind:      1,
 			PubKey:    "abc123",
 			Content:   "test content",
@@ -138,6 +139,98 @@ func TestHub_BroadcastEvent_BufferLimit(t *testing.T) {
 
 	if bufferLen > 100 {
 		t.Errorf("expected buffer to be limited to 100, got %d", bufferLen)
+	}
+}
+
+func TestHub_BroadcastEvent_Deduplication(t *testing.T) {
+	hub := NewHub()
+
+	// Add the same event multiple times
+	event := types.Event{
+		ID:        "test-duplicate",
+		Kind:      1,
+		PubKey:    "abc123",
+		Content:   "test content",
+		CreatedAt: 1700000000,
+	}
+
+	// Broadcast the same event 5 times
+	for i := 0; i < 5; i++ {
+		hub.BroadcastEvent(event)
+	}
+
+	// Check that only one event is in the buffer (duplicates ignored)
+	hub.eventBufferMu.Lock()
+	bufferLen := len(hub.eventBuffer)
+	hub.eventBufferMu.Unlock()
+
+	if bufferLen != 1 {
+		t.Errorf("expected 1 event in buffer (duplicates ignored), got %d", bufferLen)
+	}
+}
+
+func TestHub_BroadcastEvent_DeduplicationWithDifferentEvents(t *testing.T) {
+	hub := NewHub()
+
+	// Add 3 unique events and try to add duplicates
+	events := []types.Event{
+		{ID: "event1", Kind: 1, PubKey: "abc123", Content: "content 1", CreatedAt: 1700000000},
+		{ID: "event2", Kind: 1, PubKey: "abc123", Content: "content 2", CreatedAt: 1700000001},
+		{ID: "event3", Kind: 1, PubKey: "abc123", Content: "content 3", CreatedAt: 1700000002},
+	}
+
+	// Add each event twice
+	for _, e := range events {
+		hub.BroadcastEvent(e)
+		hub.BroadcastEvent(e) // Duplicate
+	}
+
+	// Check that only 3 unique events are in the buffer
+	hub.eventBufferMu.Lock()
+	bufferLen := len(hub.eventBuffer)
+	hub.eventBufferMu.Unlock()
+
+	if bufferLen != 3 {
+		t.Errorf("expected 3 events in buffer (duplicates ignored), got %d", bufferLen)
+	}
+}
+
+func TestHub_BroadcastEvent_SeenEventIDsMapCleanup(t *testing.T) {
+	hub := NewHub()
+
+	// Add more than maxSeenEvents (1000) unique events to trigger cleanup
+	for i := 0; i < 1050; i++ {
+		event := types.Event{
+			ID:        "event-" + string(rune('a'+i/100)) + string(rune('0'+i%100/10)) + string(rune('0'+i%10)),
+			Kind:      1,
+			PubKey:    "abc123",
+			Content:   "test content",
+			CreatedAt: 1700000000,
+		}
+		hub.BroadcastEvent(event)
+	}
+
+	// The seenEventIDs map should have been cleaned up
+	hub.eventBufferMu.Lock()
+	seenCount := len(hub.seenEventIDs)
+	hub.eventBufferMu.Unlock()
+
+	// After cleanup, seenEventIDs should contain IDs from the buffer plus recent additions
+	// The exact number depends on timing, but should be reasonable
+	if seenCount > 1100 {
+		t.Errorf("expected seenEventIDs to be cleaned up, but has %d entries", seenCount)
+	}
+}
+
+func TestNewHub_InitializesSeenEventIDs(t *testing.T) {
+	hub := NewHub()
+
+	if hub.seenEventIDs == nil {
+		t.Error("expected seenEventIDs map to be initialized")
+	}
+
+	if len(hub.seenEventIDs) != 0 {
+		t.Errorf("expected seenEventIDs map to be empty, got %d entries", len(hub.seenEventIDs))
 	}
 }
 

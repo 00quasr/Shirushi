@@ -32,6 +32,9 @@ type Hub struct {
 	eventTicker     *time.Ticker
 	maxEventsPerSec int
 	stopChan        chan struct{}
+
+	// Event deduplication
+	seenEventIDs map[string]bool
 }
 
 // NewHub creates a new Hub.
@@ -44,6 +47,7 @@ func NewHub() *Hub {
 		eventBuffer:     make([]types.Event, 0),
 		maxEventsPerSec: 20, // Limit to 20 events per second
 		stopChan:        make(chan struct{}),
+		seenEventIDs:    make(map[string]bool),
 	}
 	return h
 }
@@ -187,9 +191,28 @@ func (h *Hub) Broadcast(msg Message) {
 }
 
 // BroadcastEvent buffers an event for rate-limited broadcast to all clients.
+// Duplicate events (by ID) are ignored to prevent sending the same event multiple times.
 func (h *Hub) BroadcastEvent(event types.Event) {
 	h.eventBufferMu.Lock()
 	defer h.eventBufferMu.Unlock()
+
+	// Deduplicate by event ID
+	if h.seenEventIDs[event.ID] {
+		return
+	}
+	h.seenEventIDs[event.ID] = true
+
+	// Limit seen events map size to prevent memory issues
+	const maxSeenEvents = 1000
+	if len(h.seenEventIDs) > maxSeenEvents {
+		// Clear older entries by resetting the map
+		// This is a simple approach; events in the current buffer are re-added
+		h.seenEventIDs = make(map[string]bool)
+		for _, ev := range h.eventBuffer {
+			h.seenEventIDs[ev.ID] = true
+		}
+		h.seenEventIDs[event.ID] = true
+	}
 
 	// Limit buffer size to prevent memory issues
 	const maxBufferSize = 100
