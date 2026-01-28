@@ -2724,3 +2724,260 @@ func TestHandleEventSubscribe_EmptyFilters(t *testing.T) {
 		t.Error("expected subscription_id in response")
 	}
 }
+
+// Additional tests for HandleEventSign endpoint
+
+func TestHandleEventSign_MissingPrivateKey(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := nak.New("/usr/bin/true") // Dummy path - won't be called
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	// Request body with no privateKey field
+	body := `{"kind":1,"content":"test","tags":[]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/sign", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSign(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "privateKey is required" {
+		t.Errorf("expected error 'privateKey is required', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleEventSign_EmptyPrivateKey(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := nak.New("/usr/bin/true") // Dummy path - won't be called
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	// Request body with empty privateKey
+	body := `{"kind":1,"content":"test","tags":[],"privateKey":""}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/sign", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSign(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "privateKey is required" {
+		t.Errorf("expected error 'privateKey is required', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleEventSign_ValidRequestStructure(t *testing.T) {
+	// This test validates the request parsing without needing actual nak
+	// The nak call will fail but we verify the request was properly parsed first
+	pool := &mockRelayPool{}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{"kind":1,"content":"Hello Nostr","tags":[["t","test"]],"privateKey":"nsec1validkey"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/sign", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleEventSign(w, req)
+
+	// Should fail at the nak execution stage, not at request parsing
+	// We expect InternalServerError because nak execution fails
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Should contain "failed to create event" since nak is unavailable
+	if !strings.Contains(resp["error"], "failed to create event") {
+		t.Errorf("expected error to contain 'failed to create event', got '%s'", resp["error"])
+	}
+}
+
+// Additional tests for HandleEventVerify endpoint
+
+func TestHandleEventVerify_EmptyBody(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/events/verify", strings.NewReader(""))
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	// nak verify with empty input will fail, should return valid: false
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Should return valid: false with an error since nak failed
+	if resp["valid"] != false {
+		t.Errorf("expected valid to be false, got %v", resp["valid"])
+	}
+}
+
+func TestHandleEventVerify_InvalidJSON(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `not valid json at all {{{`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/verify", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventVerify(w, req)
+
+	// Should return valid: false
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["valid"] != false {
+		t.Errorf("expected valid to be false for invalid JSON, got %v", resp["valid"])
+	}
+}
+
+// Additional tests for HandleEventPublish endpoint
+
+func TestHandleEventPublish_EmptyBody(t *testing.T) {
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay.example.com", Connected: true},
+		},
+	}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(""))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	// Should fail because nak publish with empty input fails
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(resp["error"], "failed to publish") {
+		t.Errorf("expected error to contain 'failed to publish', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleEventPublish_InvalidJSON(t *testing.T) {
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay.example.com", Connected: true},
+		},
+	}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{invalid json}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	// Should fail at nak publish stage
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(resp["error"], "failed to publish") {
+		t.Errorf("expected error to contain 'failed to publish', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleEventPublish_MultipleRelaysOnlyFirstConnected(t *testing.T) {
+	// Test that we correctly find the first connected relay when some are disconnected
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: false},
+			{URL: "wss://relay2.example.com", Connected: true},
+			{URL: "wss://relay3.example.com", Connected: false},
+		},
+	}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{"id":"test123","pubkey":"abc","sig":"def"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	// Will fail at nak publish but confirms we found a connected relay (not 400 "no connected relays")
+	if w.Code == http.StatusBadRequest {
+		t.Errorf("expected to find connected relay, but got StatusBadRequest")
+	}
+}
+
+func TestHandleEventPublish_AllRelaysDisconnected(t *testing.T) {
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: false},
+			{URL: "wss://relay2.example.com", Connected: false},
+			{URL: "wss://relay3.example.com", Connected: false},
+		},
+	}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{"id":"test","pubkey":"test","sig":"test"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "no connected relays" {
+		t.Errorf("expected error 'no connected relays', got '%s'", resp["error"])
+	}
+}
