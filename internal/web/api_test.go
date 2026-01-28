@@ -3637,3 +3637,344 @@ func TestHandleRelayInfo_MultipleFees(t *testing.T) {
 		t.Fatalf("expected 3 publication fees, got %d", len(info.Fees.Publication))
 	}
 }
+
+// Tests for HandleEventLookup
+
+func TestHandleEventLookup_Success(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{
+			eventID: {
+				ID:        eventID,
+				Kind:      1,
+				PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+				Content:   "Hello, Nostr!",
+				CreatedAt: 1700000000,
+				Tags:      [][]string{{"t", "nostr"}},
+			},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var event types.Event
+	if err := json.NewDecoder(w.Body).Decode(&event); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if event.ID != eventID {
+		t.Errorf("expected event ID '%s', got '%s'", eventID, event.ID)
+	}
+
+	if event.Content != "Hello, Nostr!" {
+		t.Errorf("expected content 'Hello, Nostr!', got '%s'", event.Content)
+	}
+
+	if event.Kind != 1 {
+		t.Errorf("expected kind 1, got %d", event.Kind)
+	}
+}
+
+func TestHandleEventLookup_WithNote1Format(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{
+			eventID: {
+				ID:        eventID,
+				Kind:      1,
+				PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+				Content:   "Hello, Nostr!",
+				CreatedAt: 1700000000,
+				Tags:      [][]string{},
+			},
+		},
+	}
+	nakClient := &mockNakClient{
+		decoded: &nak.Decoded{
+			Type: "note",
+			Hex:  eventID,
+		},
+	}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id=note1xyz", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var event types.Event
+	if err := json.NewDecoder(w.Body).Decode(&event); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if event.ID != eventID {
+		t.Errorf("expected event ID '%s', got '%s'", eventID, event.ID)
+	}
+}
+
+func TestHandleEventLookup_WithNevent1Format(t *testing.T) {
+	eventID := "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{
+			eventID: {
+				ID:        eventID,
+				Kind:      1,
+				PubKey:    "bbbb222222222222222222222222222222222222222222222222222222222222",
+				Content:   "Test event",
+				CreatedAt: 1700000100,
+				Tags:      [][]string{},
+			},
+		},
+	}
+	nakClient := &mockNakClient{
+		decoded: &nak.Decoded{
+			Type:   "nevent",
+			Hex:    eventID,
+			ID:     eventID,
+			Relays: []string{"wss://relay.example.com"},
+		},
+	}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id=nevent1xyz", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var event types.Event
+	if err := json.NewDecoder(w.Body).Decode(&event); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if event.ID != eventID {
+		t.Errorf("expected event ID '%s', got '%s'", eventID, event.ID)
+	}
+}
+
+func TestHandleEventLookup_MissingID(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event ID is required" {
+		t.Errorf("expected error 'event ID is required', got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventLookup_InvalidIDLength(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id=tooshort", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event ID must be 64 hex characters" {
+		t.Errorf("expected error 'event ID must be 64 hex characters', got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventLookup_InvalidHexCharacters(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// ID with invalid hex character 'g'
+	invalidID := "123456789gabcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id="+invalidID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event ID must contain only hexadecimal characters" {
+		t.Errorf("expected error about hex characters, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventLookup_EventNotFound(t *testing.T) {
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event not found" {
+		t.Errorf("expected error 'event not found', got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventLookup_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/events/lookup", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventLookup_Note1DecodeError(t *testing.T) {
+	pool := &mockRelayPool{}
+	nakClient := &mockNakClient{
+		decodeErr: &testError{"decode failed"},
+	}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id=note1invalid", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(errResp["error"], "failed to decode event ID") {
+		t.Errorf("expected error about decode failure, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventLookup_Note1WithoutNak(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id=note1xyz", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "nak CLI not available for decoding" {
+		t.Errorf("expected error 'nak CLI not available for decoding', got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventLookup_UppercaseHex(t *testing.T) {
+	eventID := "1234567890ABCDEF1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		eventsByID: map[string]types.Event{
+			eventID: {
+				ID:        eventID,
+				Kind:      1,
+				PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+				Content:   "Uppercase hex test",
+				CreatedAt: 1700000000,
+				Tags:      [][]string{},
+			},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+}
+
+func TestHandleEventLookup_QueryError(t *testing.T) {
+	pool := &mockRelayPool{
+		err: &testError{"no connected relays"},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	req := httptest.NewRequest(http.MethodGet, "/api/events/lookup?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventLookup(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(errResp["error"], "failed to query event") {
+		t.Errorf("expected error about query failure, got '%s'", errResp["error"])
+	}
+}

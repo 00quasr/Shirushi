@@ -786,6 +786,63 @@ func (a *API) HandleEventVerify(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"valid": valid})
 }
 
+// HandleEventLookup looks up an event by its ID (hex or note1.../nevent1... format).
+func (a *API) HandleEventLookup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Get the event ID from query parameter
+	eventID := r.URL.Query().Get("id")
+	if eventID == "" {
+		writeError(w, http.StatusBadRequest, "event ID is required")
+		return
+	}
+
+	eventID = strings.TrimSpace(eventID)
+
+	// If input is note1... or nevent1..., decode it to hex
+	if strings.HasPrefix(eventID, "note1") || strings.HasPrefix(eventID, "nevent1") {
+		if a.nak == nil {
+			writeError(w, http.StatusServiceUnavailable, "nak CLI not available for decoding")
+			return
+		}
+		decoded, err := a.nak.Decode(eventID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("failed to decode event ID: %v", err))
+			return
+		}
+		eventID = decoded.Hex
+	}
+
+	// Validate hex format (64 characters, valid hex)
+	if len(eventID) != 64 {
+		writeError(w, http.StatusBadRequest, "event ID must be 64 hex characters")
+		return
+	}
+	for _, c := range eventID {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			writeError(w, http.StatusBadRequest, "event ID must contain only hexadecimal characters")
+			return
+		}
+	}
+
+	// Query the event by ID
+	events, err := a.relayPool.QueryEventsByIDs([]string{eventID})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query event: %v", err))
+		return
+	}
+
+	if len(events) == 0 {
+		writeError(w, http.StatusNotFound, "event not found")
+		return
+	}
+
+	writeJSON(w, events[0])
+}
+
 // HandleEventPublish publishes a signed event to connected relays.
 // Request body can be either:
 // 1. A signed event JSON directly

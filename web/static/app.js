@@ -1376,6 +1376,23 @@ class Shirushi {
         document.getElementById('clear-diff-btn').addEventListener('click', () => {
             this.clearDiffInputs();
         });
+
+        // Event lookup handlers
+        document.getElementById('event-lookup-btn').addEventListener('click', () => {
+            this.lookupEvent();
+        });
+
+        document.getElementById('clear-lookup-btn').addEventListener('click', () => {
+            this.clearLookupInput();
+        });
+
+        // Allow Enter key in lookup input to trigger lookup
+        document.getElementById('event-lookup-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.lookupEvent();
+            }
+        });
     }
 
     async loadEvents() {
@@ -2353,6 +2370,215 @@ class Shirushi {
         const resultDiv = document.getElementById('verify-result');
         resultDiv.classList.add('hidden');
         resultDiv.classList.remove('valid', 'invalid');
+    }
+
+    /**
+     * Lookup an event by ID (hex or note1.../nevent1... format)
+     */
+    async lookupEvent() {
+        const input = document.getElementById('event-lookup-input');
+        const lookupBtn = document.getElementById('event-lookup-btn');
+        const eventId = input.value.trim();
+
+        if (!eventId) {
+            this.toastError('Error', 'Please enter an event ID to lookup');
+            return;
+        }
+
+        // Validate format (should be hex or note1.../nevent1...)
+        const isHex = /^[0-9a-fA-F]{64}$/.test(eventId);
+        const isNote = eventId.startsWith('note1');
+        const isNevent = eventId.startsWith('nevent1');
+
+        if (!isHex && !isNote && !isNevent) {
+            this.toastError('Error', 'Invalid format. Use 64-char hex, note1..., or nevent1...');
+            return;
+        }
+
+        // Disable button during lookup
+        lookupBtn.disabled = true;
+        lookupBtn.textContent = 'Looking up...';
+
+        try {
+            const response = await fetch(`/api/events/lookup?id=${encodeURIComponent(eventId)}`);
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Failed to lookup event' }));
+                throw new Error(error.error || 'Failed to lookup event');
+            }
+
+            const event = await response.json();
+            this.showLookupResult(event);
+            this.toastSuccess('Found', 'Event found successfully');
+        } catch (error) {
+            console.error('Lookup error:', error);
+            this.showLookupError(error.message);
+            this.toastError('Error', error.message);
+        } finally {
+            lookupBtn.disabled = false;
+            lookupBtn.textContent = 'Lookup';
+        }
+    }
+
+    /**
+     * Display the lookup result
+     * @param {Object} event - The event object
+     */
+    showLookupResult(event) {
+        const resultDiv = document.getElementById('lookup-result');
+        const resultContent = resultDiv.querySelector('.lookup-result-content');
+
+        const truncate = (str, len = 32) => {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len / 2) + '...' + str.substring(str.length - len / 2) : str;
+        };
+
+        const getKindDescription = (kind) => {
+            const kindDescriptions = {
+                0: 'Metadata (Profile)',
+                1: 'Short Text Note',
+                2: 'Recommend Relay',
+                3: 'Follow List',
+                4: 'Encrypted Direct Message',
+                5: 'Event Deletion',
+                6: 'Repost',
+                7: 'Reaction',
+                8: 'Badge Award',
+                40: 'Channel Creation',
+                41: 'Channel Metadata',
+                42: 'Channel Message',
+                43: 'Channel Hide Message',
+                44: 'Channel Mute User',
+                1984: 'Report',
+                9734: 'Zap Request',
+                9735: 'Zap Receipt',
+                10000: 'Mute List',
+                10001: 'Pin List',
+                10002: 'Relay List Metadata',
+                30000: 'Categorized People List',
+                30001: 'Categorized Bookmark List',
+                30023: 'Long-form Content',
+                30078: 'Application-specific Data'
+            };
+            return kindDescriptions[kind] || 'Unknown';
+        };
+
+        const formatTimestamp = (timestamp) => {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString();
+        };
+
+        const renderTags = (tags) => {
+            if (!tags || tags.length === 0) {
+                return '<span class="lookup-empty">No tags</span>';
+            }
+            return tags.slice(0, 5).map((tag, index) => {
+                const tagName = tag[0] || '';
+                const tagValue = tag[1] || '';
+                return `<div class="lookup-tag"><span class="lookup-tag-name">${this.escapeHtml(tagName)}</span><span class="lookup-tag-value">${this.escapeHtml(truncate(tagValue, 24))}</span></div>`;
+            }).join('') + (tags.length > 5 ? `<div class="lookup-tag-more">+${tags.length - 5} more tags</div>` : '');
+        };
+
+        const html = `
+            <div class="lookup-result-header">
+                <span class="lookup-result-icon success">&#10003;</span>
+                <span class="lookup-result-title">Event Found</span>
+            </div>
+            <div class="lookup-result-details">
+                <div class="lookup-detail-row">
+                    <span class="lookup-detail-label">Event ID:</span>
+                    <span class="lookup-detail-value monospace" title="${this.escapeHtml(event.id)}">${this.escapeHtml(truncate(event.id, 32))}</span>
+                    <button class="btn small copy-btn" onclick="app.copyToClipboard('${this.escapeHtml(event.id)}')">Copy</button>
+                </div>
+                <div class="lookup-detail-row">
+                    <span class="lookup-detail-label">Kind:</span>
+                    <span class="lookup-detail-value">${event.kind} - ${getKindDescription(event.kind)}</span>
+                </div>
+                <div class="lookup-detail-row">
+                    <span class="lookup-detail-label">Author:</span>
+                    <span class="lookup-detail-value monospace" title="${this.escapeHtml(event.pubkey)}">${this.escapeHtml(truncate(event.pubkey, 32))}</span>
+                    <button class="btn small" onclick="app.viewProfile('${this.escapeHtml(event.pubkey)}')">View Profile</button>
+                </div>
+                <div class="lookup-detail-row">
+                    <span class="lookup-detail-label">Created:</span>
+                    <span class="lookup-detail-value">${formatTimestamp(event.created_at)}</span>
+                </div>
+                <div class="lookup-detail-row">
+                    <span class="lookup-detail-label">Content:</span>
+                    <span class="lookup-detail-value lookup-content">${this.escapeHtml(event.content.substring(0, 200))}${event.content.length > 200 ? '...' : ''}</span>
+                </div>
+                <div class="lookup-detail-row">
+                    <span class="lookup-detail-label">Tags:</span>
+                    <div class="lookup-detail-tags">${renderTags(event.tags)}</div>
+                </div>
+            </div>
+            <div class="lookup-result-actions">
+                <button class="btn primary" onclick="app.showEventJsonFromLookup('${this.escapeHtml(event.id)}')">View Raw JSON</button>
+                <button class="btn" onclick="app.copyEventToVerify('${this.escapeHtml(event.id)}')">Copy to Verify</button>
+            </div>
+        `;
+
+        // Store the event for later use
+        this.lastLookupEvent = event;
+
+        resultDiv.classList.remove('hidden', 'error');
+        resultDiv.classList.add('success');
+        resultContent.innerHTML = html;
+    }
+
+    /**
+     * Display a lookup error
+     * @param {string} message - The error message
+     */
+    showLookupError(message) {
+        const resultDiv = document.getElementById('lookup-result');
+        const resultContent = resultDiv.querySelector('.lookup-result-content');
+
+        const html = `
+            <div class="lookup-result-header">
+                <span class="lookup-result-icon error">&#10007;</span>
+                <span class="lookup-result-title">Lookup Failed</span>
+            </div>
+            <div class="lookup-result-details">
+                <span class="lookup-error-message">${this.escapeHtml(message)}</span>
+            </div>
+        `;
+
+        resultDiv.classList.remove('hidden', 'success');
+        resultDiv.classList.add('error');
+        resultContent.innerHTML = html;
+    }
+
+    /**
+     * Clear the lookup input and result
+     */
+    clearLookupInput() {
+        document.getElementById('event-lookup-input').value = '';
+        const resultDiv = document.getElementById('lookup-result');
+        resultDiv.classList.add('hidden');
+        resultDiv.classList.remove('success', 'error');
+        this.lastLookupEvent = null;
+    }
+
+    /**
+     * Show raw JSON for the looked up event
+     * @param {string} eventId - The event ID
+     */
+    showEventJsonFromLookup(eventId) {
+        if (this.lastLookupEvent && this.lastLookupEvent.id === eventId) {
+            this.showModal('Raw Event JSON', `<pre class="event-json">${this.escapeHtml(JSON.stringify(this.lastLookupEvent, null, 2))}</pre>`);
+        }
+    }
+
+    /**
+     * Copy the looked up event to the verify textarea
+     * @param {string} eventId - The event ID
+     */
+    copyEventToVerify(eventId) {
+        if (this.lastLookupEvent && this.lastLookupEvent.id === eventId) {
+            document.getElementById('verify-event-input').value = JSON.stringify(this.lastLookupEvent, null, 2);
+            this.toastSuccess('Copied', 'Event copied to Verify section');
+        }
     }
 
     /**

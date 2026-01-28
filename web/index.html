@@ -326,6 +326,20 @@
         <!-- Events Tab -->
         <section id="events-tab" class="tab-content">
             <div class="panel">
+                <h2>Lookup Event</h2>
+                <p class="hint">Fetch an event by its ID (64-character hex or note1... / nevent1... format)</p>
+                <div class="lookup-section">
+                    <div class="lookup-input-row">
+                        <input type="text" id="event-lookup-input" class="form-input" placeholder="Event ID (hex or note1... / nevent1...)">
+                        <button id="event-lookup-btn" class="btn primary">Lookup</button>
+                        <button id="clear-lookup-btn" class="btn">Clear</button>
+                    </div>
+                    <div id="lookup-result" class="lookup-result hidden">
+                        <div class="lookup-result-content"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
                 <h2>Verify Event Signature</h2>
                 <p class="hint">Paste a signed Nostr event JSON to verify its cryptographic signature</p>
                 <div class="verify-section">

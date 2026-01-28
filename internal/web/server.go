@@ -95,6 +95,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/events/sign", s.api.HandleEventSign)
 	mux.HandleFunc("/api/events/verify", s.api.HandleEventVerify)
 	mux.HandleFunc("/api/events/publish", s.api.HandleEventPublish)
+	mux.HandleFunc("/api/events/lookup", s.api.HandleEventLookup)
 
 	// WebSocket
 	mux.HandleFunc("/ws", s.handleWebSocket)
