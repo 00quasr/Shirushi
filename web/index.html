@@ -564,6 +564,85 @@
                     <button id="run-nak-btn" class="btn primary">Run</button>
                 </div>
             </div>
+            <div class="panel command-reference-panel">
+                <button class="command-reference-toggle" id="command-reference-toggle" aria-expanded="false" aria-controls="command-reference-content">
+                    <span class="command-reference-toggle-icon">&#9654;</span>
+                    <span class="command-reference-toggle-label">Command Reference</span>
+                </button>
+                <div class="command-reference-content" id="command-reference-content" hidden>
+                    <div class="command-reference-section">
+                        <h4>Key Management</h4>
+                        <div class="command-item" data-command="key generate">
+                            <code class="command-code">key generate</code>
+                            <span class="command-desc">Generate a new keypair</span>
+                        </div>
+                        <div class="command-item" data-command="key public">
+                            <code class="command-code">key public</code>
+                            <span class="command-desc">Derive public key from private key (requires stdin)</span>
+                        </div>
+                    </div>
+                    <div class="command-reference-section">
+                        <h4>Encoding/Decoding</h4>
+                        <div class="command-item" data-command="decode npub1...">
+                            <code class="command-code">decode &lt;npub|nsec|note&gt;</code>
+                            <span class="command-desc">Decode bech32-encoded entities</span>
+                        </div>
+                        <div class="command-item" data-command="encode npub <hex>">
+                            <code class="command-code">encode npub &lt;hex&gt;</code>
+                            <span class="command-desc">Encode hex to npub format</span>
+                        </div>
+                        <div class="command-item" data-command="encode nsec <hex>">
+                            <code class="command-code">encode nsec &lt;hex&gt;</code>
+                            <span class="command-desc">Encode hex to nsec format</span>
+                        </div>
+                        <div class="command-item" data-command="encode note <hex>">
+                            <code class="command-code">encode note &lt;hex&gt;</code>
+                            <span class="command-desc">Encode event ID to note format</span>
+                        </div>
+                    </div>
+                    <div class="command-reference-section">
+                        <h4>Event Operations</h4>
+                        <div class="command-item" data-command="event --content 'Hello Nostr!'">
+                            <code class="command-code">event --content &lt;text&gt;</code>
+                            <span class="command-desc">Create an unsigned event (kind 1)</span>
+                        </div>
+                        <div class="command-item" data-command="event --kind 0 --content '{}'">
+                            <code class="command-code">event --kind &lt;n&gt;</code>
+                            <span class="command-desc">Create event with specific kind</span>
+                        </div>
+                        <div class="command-item" data-command="verify">
+                            <code class="command-code">verify</code>
+                            <span class="command-desc">Verify event signature (requires stdin)</span>
+                        </div>
+                    </div>
+                    <div class="command-reference-section">
+                        <h4>Relay Operations</h4>
+                        <div class="command-item" data-command="req -k 1 -l 5 wss://relay.damus.io">
+                            <code class="command-code">req -k &lt;kind&gt; -l &lt;limit&gt; &lt;relay&gt;</code>
+                            <span class="command-desc">Query events from relay</span>
+                        </div>
+                        <div class="command-item" data-command="req -a <pubkey> -l 10 wss://relay.damus.io">
+                            <code class="command-code">req -a &lt;pubkey&gt;</code>
+                            <span class="command-desc">Query events by author</span>
+                        </div>
+                        <div class="command-item" data-command="fetch nevent1...">
+                            <code class="command-code">fetch &lt;nevent|nprofile&gt;</code>
+                            <span class="command-desc">Fetch event by nevent or nprofile</span>
+                        </div>
+                    </div>
+                    <div class="command-reference-section">
+                        <h4>Utility</h4>
+                        <div class="command-item" data-command="--help">
+                            <code class="command-code">--help</code>
+                            <span class="command-desc">Show all available commands</span>
+                        </div>
+                        <div class="command-item" data-command="bunker">
+                            <code class="command-code">bunker</code>
+                            <span class="command-desc">NIP-46 remote signer operations</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="panel console-output">
                 <div class="console-output-header">
                     <h3>Output</h3>

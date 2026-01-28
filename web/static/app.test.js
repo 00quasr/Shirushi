@@ -8879,6 +8879,114 @@
         });
     });
 
+    describe('Command Reference Panel', () => {
+        function getApp() {
+            return window.app || app;
+        }
+
+        it('command reference toggle should exist in console tab', () => {
+            const toggle = document.getElementById('command-reference-toggle');
+            assertDefined(toggle, 'Command reference toggle button should exist');
+            assertEqual(toggle.getAttribute('aria-expanded'), 'false', 'Toggle should be collapsed initially');
+        });
+
+        it('command reference content should exist and be hidden initially', () => {
+            const content = document.getElementById('command-reference-content');
+            assertDefined(content, 'Command reference content should exist');
+            assertTrue(content.hidden, 'Content should be hidden initially');
+        });
+
+        it('setupCommandReference method should exist on Shirushi class', () => {
+            const appInstance = getApp();
+            assertDefined(appInstance.setupCommandReference, 'setupCommandReference method should exist');
+            assertEqual(typeof appInstance.setupCommandReference, 'function', 'setupCommandReference should be a function');
+        });
+
+        it('clicking toggle should expand command reference', () => {
+            const toggle = document.getElementById('command-reference-toggle');
+            const content = document.getElementById('command-reference-content');
+
+            // Click to expand
+            toggle.click();
+            assertTrue(toggle.classList.contains('expanded'), 'Toggle should have expanded class');
+            assertEqual(toggle.getAttribute('aria-expanded'), 'true', 'aria-expanded should be true');
+            assertFalse(content.hidden, 'Content should be visible');
+
+            // Click to collapse
+            toggle.click();
+            assertFalse(toggle.classList.contains('expanded'), 'Toggle should not have expanded class');
+            assertEqual(toggle.getAttribute('aria-expanded'), 'false', 'aria-expanded should be false');
+            assertTrue(content.hidden, 'Content should be hidden');
+        });
+
+        it('command reference should contain command items', () => {
+            const content = document.getElementById('command-reference-content');
+            const commandItems = content.querySelectorAll('.command-item');
+            assertTrue(commandItems.length > 0, 'Should have at least one command item');
+        });
+
+        it('command items should have data-command attribute', () => {
+            const content = document.getElementById('command-reference-content');
+            const commandItems = content.querySelectorAll('.command-item');
+            commandItems.forEach(item => {
+                const command = item.dataset.command;
+                assertDefined(command, 'Each command item should have a data-command attribute');
+                assertTrue(command.length > 0, 'data-command should not be empty');
+            });
+        });
+
+        it('clicking command item should populate input', () => {
+            const content = document.getElementById('command-reference-content');
+            const input = document.getElementById('nak-command');
+            const firstCommandItem = content.querySelector('.command-item');
+
+            // Clear input first
+            input.value = '';
+
+            // Expand content first
+            const toggle = document.getElementById('command-reference-toggle');
+            if (content.hidden) {
+                toggle.click();
+            }
+
+            // Click command item
+            firstCommandItem.click();
+
+            const expectedCommand = firstCommandItem.dataset.command;
+            assertEqual(input.value, expectedCommand, 'Input should contain the clicked command');
+
+            // Collapse back
+            if (!content.hidden) {
+                toggle.click();
+            }
+        });
+
+        it('command reference should have section headers', () => {
+            const content = document.getElementById('command-reference-content');
+            const sections = content.querySelectorAll('.command-reference-section');
+            assertTrue(sections.length > 0, 'Should have at least one section');
+
+            sections.forEach(section => {
+                const header = section.querySelector('h4');
+                assertDefined(header, 'Each section should have a header');
+                assertTrue(header.textContent.length > 0, 'Section header should have text');
+            });
+        });
+
+        it('command items should have code and description', () => {
+            const content = document.getElementById('command-reference-content');
+            const firstCommandItem = content.querySelector('.command-item');
+
+            const code = firstCommandItem.querySelector('.command-code');
+            const desc = firstCommandItem.querySelector('.command-desc');
+
+            assertDefined(code, 'Command item should have code element');
+            assertDefined(desc, 'Command item should have description element');
+            assertTrue(code.textContent.length > 0, 'Code should have content');
+            assertTrue(desc.textContent.length > 0, 'Description should have content');
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

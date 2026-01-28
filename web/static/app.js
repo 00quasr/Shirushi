@@ -2916,6 +2916,37 @@ class Shirushi {
                 this.navigateHistory(1);
             }
         });
+
+        this.setupCommandReference();
+    }
+
+    setupCommandReference() {
+        const toggle = document.getElementById('command-reference-toggle');
+        const content = document.getElementById('command-reference-content');
+        const input = document.getElementById('nak-command');
+
+        if (!toggle || !content) return;
+
+        // Toggle expand/collapse
+        toggle.addEventListener('click', () => {
+            const isExpanded = toggle.classList.contains('expanded');
+            toggle.classList.toggle('expanded', !isExpanded);
+            toggle.setAttribute('aria-expanded', !isExpanded);
+            content.hidden = isExpanded;
+        });
+
+        // Click on command items to populate input
+        content.addEventListener('click', (e) => {
+            const commandItem = e.target.closest('.command-item');
+            if (commandItem) {
+                const command = commandItem.dataset.command;
+                if (command) {
+                    input.value = command;
+                    input.focus();
+                    this.showToast(`Command loaded: nak ${command}`, 'info');
+                }
+            }
+        });
     }
 
     async runNakCommand() {

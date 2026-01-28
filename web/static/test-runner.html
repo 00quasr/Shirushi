@@ -119,6 +119,29 @@
         <button id="run-nak-btn"></button>
         <button id="copy-nak-output" class="btn small copy-btn" disabled>Copy Output</button>
         <pre id="nak-output"></pre>
+        <!-- Command Reference Panel -->
+        <div class="panel command-reference-panel">
+            <button class="command-reference-toggle" id="command-reference-toggle" aria-expanded="false" aria-controls="command-reference-content">
+                <span class="command-reference-toggle-icon">&#9654;</span>
+                <span class="command-reference-toggle-label">Command Reference</span>
+            </button>
+            <div class="command-reference-content" id="command-reference-content" hidden>
+                <div class="command-reference-section">
+                    <h4>Key Management</h4>
+                    <div class="command-item" data-command="key generate">
+                        <code class="command-code">key generate</code>
+                        <span class="command-desc">Generate a new keypair</span>
+                    </div>
+                </div>
+                <div class="command-reference-section">
+                    <h4>Encoding/Decoding</h4>
+                    <div class="command-item" data-command="decode npub1...">
+                        <code class="command-code">decode &lt;npub|nsec|note&gt;</code>
+                        <span class="command-desc">Decode bech32-encoded entities</span>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="command-history"></div>
         <div id="test-form"></div>
         <div id="test-results"></div>
