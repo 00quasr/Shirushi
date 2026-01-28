@@ -3,6 +3,11 @@
 A **web-based Nostr protocol testing and monitoring tool** built in Go. Explore profiles, monitor relay performance with real-time charts, test NIP implementations, and interact with the Nostr network through an intuitive dashboard.
 
 ## Features
+<img width="2940" height="1960" alt="Screenshot 2026-01-28 at 15-16-22 Shirushi - Nostr Protocol Explorer" src="https://github.com/user-attachments/assets/e77ed54c-9698-41d2-b8d6-113ce04e7f64" />
+<img width="2940" height="5518" alt="Screenshot 2026-01-28 at 15-19-56 Shirushi - Nostr Protocol Explorer" src="https://github.com/user-attachments/assets/c2d986cf-bb00-4771-a11c-3ea0711a942d" />
+<img width="2940" height="3022" alt="Screenshot 2026-01-28 at 15-20-30 Shirushi - Nostr Protocol Explorer" src="https://github.com/user-attachments/assets/8591037c-f65c-441f-ba6b-cf512deca772" />
+<img width="2940" height="2658" alt="Screenshot 2026-01-28 at 15-20-39 Shirushi - Nostr Protocol Explorer" src="https://github.com/user-attachments/assets/58d8e75b-8da2-4468-9492-2f803c072ef2" />
+
 
 ### Core Features
 - **Profile Explorer** - Browse Nostr profiles by npub or NIP-05 address with beautiful profile cards, avatars, banners, and verification badges
