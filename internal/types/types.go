@@ -9,6 +9,7 @@ type Event struct {
 	Content   string     `json:"content"`
 	CreatedAt int64      `json:"created_at"`
 	Tags      [][]string `json:"tags"`
+	Sig       string     `json:"sig,omitempty"`
 	Relay     string     `json:"relay,omitempty"`
 }
 

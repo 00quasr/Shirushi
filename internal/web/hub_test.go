@@ -214,7 +214,7 @@ func TestHub_EventsBatchMessageFormat(t *testing.T) {
 
 	// Parse to verify structure
 	var parsed struct {
-		Type string         `json:"type"`
+		Type string        `json:"type"`
 		Data []types.Event `json:"data"`
 	}
 

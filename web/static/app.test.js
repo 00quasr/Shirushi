@@ -7261,6 +7261,93 @@
             app.events = [];
         });
 
+        it('should include signature-section class for highlighting', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-sig-highlight',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [],
+                sig: 'abc123signature456xyz'
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-sig-highlight');
+
+            assertTrue(modalOptions.body.includes('signature-section'), 'Modal should have signature-section class');
+            assertTrue(modalOptions.body.includes('data-event-id="test-sig-highlight"'), 'Signature section should have data-event-id attribute');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should include signature status indicator with pending state initially', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-sig-status',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [],
+                sig: 'abc123signature456xyz'
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-sig-status');
+
+            assertTrue(modalOptions.body.includes('signature-status'), 'Modal should have signature-status span');
+            assertTrue(modalOptions.body.includes('data-status="pending"'), 'Status should initially be pending');
+            assertTrue(modalOptions.body.includes('Verifying...'), 'Should show Verifying... text initially');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
+        it('should include signature-value class for the signature field', () => {
+            setupToastTests();
+            const testEvent = {
+                id: 'test-sig-value-class',
+                kind: 1,
+                pubkey: 'testpubkey',
+                content: 'Test',
+                created_at: 1700000000,
+                tags: [],
+                sig: 'abc123signature456xyz'
+            };
+            app.events = [testEvent];
+
+            let modalOptions = null;
+            const originalShowModal = app.showModal.bind(app);
+            app.showModal = function(options) {
+                modalOptions = options;
+                return Promise.resolve(null);
+            };
+
+            app.showEventDetails('test-sig-value-class');
+
+            assertTrue(modalOptions.body.includes('signature-value'), 'Signature field should have signature-value class');
+
+            app.showModal = originalShowModal;
+            app.events = [];
+        });
+
         it('should show kind descriptions for various event types', () => {
             setupToastTests();
             const kinds = [
@@ -11098,6 +11185,249 @@
             });
 
             cleanupVerifyTestDOM();
+        });
+    });
+
+    // Signature Verification in Modal Tests
+    describe('verifyEventSignatureInModal', () => {
+        let modalContainer;
+
+        function setupModalVerifyTestDOM() {
+            modalContainer = document.createElement('div');
+            modalContainer.innerHTML = `
+                <div class="signature-section" data-event-id="test-modal-verify-123">
+                    <h4 class="event-detail-section-title">
+                        Signature
+                        <span class="signature-status" data-status="pending">
+                            <span class="signature-status-icon">⏳</span>
+                            <span class="signature-status-text">Verifying...</span>
+                        </span>
+                    </h4>
+                    <div class="event-detail-row">
+                        <span class="event-detail-label">Signature:</span>
+                        <span class="event-detail-value monospace signature-value">abc123signature</span>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalContainer);
+        }
+
+        function cleanupModalVerifyTestDOM() {
+            if (modalContainer && modalContainer.parentNode) {
+                modalContainer.parentNode.removeChild(modalContainer);
+            }
+        }
+
+        it('should have verifyEventSignatureInModal method', () => {
+            assertDefined(Shirushi.prototype.verifyEventSignatureInModal, 'verifyEventSignatureInModal method should exist');
+        });
+
+        it('should update status to valid when signature is valid', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const statusSpan = modalContainer.querySelector('.signature-status');
+            const statusIcon = modalContainer.querySelector('.signature-status-icon');
+            const statusText = modalContainer.querySelector('.signature-status-text');
+            const signatureSection = modalContainer.querySelector('.signature-section');
+            const signatureValue = modalContainer.querySelector('.signature-value');
+
+            assertEqual(statusSpan.getAttribute('data-status'), 'valid', 'Status should be valid');
+            assertEqual(statusIcon.textContent, '✓', 'Icon should be checkmark');
+            assertEqual(statusText.textContent, 'Valid', 'Text should say Valid');
+            assertTrue(signatureSection.classList.contains('signature-valid'), 'Section should have signature-valid class');
+            assertTrue(signatureValue.classList.contains('signature-verified'), 'Value should have signature-verified class');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should update status to invalid when signature is invalid', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                return {
+                    ok: true,
+                    json: async () => ({ valid: false, error: 'Invalid signature' })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'badsignature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const statusSpan = modalContainer.querySelector('.signature-status');
+            const statusIcon = modalContainer.querySelector('.signature-status-icon');
+            const statusText = modalContainer.querySelector('.signature-status-text');
+            const signatureSection = modalContainer.querySelector('.signature-section');
+            const signatureValue = modalContainer.querySelector('.signature-value');
+
+            assertEqual(statusSpan.getAttribute('data-status'), 'invalid', 'Status should be invalid');
+            assertEqual(statusIcon.textContent, '✗', 'Icon should be X');
+            assertEqual(statusText.textContent, 'Invalid signature', 'Text should show error message');
+            assertTrue(signatureSection.classList.contains('signature-invalid'), 'Section should have signature-invalid class');
+            assertTrue(signatureValue.classList.contains('signature-failed'), 'Value should have signature-failed class');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should handle network errors gracefully', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                throw new Error('Network error');
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            const statusSpan = modalContainer.querySelector('.signature-status');
+            const statusIcon = modalContainer.querySelector('.signature-status-icon');
+            const statusText = modalContainer.querySelector('.signature-status-text');
+            const signatureSection = modalContainer.querySelector('.signature-section');
+
+            assertEqual(statusSpan.getAttribute('data-status'), 'error', 'Status should be error');
+            assertEqual(statusIcon.textContent, '?', 'Icon should be question mark');
+            assertEqual(statusText.textContent, 'Verification failed', 'Text should indicate failure');
+            assertTrue(signatureSection.classList.contains('signature-error'), 'Section should have signature-error class');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
+        });
+
+        it('should exit gracefully when signature section not found', async function() {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            const testEvent = {
+                id: 'nonexistent-event-id',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'abc123signature'
+            };
+
+            // Should not throw an error
+            let errorThrown = false;
+            try {
+                await instance.verifyEventSignatureInModal(testEvent);
+            } catch (e) {
+                errorThrown = true;
+            }
+
+            assertFalse(errorThrown, 'Should not throw error when section not found');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should send correct event JSON to verify endpoint', async function() {
+            setupModalVerifyTestDOM();
+
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+
+            const instance = new Shirushi();
+
+            let capturedUrl = null;
+            let capturedBody = null;
+
+            const originalFetch = window.fetch;
+            window.fetch = async function(url, options) {
+                capturedUrl = url;
+                capturedBody = options.body;
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            const testEvent = {
+                id: 'test-modal-verify-123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['t', 'test']],
+                content: 'Test content',
+                sig: 'abc123signature'
+            };
+
+            await instance.verifyEventSignatureInModal(testEvent);
+
+            assertEqual(capturedUrl, '/api/events/verify', 'Should call verify endpoint');
+
+            const parsedBody = JSON.parse(capturedBody);
+            assertEqual(parsedBody.id, testEvent.id, 'Body should include event ID');
+            assertEqual(parsedBody.pubkey, testEvent.pubkey, 'Body should include pubkey');
+            assertEqual(parsedBody.created_at, testEvent.created_at, 'Body should include created_at');
+            assertEqual(parsedBody.kind, testEvent.kind, 'Body should include kind');
+            assertEqual(parsedBody.content, testEvent.content, 'Body should include content');
+            assertEqual(parsedBody.sig, testEvent.sig, 'Body should include signature');
+            assertTrue(Array.isArray(parsedBody.tags), 'Body should include tags as array');
+
+            window.fetch = originalFetch;
+            Shirushi.prototype.init = originalInit;
+            cleanupModalVerifyTestDOM();
         });
     });
 

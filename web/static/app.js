@@ -1561,11 +1561,17 @@ class Shirushi {
                 ` : ''}
 
                 ${event.sig ? `
-                <div class="event-detail-section">
-                    <h4 class="event-detail-section-title">Signature</h4>
+                <div class="event-detail-section signature-section" data-event-id="${this.escapeHtml(event.id)}">
+                    <h4 class="event-detail-section-title">
+                        Signature
+                        <span class="signature-status" data-status="pending">
+                            <span class="signature-status-icon">⏳</span>
+                            <span class="signature-status-text">Verifying...</span>
+                        </span>
+                    </h4>
                     <div class="event-detail-row">
                         <span class="event-detail-label">Signature:</span>
-                        <span class="event-detail-value monospace" title="${this.escapeHtml(event.sig)}">${this.escapeHtml(event.sig)}</span>
+                        <span class="event-detail-value monospace signature-value" title="${this.escapeHtml(event.sig)}">${this.escapeHtml(event.sig)}</span>
                         <button class="btn small copy-btn" data-copy-field="${this.escapeHtml(event.sig)}">Copy</button>
                     </div>
                 </div>
@@ -1607,7 +1613,66 @@ class Shirushi {
                         .catch(() => this.toastError('Error', 'Failed to copy to clipboard'));
                 });
             });
+
+            // Verify signature and update status
+            if (event.sig) {
+                this.verifyEventSignatureInModal(event);
+            }
         }, 50);
+    }
+
+    /**
+     * Verify event signature and update the modal UI
+     * @param {Object} event - The event to verify
+     */
+    async verifyEventSignatureInModal(event) {
+        const signatureSection = document.querySelector(`.signature-section[data-event-id="${event.id}"]`);
+        if (!signatureSection) return;
+
+        const statusSpan = signatureSection.querySelector('.signature-status');
+        const statusIcon = signatureSection.querySelector('.signature-status-icon');
+        const statusText = signatureSection.querySelector('.signature-status-text');
+        const signatureValue = signatureSection.querySelector('.signature-value');
+
+        try {
+            // Build the event JSON for verification
+            const eventJson = JSON.stringify({
+                id: event.id,
+                pubkey: event.pubkey,
+                created_at: event.created_at,
+                kind: event.kind,
+                tags: event.tags || [],
+                content: event.content || '',
+                sig: event.sig
+            });
+
+            const response = await fetch('/api/events/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: eventJson
+            });
+
+            const result = await response.json();
+
+            if (result.valid) {
+                statusSpan.setAttribute('data-status', 'valid');
+                statusIcon.textContent = '✓';
+                statusText.textContent = 'Valid';
+                signatureSection.classList.add('signature-valid');
+                signatureValue.classList.add('signature-verified');
+            } else {
+                statusSpan.setAttribute('data-status', 'invalid');
+                statusIcon.textContent = '✗';
+                statusText.textContent = result.error || 'Invalid';
+                signatureSection.classList.add('signature-invalid');
+                signatureValue.classList.add('signature-failed');
+            }
+        } catch (err) {
+            statusSpan.setAttribute('data-status', 'error');
+            statusIcon.textContent = '?';
+            statusText.textContent = 'Verification failed';
+            signatureSection.classList.add('signature-error');
+        }
     }
 
     /**

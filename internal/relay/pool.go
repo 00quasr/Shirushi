@@ -318,6 +318,7 @@ func (p *Pool) QueryEvents(kindStr, author, limitStr string) ([]types.Event, err
 			Content:   ev.Event.Content,
 			CreatedAt: int64(ev.Event.CreatedAt),
 			Tags:      convertTags(ev.Event.Tags),
+			Sig:       ev.Event.Sig,
 			Relay:     ev.Relay.URL,
 		})
 	}
@@ -365,6 +366,7 @@ func (p *Pool) Subscribe(kinds []int, authors []string, callback func(types.Even
 				Content:   ev.Event.Content,
 				CreatedAt: int64(ev.Event.CreatedAt),
 				Tags:      convertTags(ev.Event.Tags),
+				Sig:       ev.Event.Sig,
 				Relay:     ev.Relay.URL,
 			})
 		}
@@ -411,6 +413,7 @@ func (p *Pool) QueryEventsByIDs(ids []string) ([]types.Event, error) {
 				Content:   ev.Event.Content,
 				CreatedAt: int64(ev.Event.CreatedAt),
 				Tags:      convertTags(ev.Event.Tags),
+				Sig:       ev.Event.Sig,
 				Relay:     ev.Relay.URL,
 			})
 		}
@@ -452,6 +455,7 @@ func (p *Pool) QueryEventReplies(eventID string) ([]types.Event, error) {
 				Content:   ev.Event.Content,
 				CreatedAt: int64(ev.Event.CreatedAt),
 				Tags:      convertTags(ev.Event.Tags),
+				Sig:       ev.Event.Sig,
 				Relay:     ev.Relay.URL,
 			})
 		}
