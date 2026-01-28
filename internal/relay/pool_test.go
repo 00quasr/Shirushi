@@ -832,3 +832,152 @@ func TestNotifyRelayInfoWithLimitation(t *testing.T) {
 	}
 	mu.Unlock()
 }
+
+// Tests for GetRelayInfo
+
+func TestGetRelayInfo_ReturnsStoredInfo(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	expectedInfo := &types.RelayInfo{
+		Name:          "Test Relay",
+		Description:   "A test relay for NIP-11",
+		PubKey:        "abc123",
+		Contact:       "admin@test.com",
+		SupportedNIPs: []int{1, 2, 11, 22},
+		Software:      "test-relay-software",
+		Version:       "1.2.3",
+		Icon:          "https://example.com/icon.png",
+		Limitation: &types.RelayLimitation{
+			MaxMessageLength: 131072,
+			MaxSubscriptions: 20,
+			MaxLimit:         500,
+			MaxEventTags:     100,
+			MaxContentLength: 65535,
+			MinPOWDifficulty: 0,
+			AuthRequired:     false,
+			PaymentRequired:  false,
+		},
+	}
+
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+		Info:      expectedInfo,
+	}
+
+	info := pool.GetRelayInfo("wss://test.relay.com")
+
+	if info == nil {
+		t.Fatal("expected info to be non-nil")
+	}
+	if info.Name != "Test Relay" {
+		t.Errorf("expected Name 'Test Relay', got '%s'", info.Name)
+	}
+	if info.Description != "A test relay for NIP-11" {
+		t.Errorf("expected Description 'A test relay for NIP-11', got '%s'", info.Description)
+	}
+	if info.PubKey != "abc123" {
+		t.Errorf("expected PubKey 'abc123', got '%s'", info.PubKey)
+	}
+	if info.Contact != "admin@test.com" {
+		t.Errorf("expected Contact 'admin@test.com', got '%s'", info.Contact)
+	}
+	if len(info.SupportedNIPs) != 4 {
+		t.Errorf("expected 4 SupportedNIPs, got %d", len(info.SupportedNIPs))
+	}
+	if info.Software != "test-relay-software" {
+		t.Errorf("expected Software 'test-relay-software', got '%s'", info.Software)
+	}
+	if info.Version != "1.2.3" {
+		t.Errorf("expected Version '1.2.3', got '%s'", info.Version)
+	}
+	if info.Icon != "https://example.com/icon.png" {
+		t.Errorf("expected Icon 'https://example.com/icon.png', got '%s'", info.Icon)
+	}
+	if info.Limitation == nil {
+		t.Fatal("expected Limitation to be non-nil")
+	}
+	if info.Limitation.MaxMessageLength != 131072 {
+		t.Errorf("expected MaxMessageLength 131072, got %d", info.Limitation.MaxMessageLength)
+	}
+}
+
+func TestGetRelayInfo_ReturnsNilForUnknownRelay(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	info := pool.GetRelayInfo("wss://unknown.relay.com")
+
+	if info != nil {
+		t.Error("expected nil for unknown relay")
+	}
+}
+
+func TestGetRelayInfo_ReturnsNilWhenInfoNotFetched(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+		Info:      nil, // Info not yet fetched
+	}
+
+	info := pool.GetRelayInfo("wss://test.relay.com")
+
+	if info != nil {
+		t.Error("expected nil when relay info not yet fetched")
+	}
+}
+
+func TestGetRelayInfo_ConcurrentAccess(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	expectedInfo := &types.RelayInfo{
+		Name:          "Test Relay",
+		SupportedNIPs: []int{1, 11},
+	}
+
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+		Info:      expectedInfo,
+	}
+
+	// Access GetRelayInfo concurrently
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			info := pool.GetRelayInfo("wss://test.relay.com")
+			if info == nil {
+				t.Error("expected info to be non-nil")
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// Tests for RefreshRelayInfo
+
+func TestRefreshRelayInfo_RelayNotFound(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	err := pool.RefreshRelayInfo("wss://unknown.relay.com")
+
+	if err == nil {
+		t.Error("expected error for unknown relay")
+	}
+	if err.Error() != "relay not found: wss://unknown.relay.com" {
+		t.Errorf("expected error 'relay not found: wss://unknown.relay.com', got '%s'", err.Error())
+	}
+}

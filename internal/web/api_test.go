@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -87,14 +88,15 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
-	events           []types.Event
-	eventsByID       map[string]types.Event
-	repliesMap       map[string][]types.Event
-	err              error
-	monitoringData   *types.MonitoringData
-	relayList        []types.RelayStatus
-	relayInfoMap     map[string]*types.RelayInfo
-	statusCallback   func(url string, connected bool, err string)
+	events            []types.Event
+	eventsByID        map[string]types.Event
+	repliesMap        map[string][]types.Event
+	err               error
+	refreshInfoErr    error
+	monitoringData    *types.MonitoringData
+	relayList         []types.RelayStatus
+	relayInfoMap      map[string]*types.RelayInfo
+	statusCallback    func(url string, connected bool, err string)
 	relayInfoCallback func(url string, info *types.RelayInfo)
 }
 
@@ -145,7 +147,7 @@ func (m *mockRelayPool) GetRelayInfo(url string) *types.RelayInfo {
 	return nil
 }
 func (m *mockRelayPool) RefreshRelayInfo(url string) error {
-	return nil
+	return m.refreshInfoErr
 }
 func (m *mockRelayPool) SetStatusCallback(callback func(url string, connected bool, err string)) {
 	m.statusCallback = callback
@@ -2232,6 +2234,64 @@ func TestHandleRelayInfo_MinimalInfo(t *testing.T) {
 	}
 	if info.Limitation != nil {
 		t.Error("expected nil limitation")
+	}
+}
+
+func TestHandleRelayInfo_POSTRefreshError(t *testing.T) {
+	pool := &mockRelayPool{
+		refreshInfoErr: fmt.Errorf("failed to fetch NIP-11 info: connection timeout"),
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/relays/info?url=wss://failing.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["error"] != "failed to fetch NIP-11 info: connection timeout" {
+		t.Errorf("expected error about connection timeout, got '%s'", resp["error"])
+	}
+}
+
+func TestHandleRelayInfo_WithIcon(t *testing.T) {
+	pool := &mockRelayPool{
+		relayInfoMap: map[string]*types.RelayInfo{
+			"wss://icon.relay.com": {
+				Name:          "Icon Relay",
+				Description:   "Relay with an icon",
+				Icon:          "https://example.com/relay-icon.png",
+				SupportedNIPs: []int{1, 11},
+			},
+		},
+	}
+
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/relays/info?url=wss://icon.relay.com", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleRelayInfo(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var info types.RelayInfo
+	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if info.Icon != "https://example.com/relay-icon.png" {
+		t.Errorf("expected icon 'https://example.com/relay-icon.png', got '%s'", info.Icon)
 	}
 }
 
