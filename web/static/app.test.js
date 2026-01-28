@@ -8922,6 +8922,164 @@
         });
     });
 
+    // Tests for WebSocket onopen calling subscribeToEvents
+    describe('WebSocket onopen subscribeToEvents integration', () => {
+        it('should call subscribeToEvents when WebSocket opens', () => {
+            // Create mock WebSocket
+            let onOpenHandler = null;
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 0; // CONNECTING
+            };
+            MockWebSocket.prototype.close = function() {};
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                const ws = new MockWebSocket(url);
+                // Capture the onopen handler when it's set
+                Object.defineProperty(ws, 'onopen', {
+                    set: function(handler) { onOpenHandler = handler; },
+                    get: function() { return onOpenHandler; }
+                });
+                return ws;
+            };
+
+            // Track if subscribeToEvents was called
+            let subscribeToEventsCalled = false;
+            const originalSubscribeToEvents = Shirushi.prototype.subscribeToEvents;
+            Shirushi.prototype.subscribeToEvents = function() {
+                subscribeToEventsCalled = true;
+                return Promise.resolve({ subscription_id: 'test_sub_123' });
+            };
+
+            // Create an instance with minimal setup
+            const instance = Object.create(Shirushi.prototype);
+            instance.setConnectionStatus = function() {};
+            instance.setupWebSocket();
+
+            // Simulate WebSocket open event
+            if (onOpenHandler) {
+                onOpenHandler();
+            }
+
+            assertTrue(subscribeToEventsCalled, 'subscribeToEvents should be called on WebSocket open');
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+            Shirushi.prototype.subscribeToEvents = originalSubscribeToEvents;
+        });
+
+        it('should handle subscribeToEvents error gracefully in onopen', async () => {
+            // Create mock WebSocket
+            let onOpenHandler = null;
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 0;
+            };
+            MockWebSocket.prototype.close = function() {};
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                const ws = new MockWebSocket(url);
+                Object.defineProperty(ws, 'onopen', {
+                    set: function(handler) { onOpenHandler = handler; },
+                    get: function() { return onOpenHandler; }
+                });
+                return ws;
+            };
+
+            // Track console.error calls
+            let consoleErrorCalled = false;
+            let consoleErrorMessage = '';
+            const originalConsoleError = console.error;
+            console.error = function(msg) {
+                consoleErrorCalled = true;
+                consoleErrorMessage = msg;
+            };
+
+            // Make subscribeToEvents reject
+            const originalSubscribeToEvents = Shirushi.prototype.subscribeToEvents;
+            Shirushi.prototype.subscribeToEvents = function() {
+                return Promise.reject(new Error('Test error'));
+            };
+
+            // Create instance
+            const instance = Object.create(Shirushi.prototype);
+            instance.setConnectionStatus = function() {};
+            instance.setupWebSocket();
+
+            // Simulate WebSocket open event
+            if (onOpenHandler) {
+                onOpenHandler();
+            }
+
+            // Wait for the promise rejection to be handled
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            assertTrue(consoleErrorCalled, 'console.error should be called when subscribeToEvents fails');
+            assertTrue(
+                consoleErrorMessage.includes('Failed to subscribe to events on connect'),
+                'Error message should indicate subscription failure'
+            );
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+            Shirushi.prototype.subscribeToEvents = originalSubscribeToEvents;
+            console.error = originalConsoleError;
+        });
+
+        it('should set connection status to true in onopen before subscribing', () => {
+            // Create mock WebSocket
+            let onOpenHandler = null;
+            const MockWebSocket = function(url) {
+                this.url = url;
+                this.readyState = 0;
+            };
+            MockWebSocket.prototype.close = function() {};
+
+            const originalWebSocket = window.WebSocket;
+            window.WebSocket = function(url) {
+                const ws = new MockWebSocket(url);
+                Object.defineProperty(ws, 'onopen', {
+                    set: function(handler) { onOpenHandler = handler; },
+                    get: function() { return onOpenHandler; }
+                });
+                return ws;
+            };
+
+            // Track call order
+            const callOrder = [];
+
+            const originalSubscribeToEvents = Shirushi.prototype.subscribeToEvents;
+            Shirushi.prototype.subscribeToEvents = function() {
+                callOrder.push('subscribeToEvents');
+                return Promise.resolve({ subscription_id: 'test_sub_123' });
+            };
+
+            // Create instance
+            const instance = Object.create(Shirushi.prototype);
+            instance.setConnectionStatus = function(status) {
+                if (status === true) {
+                    callOrder.push('setConnectionStatus(true)');
+                }
+            };
+            instance.setupWebSocket();
+
+            // Simulate WebSocket open event
+            if (onOpenHandler) {
+                onOpenHandler();
+            }
+
+            assertEqual(callOrder.length, 2, 'Both methods should be called');
+            assertEqual(callOrder[0], 'setConnectionStatus(true)', 'setConnectionStatus should be called first');
+            assertEqual(callOrder[1], 'subscribeToEvents', 'subscribeToEvents should be called second');
+
+            // Restore
+            window.WebSocket = originalWebSocket;
+            Shirushi.prototype.subscribeToEvents = originalSubscribeToEvents;
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

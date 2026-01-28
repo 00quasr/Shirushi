@@ -76,6 +76,9 @@ class Shirushi {
 
         this.ws.onopen = () => {
             this.setConnectionStatus(true);
+            this.subscribeToEvents().catch(err => {
+                console.error('Failed to subscribe to events on connect:', err);
+            });
         };
 
         this.ws.onclose = () => {
