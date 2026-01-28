@@ -1099,3 +1099,212 @@ func TestGetRelaysForQuery_SelectionWithUnknownRelay(t *testing.T) {
 		t.Errorf("expected 1 relay, got %d", len(result))
 	}
 }
+
+// Tests for aggregateEventData
+
+func TestAggregateEventData_Empty(t *testing.T) {
+	pool := &Pool{}
+	events := []types.Event{}
+
+	agg := pool.aggregateEventData(events, 50)
+
+	if agg.TotalEvents != 0 {
+		t.Errorf("expected TotalEvents 0, got %d", agg.TotalEvents)
+	}
+	if agg.UniqueAuthors != 0 {
+		t.Errorf("expected UniqueAuthors 0, got %d", agg.UniqueAuthors)
+	}
+	if len(agg.KindCounts) != 0 {
+		t.Errorf("expected 0 KindCounts, got %d", len(agg.KindCounts))
+	}
+	if agg.TotalTimeMs != 50 {
+		t.Errorf("expected TotalTimeMs 50, got %d", agg.TotalTimeMs)
+	}
+}
+
+func TestAggregateEventData_WithEvents(t *testing.T) {
+	pool := &Pool{}
+	events := []types.Event{
+		{ID: "1", Kind: 1, PubKey: "author1", Content: "Hello world", CreatedAt: 1700000000, Relay: "wss://relay1.com", Tags: [][]string{{"t", "nostr"}}},
+		{ID: "2", Kind: 1, PubKey: "author1", Content: "Another note", CreatedAt: 1700000100, Relay: "wss://relay1.com", Tags: [][]string{{"t", "nostr"}}},
+		{ID: "3", Kind: 7, PubKey: "author2", Content: "+", CreatedAt: 1700000200, Relay: "wss://relay2.com", Tags: [][]string{{"e", "event123"}}},
+		{ID: "4", Kind: 1, PubKey: "author3", Content: "", CreatedAt: 1700000300, Relay: "wss://relay1.com", Tags: [][]string{{"p", "pubkey456"}}},
+	}
+
+	agg := pool.aggregateEventData(events, 75)
+
+	// Check total events
+	if agg.TotalEvents != 4 {
+		t.Errorf("expected TotalEvents 4, got %d", agg.TotalEvents)
+	}
+
+	// Check unique authors
+	if agg.UniqueAuthors != 3 {
+		t.Errorf("expected UniqueAuthors 3, got %d", agg.UniqueAuthors)
+	}
+
+	// Check kind counts (should be sorted by count descending)
+	if len(agg.KindCounts) != 2 {
+		t.Errorf("expected 2 KindCounts, got %d", len(agg.KindCounts))
+	} else {
+		// Kind 1 should be first (3 events), then kind 7 (1 event)
+		if agg.KindCounts[0].Kind != 1 || agg.KindCounts[0].Count != 3 {
+			t.Errorf("expected first kind to be 1 with count 3, got kind %d with count %d", agg.KindCounts[0].Kind, agg.KindCounts[0].Count)
+		}
+		if agg.KindCounts[1].Kind != 7 || agg.KindCounts[1].Count != 1 {
+			t.Errorf("expected second kind to be 7 with count 1, got kind %d with count %d", agg.KindCounts[1].Kind, agg.KindCounts[1].Count)
+		}
+	}
+
+	// Check author counts (top 10, sorted by count)
+	if len(agg.AuthorCounts) != 3 {
+		t.Errorf("expected 3 AuthorCounts, got %d", len(agg.AuthorCounts))
+	}
+	if len(agg.AuthorCounts) > 0 && agg.AuthorCounts[0].PubKey != "author1" {
+		t.Errorf("expected first author to be 'author1', got '%s'", agg.AuthorCounts[0].PubKey)
+	}
+
+	// Check relay distribution
+	if len(agg.RelayDistrib) != 2 {
+		t.Errorf("expected 2 relay distributions, got %d", len(agg.RelayDistrib))
+	}
+
+	// Check content stats
+	if agg.ContentStats.EmptyCount != 1 {
+		t.Errorf("expected EmptyCount 1, got %d", agg.ContentStats.EmptyCount)
+	}
+	if agg.ContentStats.MinLength != 0 {
+		t.Errorf("expected MinLength 0, got %d", agg.ContentStats.MinLength)
+	}
+	if agg.ContentStats.MaxLength != 12 { // "Another note" has 12 chars
+		t.Errorf("expected MaxLength 12, got %d", agg.ContentStats.MaxLength)
+	}
+
+	// Check time range
+	if agg.EarliestEvent != 1700000000 {
+		t.Errorf("expected EarliestEvent 1700000000, got %d", agg.EarliestEvent)
+	}
+	if agg.LatestEvent != 1700000300 {
+		t.Errorf("expected LatestEvent 1700000300, got %d", agg.LatestEvent)
+	}
+
+	// Check tag counts
+	if len(agg.TagCounts) == 0 {
+		t.Error("expected non-empty TagCounts")
+	}
+	if tTags, ok := agg.TagCounts["t"]; ok {
+		if len(tTags) != 1 || tTags[0].Value != "nostr" || tTags[0].Count != 2 {
+			t.Errorf("expected tag 't' with value 'nostr' count 2, got %v", tTags)
+		}
+	} else {
+		t.Error("expected 't' tag in TagCounts")
+	}
+}
+
+func TestGetKindLabel(t *testing.T) {
+	testCases := []struct {
+		kind     int
+		expected string
+	}{
+		{0, "Metadata"},
+		{1, "Short Text Note"},
+		{3, "Contacts"},
+		{7, "Reaction"},
+		{9735, "Zap Receipt"},
+		{30023, "Long-form Content"},
+		{99999, "Kind 99999"}, // Unknown kind
+	}
+
+	for _, tc := range testCases {
+		result := getKindLabel(tc.kind)
+		if result != tc.expected {
+			t.Errorf("getKindLabel(%d): expected '%s', got '%s'", tc.kind, tc.expected, result)
+		}
+	}
+}
+
+func TestComputeTimeDistribution_Empty(t *testing.T) {
+	events := []types.Event{}
+	result := computeTimeDistribution(events, 0, 0)
+
+	if len(result) != 0 {
+		t.Errorf("expected 0 buckets for empty events, got %d", len(result))
+	}
+}
+
+func TestComputeTimeDistribution_SingleEvent(t *testing.T) {
+	events := []types.Event{
+		{ID: "1", CreatedAt: 1700000000},
+	}
+	// When earliest == latest, should return empty
+	result := computeTimeDistribution(events, 1700000000, 1700000000)
+
+	if len(result) != 0 {
+		t.Errorf("expected 0 buckets for single event, got %d", len(result))
+	}
+}
+
+func TestComputeTimeDistribution_ShortRange(t *testing.T) {
+	// Events within 1 hour - should use 10-minute buckets
+	events := []types.Event{
+		{ID: "1", CreatedAt: 1700000000},
+		{ID: "2", CreatedAt: 1700000600}, // +10 min
+		{ID: "3", CreatedAt: 1700001800}, // +30 min
+		{ID: "4", CreatedAt: 1700003000}, // +50 min
+	}
+	earliest := int64(1700000000)
+	latest := int64(1700003000)
+
+	result := computeTimeDistribution(events, earliest, latest)
+
+	if len(result) == 0 {
+		t.Error("expected non-empty time distribution")
+	}
+
+	// Verify first bucket starts at earliest time
+	if result[0].Timestamp != earliest {
+		t.Errorf("expected first bucket at %d, got %d", earliest, result[0].Timestamp)
+	}
+
+	// Verify at least one bucket has events
+	hasEvents := false
+	for _, bucket := range result {
+		if bucket.Count > 0 {
+			hasEvents = true
+			break
+		}
+	}
+	if !hasEvents {
+		t.Error("expected at least one bucket with events")
+	}
+}
+
+func TestSortHelpers(t *testing.T) {
+	// Test sortKindCounts
+	kinds := []types.KindCount{{Kind: 1, Count: 5}, {Kind: 7, Count: 10}, {Kind: 0, Count: 3}}
+	sortKindCounts(kinds)
+	if kinds[0].Count != 10 || kinds[1].Count != 5 || kinds[2].Count != 3 {
+		t.Error("sortKindCounts did not sort correctly")
+	}
+
+	// Test sortAuthorCounts
+	authors := []types.AuthorCount{{PubKey: "a", Count: 5}, {PubKey: "b", Count: 10}, {PubKey: "c", Count: 3}}
+	sortAuthorCounts(authors)
+	if authors[0].Count != 10 || authors[1].Count != 5 || authors[2].Count != 3 {
+		t.Error("sortAuthorCounts did not sort correctly")
+	}
+
+	// Test sortTagCounts
+	tags := []types.TagCount{{Value: "x", Count: 5}, {Value: "y", Count: 10}, {Value: "z", Count: 3}}
+	sortTagCounts(tags)
+	if tags[0].Count != 10 || tags[1].Count != 5 || tags[2].Count != 3 {
+		t.Error("sortTagCounts did not sort correctly")
+	}
+
+	// Test sortRelayCounts
+	relays := []types.RelayCount{{URL: "a", Count: 5}, {URL: "b", Count: 10}, {URL: "c", Count: 3}}
+	sortRelayCounts(relays)
+	if relays[0].Count != 10 || relays[1].Count != 5 || relays[2].Count != 3 {
+		t.Error("sortRelayCounts did not sort correctly")
+	}
+}

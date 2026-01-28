@@ -461,6 +461,7 @@ nevent1xyz..."></textarea>
                     </div>
                     <div class="query-builder-actions">
                         <button id="apply-filter-btn" class="btn primary">Query Events</button>
+                        <button id="aggregate-btn" class="btn">Aggregate Results</button>
                         <button id="clear-filter-btn" class="btn">Clear Filters</button>
                         <label class="query-builder-checkbox">
                             <input type="checkbox" id="show-timing">
@@ -482,6 +483,58 @@ nevent1xyz..."></textarea>
                     <span class="fetch-timing-total"></span>
                 </div>
                 <div class="fetch-timing-content"></div>
+            </div>
+            <div id="aggregation-panel" class="aggregation-panel hidden">
+                <div class="aggregation-header">
+                    <span class="aggregation-title">Query Results Aggregation</span>
+                    <button id="close-aggregation-btn" class="btn small">Close</button>
+                </div>
+                <div class="aggregation-content">
+                    <div class="aggregation-summary">
+                        <div class="agg-stat">
+                            <span class="agg-stat-value" id="agg-total-events">0</span>
+                            <span class="agg-stat-label">Total Events</span>
+                        </div>
+                        <div class="agg-stat">
+                            <span class="agg-stat-value" id="agg-unique-authors">0</span>
+                            <span class="agg-stat-label">Unique Authors</span>
+                        </div>
+                        <div class="agg-stat">
+                            <span class="agg-stat-value" id="agg-time-range">-</span>
+                            <span class="agg-stat-label">Time Range</span>
+                        </div>
+                        <div class="agg-stat">
+                            <span class="agg-stat-value" id="agg-query-time">0ms</span>
+                            <span class="agg-stat-label">Query Time</span>
+                        </div>
+                    </div>
+                    <div class="aggregation-grid">
+                        <div class="agg-section">
+                            <h4>Events by Kind</h4>
+                            <div id="agg-kind-counts" class="agg-list"></div>
+                        </div>
+                        <div class="agg-section">
+                            <h4>Top Authors</h4>
+                            <div id="agg-author-counts" class="agg-list"></div>
+                        </div>
+                        <div class="agg-section">
+                            <h4>Events by Relay</h4>
+                            <div id="agg-relay-counts" class="agg-list"></div>
+                        </div>
+                        <div class="agg-section">
+                            <h4>Content Statistics</h4>
+                            <div id="agg-content-stats" class="agg-stats-grid"></div>
+                        </div>
+                    </div>
+                    <div class="agg-section agg-section-full">
+                        <h4>Popular Tags</h4>
+                        <div id="agg-tag-counts" class="agg-tags-grid"></div>
+                    </div>
+                    <div class="agg-section agg-section-full">
+                        <h4>Time Distribution</h4>
+                        <div id="agg-time-chart" class="agg-time-chart"></div>
+                    </div>
+                </div>
             </div>
             <div id="event-list" class="event-stream">
                 <p class="hint">Waiting for events from connected relays...</p>

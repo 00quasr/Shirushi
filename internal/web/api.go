@@ -32,6 +32,7 @@ type RelayPool interface {
 	QueryBatchEventsByIDs(ids []string) *types.BatchQueryResponse
 	QueryEventReplies(eventID string) ([]types.Event, error)
 	QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelaysResponse
+	AggregateEvents(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) (*types.EventAggregation, error)
 	Subscribe(kinds []int, authors []string, callback func(types.Event)) string
 	MonitoringData() *types.MonitoringData
 	GetRelayInfo(url string) *types.RelayInfo
@@ -425,6 +426,46 @@ func (a *API) parseEventQueryParams(r *http.Request) (*EventQueryParams, error) 
 	}
 
 	return params, nil
+}
+
+// HandleEventsAggregate queries events and returns aggregated statistics.
+// Accepts the same query params as HandleEvents:
+// - kinds: comma-separated list of event kinds
+// - authors: comma-separated list of pubkeys
+// - tags: comma-separated tag filters in format "#tagname:value"
+// - limit: max number of events to aggregate (default 100, max 500)
+// - since: Unix timestamp for events created after this time
+// - until: Unix timestamp for events created before this time
+// - relays: comma-separated list of relay URLs to query from
+func (a *API) HandleEventsAggregate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Parse query parameters (reuse the same parsing logic)
+	params, err := a.parseEventQueryParams(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Default limit for aggregation is higher (100 instead of 20)
+	if params.Limit == 20 {
+		limitStr := r.URL.Query().Get("limit")
+		if limitStr == "" {
+			params.Limit = 100
+		}
+	}
+
+	// Query and aggregate events
+	aggregation, err := a.relayPool.AggregateEvents(params.Kinds, params.Authors, params.Tags, params.Limit, params.Since, params.Until, params.Relays...)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, aggregation)
 }
 
 // HandleEventSubscribe handles event subscription management.

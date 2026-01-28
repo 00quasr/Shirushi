@@ -311,3 +311,57 @@ type BatchQueryResponse struct {
 	TotalQueried int                `json:"total_queried"`
 	TotalTimeMs  int64              `json:"total_time_ms"`
 }
+
+// EventAggregation represents aggregated statistics for a set of events.
+type EventAggregation struct {
+	TotalEvents   int                   `json:"total_events"`
+	UniqueAuthors int                   `json:"unique_authors"`
+	KindCounts    []KindCount           `json:"kind_counts"`
+	AuthorCounts  []AuthorCount         `json:"author_counts"`
+	TagCounts     map[string][]TagCount `json:"tag_counts"`
+	RelayDistrib  []RelayCount          `json:"relay_distribution"`
+	TimeDistrib   []TimeBucket          `json:"time_distribution"`
+	ContentStats  ContentStats          `json:"content_stats"`
+	EarliestEvent int64                 `json:"earliest_event"`
+	LatestEvent   int64                 `json:"latest_event"`
+	TotalTimeMs   int64                 `json:"total_time_ms"`
+}
+
+// KindCount represents event count per kind.
+type KindCount struct {
+	Kind  int    `json:"kind"`
+	Count int    `json:"count"`
+	Label string `json:"label"`
+}
+
+// AuthorCount represents event count per author.
+type AuthorCount struct {
+	PubKey string `json:"pubkey"`
+	Count  int    `json:"count"`
+}
+
+// TagCount represents count of a specific tag value.
+type TagCount struct {
+	Value string `json:"value"`
+	Count int    `json:"count"`
+}
+
+// RelayCount represents event count per relay.
+type RelayCount struct {
+	URL   string `json:"url"`
+	Count int    `json:"count"`
+}
+
+// TimeBucket represents event count in a time bucket.
+type TimeBucket struct {
+	Timestamp int64 `json:"timestamp"`
+	Count     int   `json:"count"`
+}
+
+// ContentStats represents statistics about event content.
+type ContentStats struct {
+	AvgLength  int `json:"avg_length"`
+	MinLength  int `json:"min_length"`
+	MaxLength  int `json:"max_length"`
+	EmptyCount int `json:"empty_count"`
+}

@@ -1425,6 +1425,16 @@ class Shirushi {
         document.getElementById('events-select-connected-relays')?.addEventListener('click', () => {
             this.selectConnectedEventsRelays();
         });
+
+        // Aggregate button handler
+        document.getElementById('aggregate-btn')?.addEventListener('click', () => {
+            this.aggregateEvents();
+        });
+
+        // Close aggregation panel handler
+        document.getElementById('close-aggregation-btn')?.addEventListener('click', () => {
+            this.hideAggregation();
+        });
     }
 
     /**
@@ -1628,6 +1638,233 @@ class Shirushi {
         const panel = document.getElementById('fetch-timing-panel');
         if (panel) {
             panel.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Aggregate events and display statistics
+     */
+    async aggregateEvents() {
+        const btn = document.getElementById('aggregate-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Aggregating...';
+        }
+
+        try {
+            const params = this.buildQueryParams();
+            // Remove timing param for aggregation
+            params.delete('timing');
+            // Use higher default limit for aggregation
+            if (!params.has('limit')) {
+                params.set('limit', '100');
+            }
+
+            let url = '/api/events/aggregate';
+            const queryString = params.toString();
+            if (queryString) {
+                url += '?' + queryString;
+            }
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to aggregate events');
+            }
+
+            const data = await response.json();
+            this.renderAggregation(data);
+        } catch (error) {
+            console.error('Failed to aggregate events:', error);
+            this.toastError('Aggregation Failed', error.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Aggregate Results';
+            }
+        }
+    }
+
+    /**
+     * Render aggregation panel with statistics
+     * @param {Object} data - EventAggregation response
+     */
+    renderAggregation(data) {
+        const panel = document.getElementById('aggregation-panel');
+        if (!panel) return;
+
+        // Summary stats
+        document.getElementById('agg-total-events').textContent = data.total_events.toLocaleString();
+        document.getElementById('agg-unique-authors').textContent = data.unique_authors.toLocaleString();
+        document.getElementById('agg-query-time').textContent = `${data.total_time_ms}ms`;
+
+        // Time range
+        const timeRangeEl = document.getElementById('agg-time-range');
+        if (data.earliest_event && data.latest_event) {
+            const earliest = new Date(data.earliest_event * 1000);
+            const latest = new Date(data.latest_event * 1000);
+            const duration = this.formatDuration(data.latest_event - data.earliest_event);
+            timeRangeEl.textContent = duration;
+            timeRangeEl.title = `${earliest.toLocaleString()} - ${latest.toLocaleString()}`;
+        } else {
+            timeRangeEl.textContent = '-';
+            timeRangeEl.title = '';
+        }
+
+        // Kind counts
+        const kindCountsEl = document.getElementById('agg-kind-counts');
+        if (data.kind_counts && data.kind_counts.length > 0) {
+            const maxCount = Math.max(...data.kind_counts.map(k => k.count));
+            kindCountsEl.innerHTML = data.kind_counts.map(k => `
+                <div class="agg-list-item">
+                    <div class="agg-list-item-bar">
+                        <span class="agg-list-item-label">
+                            Kind ${k.kind}
+                            <span class="kind-label">${this.escapeHtml(k.label)}</span>
+                        </span>
+                    </div>
+                    <span class="agg-list-item-count">${k.count}</span>
+                </div>
+            `).join('');
+        } else {
+            kindCountsEl.innerHTML = '<div class="agg-empty">No events</div>';
+        }
+
+        // Author counts
+        const authorCountsEl = document.getElementById('agg-author-counts');
+        if (data.author_counts && data.author_counts.length > 0) {
+            authorCountsEl.innerHTML = data.author_counts.map(a => `
+                <div class="agg-list-item">
+                    <span class="agg-list-item-label" title="${a.pubkey}">${a.pubkey.substring(0, 16)}...</span>
+                    <span class="agg-list-item-count">${a.count}</span>
+                </div>
+            `).join('');
+        } else {
+            authorCountsEl.innerHTML = '<div class="agg-empty">No authors</div>';
+        }
+
+        // Relay distribution
+        const relayCountsEl = document.getElementById('agg-relay-counts');
+        if (data.relay_distribution && data.relay_distribution.length > 0) {
+            const maxRelayCount = Math.max(...data.relay_distribution.map(r => r.count));
+            relayCountsEl.innerHTML = data.relay_distribution.map(r => {
+                const truncatedUrl = r.url.length > 30 ? r.url.substring(0, 27) + '...' : r.url;
+                const pct = Math.round((r.count / maxRelayCount) * 100);
+                return `
+                <div class="agg-list-item">
+                    <div class="agg-list-item-bar">
+                        <span class="agg-list-item-label" title="${this.escapeHtml(r.url)}">${this.escapeHtml(truncatedUrl)}</span>
+                        <div class="agg-bar-container">
+                            <div class="agg-bar" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                    <span class="agg-list-item-count">${r.count}</span>
+                </div>
+            `}).join('');
+        } else {
+            relayCountsEl.innerHTML = '<div class="agg-empty">No relay data</div>';
+        }
+
+        // Content stats
+        const contentStatsEl = document.getElementById('agg-content-stats');
+        if (data.content_stats) {
+            const cs = data.content_stats;
+            contentStatsEl.innerHTML = `
+                <div class="agg-stats-item">
+                    <span class="agg-stats-item-label">Avg Length</span>
+                    <span class="agg-stats-item-value">${cs.avg_length.toLocaleString()}</span>
+                </div>
+                <div class="agg-stats-item">
+                    <span class="agg-stats-item-label">Max Length</span>
+                    <span class="agg-stats-item-value">${cs.max_length.toLocaleString()}</span>
+                </div>
+                <div class="agg-stats-item">
+                    <span class="agg-stats-item-label">Min Length</span>
+                    <span class="agg-stats-item-value">${cs.min_length.toLocaleString()}</span>
+                </div>
+                <div class="agg-stats-item">
+                    <span class="agg-stats-item-label">Empty Content</span>
+                    <span class="agg-stats-item-value">${cs.empty_count}</span>
+                </div>
+            `;
+        } else {
+            contentStatsEl.innerHTML = '<div class="agg-empty">No content stats</div>';
+        }
+
+        // Tag counts
+        const tagCountsEl = document.getElementById('agg-tag-counts');
+        if (data.tag_counts && Object.keys(data.tag_counts).length > 0) {
+            const tagLabels = {
+                'e': 'Event References',
+                'p': 'Pubkey References',
+                't': 'Hashtags',
+                'a': 'Addresses',
+                'd': 'Identifiers'
+            };
+            tagCountsEl.innerHTML = Object.entries(data.tag_counts).map(([tagName, values]) => `
+                <div class="agg-tag-group">
+                    <div class="agg-tag-group-title">
+                        <span class="tag-badge">#${tagName}</span>
+                        ${tagLabels[tagName] || 'Tags'}
+                    </div>
+                    <div class="agg-tag-list">
+                        ${values.slice(0, 5).map(v => `
+                            <div class="agg-tag-item">
+                                <span class="agg-tag-value" title="${this.escapeHtml(v.value)}">${this.escapeHtml(this.truncateTagValue(v.value))}</span>
+                                <span class="agg-tag-count">${v.count}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            tagCountsEl.innerHTML = '<div class="agg-empty">No tag data</div>';
+        }
+
+        // Time distribution chart
+        const timeChartEl = document.getElementById('agg-time-chart');
+        if (data.time_distribution && data.time_distribution.length > 0) {
+            const maxBucketCount = Math.max(...data.time_distribution.map(b => b.count));
+            timeChartEl.innerHTML = data.time_distribution.map(bucket => {
+                const pct = maxBucketCount > 0 ? Math.max(2, (bucket.count / maxBucketCount) * 100) : 2;
+                const date = new Date(bucket.timestamp * 1000);
+                const tooltip = `${date.toLocaleString()}: ${bucket.count} events`;
+                return `<div class="agg-time-bar" style="height: ${pct}%" data-tooltip="${this.escapeHtml(tooltip)}"></div>`;
+            }).join('');
+        } else {
+            timeChartEl.innerHTML = '<div class="agg-empty">No time distribution data</div>';
+        }
+
+        panel.classList.remove('hidden');
+    }
+
+    /**
+     * Hide the aggregation panel
+     */
+    hideAggregation() {
+        const panel = document.getElementById('aggregation-panel');
+        if (panel) {
+            panel.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Format a duration in seconds to a human-readable string
+     * @param {number} seconds - Duration in seconds
+     * @returns {string} Formatted duration
+     */
+    formatDuration(seconds) {
+        if (seconds < 60) {
+            return `${seconds}s`;
+        } else if (seconds < 3600) {
+            const mins = Math.floor(seconds / 60);
+            return `${mins}m`;
+        } else if (seconds < 86400) {
+            const hours = Math.floor(seconds / 3600);
+            return `${hours}h`;
+        } else {
+            const days = Math.floor(seconds / 86400);
+            return `${days}d`;
         }
     }
 

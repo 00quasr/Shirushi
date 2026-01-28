@@ -88,19 +88,20 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
-	events             []types.Event
-	eventsWithTiming   *types.EventsQueryResponse
-	eventsByID         map[string]types.Event
-	repliesMap         map[string][]types.Event
-	allRelaysResponse  *types.EventFetchAllRelaysResponse
-	batchQueryResponse *types.BatchQueryResponse
-	err                error
-	refreshInfoErr     error
-	monitoringData     *types.MonitoringData
-	relayList          []types.RelayStatus
-	relayInfoMap       map[string]*types.RelayInfo
-	statusCallback     func(url string, connected bool, err string)
-	relayInfoCallback  func(url string, info *types.RelayInfo)
+	events              []types.Event
+	eventsWithTiming    *types.EventsQueryResponse
+	eventsByID          map[string]types.Event
+	repliesMap          map[string][]types.Event
+	allRelaysResponse   *types.EventFetchAllRelaysResponse
+	batchQueryResponse  *types.BatchQueryResponse
+	aggregationResponse *types.EventAggregation
+	err                 error
+	refreshInfoErr      error
+	monitoringData      *types.MonitoringData
+	relayList           []types.RelayStatus
+	relayInfoMap        map[string]*types.RelayInfo
+	statusCallback      func(url string, connected bool, err string)
+	relayInfoCallback   func(url string, info *types.RelayInfo)
 }
 
 func (m *mockRelayPool) Add(url string) error { return nil }
@@ -287,6 +288,25 @@ func (m *mockRelayPool) PublishEventJSON(eventJSON []byte, relayURLs []string) (
 		}
 	}
 	return event.ID, results
+}
+func (m *mockRelayPool) AggregateEvents(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) (*types.EventAggregation, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.aggregationResponse != nil {
+		return m.aggregationResponse, nil
+	}
+	// Return a default empty aggregation
+	return &types.EventAggregation{
+		TotalEvents:   len(m.events),
+		UniqueAuthors: 0,
+		KindCounts:    []types.KindCount{},
+		AuthorCounts:  []types.AuthorCount{},
+		TagCounts:     map[string][]types.TagCount{},
+		RelayDistrib:  []types.RelayCount{},
+		TimeDistrib:   []types.TimeBucket{},
+		TotalTimeMs:   50,
+	}, nil
 }
 
 // mockNakClient is a mock implementation of NakClient for testing.
@@ -5073,5 +5093,175 @@ func TestHandleBatchEventLookup_WithNote1Format(t *testing.T) {
 
 	if response.TotalFound != 1 {
 		t.Errorf("expected total_found 1, got %d", response.TotalFound)
+	}
+}
+
+// Tests for HandleEventsAggregate
+
+func TestHandleEventsAggregate_Success(t *testing.T) {
+	pool := &mockRelayPool{
+		aggregationResponse: &types.EventAggregation{
+			TotalEvents:   100,
+			UniqueAuthors: 25,
+			KindCounts: []types.KindCount{
+				{Kind: 1, Count: 80, Label: "Short Text Note"},
+				{Kind: 7, Count: 20, Label: "Reaction"},
+			},
+			AuthorCounts: []types.AuthorCount{
+				{PubKey: "aaaa111111111111111111111111111111111111111111111111111111111111", Count: 30},
+				{PubKey: "bbbb222222222222222222222222222222222222222222222222222222222222", Count: 20},
+			},
+			TagCounts: map[string][]types.TagCount{
+				"t": {
+					{Value: "nostr", Count: 15},
+					{Value: "bitcoin", Count: 10},
+				},
+			},
+			RelayDistrib: []types.RelayCount{
+				{URL: "wss://relay1.example.com", Count: 60},
+				{URL: "wss://relay2.example.com", Count: 40},
+			},
+			TimeDistrib: []types.TimeBucket{
+				{Timestamp: 1700000000, Count: 30},
+				{Timestamp: 1700003600, Count: 70},
+			},
+			ContentStats: types.ContentStats{
+				AvgLength:  150,
+				MinLength:  10,
+				MaxLength:  500,
+				EmptyCount: 5,
+			},
+			EarliestEvent: 1700000000,
+			LatestEvent:   1700086400,
+			TotalTimeMs:   75,
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/aggregate?kinds=1,7&limit=100", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventsAggregate(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventAggregation
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.TotalEvents != 100 {
+		t.Errorf("expected total_events 100, got %d", response.TotalEvents)
+	}
+
+	if response.UniqueAuthors != 25 {
+		t.Errorf("expected unique_authors 25, got %d", response.UniqueAuthors)
+	}
+
+	if len(response.KindCounts) != 2 {
+		t.Errorf("expected 2 kind counts, got %d", len(response.KindCounts))
+	}
+
+	if len(response.RelayDistrib) != 2 {
+		t.Errorf("expected 2 relay distributions, got %d", len(response.RelayDistrib))
+	}
+
+	if response.TotalTimeMs != 75 {
+		t.Errorf("expected total_time_ms 75, got %d", response.TotalTimeMs)
+	}
+}
+
+func TestHandleEventsAggregate_Empty(t *testing.T) {
+	pool := &mockRelayPool{
+		events: []types.Event{},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/aggregate", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventsAggregate(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventAggregation
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.TotalEvents != 0 {
+		t.Errorf("expected total_events 0, got %d", response.TotalEvents)
+	}
+}
+
+func TestHandleEventsAggregate_Error(t *testing.T) {
+	pool := &mockRelayPool{
+		err: fmt.Errorf("no connected relays"),
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/aggregate", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventsAggregate(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestHandleEventsAggregate_MethodNotAllowed(t *testing.T) {
+	api := NewAPI(&config.Config{}, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/events/aggregate", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventsAggregate(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventsAggregate_WithFilters(t *testing.T) {
+	pool := &mockRelayPool{
+		aggregationResponse: &types.EventAggregation{
+			TotalEvents:   50,
+			UniqueAuthors: 10,
+			KindCounts: []types.KindCount{
+				{Kind: 1, Count: 50, Label: "Short Text Note"},
+			},
+			AuthorCounts:  []types.AuthorCount{},
+			TagCounts:     map[string][]types.TagCount{},
+			RelayDistrib:  []types.RelayCount{},
+			TimeDistrib:   []types.TimeBucket{},
+			EarliestEvent: 1700000000,
+			LatestEvent:   1700010000,
+			TotalTimeMs:   30,
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Test with all filters
+	req := httptest.NewRequest(http.MethodGet, "/api/events/aggregate?kinds=1&authors=aaaa111111111111111111111111111111111111111111111111111111111111&limit=50&since=1700000000&until=1700100000", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventsAggregate(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventAggregation
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.TotalEvents != 50 {
+		t.Errorf("expected total_events 50, got %d", response.TotalEvents)
 	}
 }

@@ -98,6 +98,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/events/lookup", s.api.HandleEventLookup)
 	mux.HandleFunc("/api/events/fetch-all-relays", s.api.HandleEventFetchAllRelays)
 	mux.HandleFunc("/api/events/batch-lookup", s.api.HandleBatchEventLookup)
+	mux.HandleFunc("/api/events/aggregate", s.api.HandleEventsAggregate)
 
 	// WebSocket
 	mux.HandleFunc("/ws", s.handleWebSocket)

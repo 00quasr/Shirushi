@@ -1338,6 +1338,305 @@ func (p *Pool) PublishEventJSON(eventJSON []byte, relayURLs []string) (string, [
 	return event.ID, results
 }
 
+// AggregateEvents queries events and returns aggregated statistics.
+// This is useful for analyzing event patterns without fetching full event data.
+func (p *Pool) AggregateEvents(kinds []int, authors []string, tags map[string][]string, limit int, since, until int64, selectedRelays ...string) (*types.EventAggregation, error) {
+	totalStart := time.Now()
+
+	// Query events using existing method
+	events, err := p.QueryEventsAdvanced(kinds, authors, tags, limit, since, until, selectedRelays...)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.aggregateEventData(events, time.Since(totalStart).Milliseconds()), nil
+}
+
+// aggregateEventData computes aggregation statistics from a slice of events.
+func (p *Pool) aggregateEventData(events []types.Event, queryTimeMs int64) *types.EventAggregation {
+	agg := &types.EventAggregation{
+		TotalEvents:  len(events),
+		KindCounts:   []types.KindCount{},
+		AuthorCounts: []types.AuthorCount{},
+		TagCounts:    make(map[string][]types.TagCount),
+		RelayDistrib: []types.RelayCount{},
+		TimeDistrib:  []types.TimeBucket{},
+		TotalTimeMs:  queryTimeMs,
+	}
+
+	if len(events) == 0 {
+		return agg
+	}
+
+	// Track counts
+	kindCounts := make(map[int]int)
+	authorCounts := make(map[string]int)
+	tagCounts := make(map[string]map[string]int) // tagName -> value -> count
+	relayCounts := make(map[string]int)
+
+	var earliest, latest int64
+	var totalContentLen int
+	minContentLen := -1
+	maxContentLen := 0
+	emptyContent := 0
+
+	for _, event := range events {
+		// Kind counts
+		kindCounts[event.Kind]++
+
+		// Author counts
+		authorCounts[event.PubKey]++
+
+		// Relay counts
+		if event.Relay != "" {
+			relayCounts[event.Relay]++
+		}
+
+		// Time range
+		if earliest == 0 || event.CreatedAt < earliest {
+			earliest = event.CreatedAt
+		}
+		if event.CreatedAt > latest {
+			latest = event.CreatedAt
+		}
+
+		// Content stats
+		contentLen := len(event.Content)
+		totalContentLen += contentLen
+		if contentLen == 0 {
+			emptyContent++
+		}
+		if minContentLen == -1 || contentLen < minContentLen {
+			minContentLen = contentLen
+		}
+		if contentLen > maxContentLen {
+			maxContentLen = contentLen
+		}
+
+		// Tag counts (track top tag types: e, p, t)
+		for _, tag := range event.Tags {
+			if len(tag) < 2 {
+				continue
+			}
+			tagName := tag[0]
+			tagValue := tag[1]
+			// Only track common tag types to avoid memory bloat
+			if tagName == "e" || tagName == "p" || tagName == "t" || tagName == "a" || tagName == "d" {
+				if tagCounts[tagName] == nil {
+					tagCounts[tagName] = make(map[string]int)
+				}
+				tagCounts[tagName][tagValue]++
+			}
+		}
+	}
+
+	// Convert kind counts to sorted slice
+	for kind, count := range kindCounts {
+		agg.KindCounts = append(agg.KindCounts, types.KindCount{
+			Kind:  kind,
+			Count: count,
+			Label: getKindLabel(kind),
+		})
+	}
+	// Sort by count descending
+	sortKindCounts(agg.KindCounts)
+
+	// Convert author counts to sorted slice (top 10)
+	agg.UniqueAuthors = len(authorCounts)
+	for pubkey, count := range authorCounts {
+		agg.AuthorCounts = append(agg.AuthorCounts, types.AuthorCount{
+			PubKey: pubkey,
+			Count:  count,
+		})
+	}
+	sortAuthorCounts(agg.AuthorCounts)
+	if len(agg.AuthorCounts) > 10 {
+		agg.AuthorCounts = agg.AuthorCounts[:10]
+	}
+
+	// Convert tag counts to map of sorted slices (top 10 per tag type)
+	for tagName, valueCounts := range tagCounts {
+		var tagCountSlice []types.TagCount
+		for value, count := range valueCounts {
+			tagCountSlice = append(tagCountSlice, types.TagCount{
+				Value: value,
+				Count: count,
+			})
+		}
+		sortTagCounts(tagCountSlice)
+		if len(tagCountSlice) > 10 {
+			tagCountSlice = tagCountSlice[:10]
+		}
+		agg.TagCounts[tagName] = tagCountSlice
+	}
+
+	// Convert relay counts to sorted slice
+	for url, count := range relayCounts {
+		agg.RelayDistrib = append(agg.RelayDistrib, types.RelayCount{
+			URL:   url,
+			Count: count,
+		})
+	}
+	sortRelayCounts(agg.RelayDistrib)
+
+	// Time distribution (hourly buckets if range > 1 day, otherwise 10-minute buckets)
+	if earliest > 0 && latest > 0 {
+		agg.EarliestEvent = earliest
+		agg.LatestEvent = latest
+		agg.TimeDistrib = computeTimeDistribution(events, earliest, latest)
+	}
+
+	// Content stats
+	if minContentLen == -1 {
+		minContentLen = 0
+	}
+	avgLen := 0
+	if len(events) > 0 {
+		avgLen = totalContentLen / len(events)
+	}
+	agg.ContentStats = types.ContentStats{
+		AvgLength:  avgLen,
+		MinLength:  minContentLen,
+		MaxLength:  maxContentLen,
+		EmptyCount: emptyContent,
+	}
+
+	return agg
+}
+
+// getKindLabel returns a human-readable label for an event kind.
+func getKindLabel(kind int) string {
+	labels := map[int]string{
+		0:     "Metadata",
+		1:     "Short Text Note",
+		2:     "Recommend Relay",
+		3:     "Contacts",
+		4:     "Encrypted DM",
+		5:     "Deletion",
+		6:     "Repost",
+		7:     "Reaction",
+		8:     "Badge Award",
+		9:     "Group Chat",
+		10:    "Group Chat Threaded",
+		40:    "Channel Creation",
+		41:    "Channel Metadata",
+		42:    "Channel Message",
+		43:    "Channel Hide",
+		44:    "Channel Mute",
+		1063:  "File Metadata",
+		1984:  "Report",
+		9734:  "Zap Request",
+		9735:  "Zap Receipt",
+		10000: "Mute List",
+		10001: "Pin List",
+		10002: "Relay List",
+		30000: "Categorized People",
+		30001: "Categorized Bookmarks",
+		30008: "Profile Badges",
+		30009: "Badge Definition",
+		30023: "Long-form Content",
+		30024: "Draft Long-form",
+		30078: "App-specific Data",
+	}
+	if label, ok := labels[kind]; ok {
+		return label
+	}
+	return fmt.Sprintf("Kind %d", kind)
+}
+
+// Sort helpers
+func sortKindCounts(counts []types.KindCount) {
+	for i := 0; i < len(counts)-1; i++ {
+		for j := i + 1; j < len(counts); j++ {
+			if counts[j].Count > counts[i].Count {
+				counts[i], counts[j] = counts[j], counts[i]
+			}
+		}
+	}
+}
+
+func sortAuthorCounts(counts []types.AuthorCount) {
+	for i := 0; i < len(counts)-1; i++ {
+		for j := i + 1; j < len(counts); j++ {
+			if counts[j].Count > counts[i].Count {
+				counts[i], counts[j] = counts[j], counts[i]
+			}
+		}
+	}
+}
+
+func sortTagCounts(counts []types.TagCount) {
+	for i := 0; i < len(counts)-1; i++ {
+		for j := i + 1; j < len(counts); j++ {
+			if counts[j].Count > counts[i].Count {
+				counts[i], counts[j] = counts[j], counts[i]
+			}
+		}
+	}
+}
+
+func sortRelayCounts(counts []types.RelayCount) {
+	for i := 0; i < len(counts)-1; i++ {
+		for j := i + 1; j < len(counts); j++ {
+			if counts[j].Count > counts[i].Count {
+				counts[i], counts[j] = counts[j], counts[i]
+			}
+		}
+	}
+}
+
+// computeTimeDistribution creates time buckets for event distribution.
+func computeTimeDistribution(events []types.Event, earliest, latest int64) []types.TimeBucket {
+	if len(events) == 0 || earliest >= latest {
+		return []types.TimeBucket{}
+	}
+
+	// Determine bucket size based on time range
+	rangeSeconds := latest - earliest
+	var bucketSize int64
+	var numBuckets int
+
+	if rangeSeconds > 7*24*3600 { // > 7 days: daily buckets
+		bucketSize = 24 * 3600
+		numBuckets = int(rangeSeconds/bucketSize) + 1
+	} else if rangeSeconds > 24*3600 { // > 1 day: hourly buckets
+		bucketSize = 3600
+		numBuckets = int(rangeSeconds/bucketSize) + 1
+	} else { // <= 1 day: 10-minute buckets
+		bucketSize = 600
+		numBuckets = int(rangeSeconds/bucketSize) + 1
+	}
+
+	// Limit to max 50 buckets
+	if numBuckets > 50 {
+		bucketSize = rangeSeconds / 50
+		numBuckets = 50
+	}
+
+	// Initialize buckets
+	buckets := make([]types.TimeBucket, numBuckets)
+	for i := 0; i < numBuckets; i++ {
+		buckets[i] = types.TimeBucket{
+			Timestamp: earliest + int64(i)*bucketSize,
+			Count:     0,
+		}
+	}
+
+	// Count events per bucket
+	for _, event := range events {
+		bucketIdx := int((event.CreatedAt - earliest) / bucketSize)
+		if bucketIdx >= numBuckets {
+			bucketIdx = numBuckets - 1
+		}
+		if bucketIdx < 0 {
+			bucketIdx = 0
+		}
+		buckets[bucketIdx].Count++
+	}
+
+	return buckets
+}
+
 // Close closes all relay connections.
 func (p *Pool) Close() {
 	p.cancel()
