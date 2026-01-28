@@ -9061,6 +9061,416 @@
         });
     });
 
+    // ===== Event Builder Form Tests =====
+    describe('Event Builder Form', function() {
+        let container;
+        let appInstance;
+
+        function createPublishTestApp() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <select id="publish-kind" class="form-select">
+                        <option value="1">1 - Short Text Note</option>
+                        <option value="0">0 - Metadata</option>
+                        <option value="3">3 - Contacts</option>
+                        <option value="4">4 - Encrypted Direct Message</option>
+                        <option value="7">7 - Reaction</option>
+                        <option value="custom">Custom Kind...</option>
+                    </select>
+                    <input type="number" id="publish-custom-kind" class="form-input hidden" placeholder="Enter custom kind number" min="0">
+                    <textarea id="publish-content" class="form-textarea"></textarea>
+                    <span id="content-char-count">0</span>
+                    <div id="publish-tags" class="tags-container"></div>
+                    <input type="text" id="tag-key" class="form-input">
+                    <input type="text" id="tag-value" class="form-input">
+                    <button id="add-tag-btn" class="btn">Add Tag</button>
+                    <input type="radio" name="signing-method" value="extension" id="sign-extension">
+                    <input type="radio" name="signing-method" value="nsec" id="sign-nsec" checked>
+                    <div id="nsec-input-group">
+                        <input type="password" id="publish-nsec" class="form-input">
+                        <button id="toggle-publish-nsec" class="btn">Show</button>
+                    </div>
+                    <div id="publish-relay-list"></div>
+                    <button id="preview-event-btn" class="btn">Preview Event</button>
+                    <button id="publish-event-btn" class="btn primary">Publish Event</button>
+                    <div id="event-preview" class="event-preview"></div>
+                    <div id="publish-history" class="publish-history"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            appInstance = new Shirushi();
+            appInstance.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true }
+            ];
+            return appInstance;
+        }
+
+        function cleanupPublishTest() {
+            if (container && container.parentNode) {
+                document.body.removeChild(container);
+            }
+        }
+
+        it('should initialize publish state correctly', function() {
+            const app = createPublishTestApp();
+
+            assertDefined(app.publishTags, 'publishTags should be defined');
+            assertDefined(app.publishHistory, 'publishHistory should be defined');
+            assertTrue(Array.isArray(app.publishTags), 'publishTags should be an array');
+            assertTrue(Array.isArray(app.publishHistory), 'publishHistory should be an array');
+            assertEqual(app.publishTags.length, 0, 'publishTags should start empty');
+            assertEqual(app.publishHistory.length, 0, 'publishHistory should start empty');
+
+            cleanupPublishTest();
+        });
+
+        it('should show custom kind input when "custom" is selected', function() {
+            const app = createPublishTestApp();
+
+            const kindSelect = container.querySelector('#publish-kind');
+            const customKindInput = container.querySelector('#publish-custom-kind');
+
+            assertTrue(customKindInput.classList.contains('hidden'), 'Custom kind input should be hidden initially');
+
+            // Simulate selecting 'custom'
+            kindSelect.value = 'custom';
+            kindSelect.dispatchEvent(new Event('change'));
+
+            assertFalse(customKindInput.classList.contains('hidden'), 'Custom kind input should be visible after selecting custom');
+
+            cleanupPublishTest();
+        });
+
+        it('should get correct kind from selector', function() {
+            const app = createPublishTestApp();
+
+            const kindSelect = container.querySelector('#publish-kind');
+
+            // Default is kind 1
+            assertEqual(app.getPublishEventKind(), 1, 'Should return kind 1 by default');
+
+            // Change to kind 7
+            kindSelect.value = '7';
+            assertEqual(app.getPublishEventKind(), 7, 'Should return kind 7 when selected');
+
+            // Change to kind 0
+            kindSelect.value = '0';
+            assertEqual(app.getPublishEventKind(), 0, 'Should return kind 0 when selected');
+
+            cleanupPublishTest();
+        });
+
+        it('should get custom kind value when custom is selected', function() {
+            const app = createPublishTestApp();
+
+            const kindSelect = container.querySelector('#publish-kind');
+            const customKindInput = container.querySelector('#publish-custom-kind');
+
+            kindSelect.value = 'custom';
+            customKindInput.value = '30023';
+
+            assertEqual(app.getPublishEventKind(), 30023, 'Should return custom kind 30023');
+
+            customKindInput.value = '9735';
+            assertEqual(app.getPublishEventKind(), 9735, 'Should return custom kind 9735');
+
+            cleanupPublishTest();
+        });
+
+        it('should add tag to publishTags array', function() {
+            const app = createPublishTestApp();
+
+            const keyInput = container.querySelector('#tag-key');
+            const valueInput = container.querySelector('#tag-value');
+
+            keyInput.value = 't';
+            valueInput.value = 'nostr';
+
+            app.addPublishTag();
+
+            assertEqual(app.publishTags.length, 1, 'Should have 1 tag');
+            assertEqual(app.publishTags[0][0], 't', 'Tag key should be t');
+            assertEqual(app.publishTags[0][1], 'nostr', 'Tag value should be nostr');
+
+            cleanupPublishTest();
+        });
+
+        it('should clear inputs after adding tag', function() {
+            const app = createPublishTestApp();
+
+            const keyInput = container.querySelector('#tag-key');
+            const valueInput = container.querySelector('#tag-value');
+
+            keyInput.value = 'p';
+            valueInput.value = 'abc123';
+
+            app.addPublishTag();
+
+            assertEqual(keyInput.value, '', 'Key input should be cleared');
+            assertEqual(valueInput.value, '', 'Value input should be cleared');
+
+            cleanupPublishTest();
+        });
+
+        it('should not add tag without key', function() {
+            const app = createPublishTestApp();
+
+            const keyInput = container.querySelector('#tag-key');
+            const valueInput = container.querySelector('#tag-value');
+
+            keyInput.value = '';
+            valueInput.value = 'somevalue';
+
+            app.addPublishTag();
+
+            assertEqual(app.publishTags.length, 0, 'Should not add tag without key');
+
+            cleanupPublishTest();
+        });
+
+        it('should allow tag with empty value', function() {
+            const app = createPublishTestApp();
+
+            const keyInput = container.querySelector('#tag-key');
+            const valueInput = container.querySelector('#tag-value');
+
+            keyInput.value = 'client';
+            valueInput.value = '';
+
+            app.addPublishTag();
+
+            assertEqual(app.publishTags.length, 1, 'Should add tag with empty value');
+            assertEqual(app.publishTags[0][0], 'client', 'Tag key should be client');
+            assertEqual(app.publishTags[0][1], '', 'Tag value should be empty string');
+
+            cleanupPublishTest();
+        });
+
+        it('should remove tag at specified index', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['t', 'nostr'], ['p', 'pubkey123'], ['e', 'eventid']];
+
+            app.removePublishTag(1);
+
+            assertEqual(app.publishTags.length, 2, 'Should have 2 tags after removal');
+            assertEqual(app.publishTags[0][0], 't', 'First tag should still be t');
+            assertEqual(app.publishTags[1][0], 'e', 'Second tag should now be e');
+
+            cleanupPublishTest();
+        });
+
+        it('should render tags container correctly', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [['t', 'nostr'], ['client', 'shirushi']];
+            app.renderPublishTags();
+
+            const tagsContainer = container.querySelector('#publish-tags');
+            const tagItems = tagsContainer.querySelectorAll('.tag-item');
+
+            assertEqual(tagItems.length, 2, 'Should render 2 tag items');
+
+            const firstTagKey = tagItems[0].querySelector('.tag-key');
+            const firstTagValue = tagItems[0].querySelector('.tag-value');
+
+            assertEqual(firstTagKey.textContent, 't', 'First tag key should be t');
+            assertEqual(firstTagValue.textContent, 'nostr', 'First tag value should be nostr');
+
+            cleanupPublishTest();
+        });
+
+        it('should render empty tags container when no tags', function() {
+            const app = createPublishTestApp();
+
+            app.publishTags = [];
+            app.renderPublishTags();
+
+            const tagsContainer = container.querySelector('#publish-tags');
+            assertEqual(tagsContainer.innerHTML, '', 'Tags container should be empty');
+
+            cleanupPublishTest();
+        });
+
+        it('should update character count on content input', function() {
+            const app = createPublishTestApp();
+
+            const contentTextarea = container.querySelector('#publish-content');
+            const charCount = container.querySelector('#content-char-count');
+
+            contentTextarea.value = 'Hello Nostr!';
+            contentTextarea.dispatchEvent(new Event('input'));
+
+            assertEqual(charCount.textContent, '12', 'Character count should be 12');
+
+            contentTextarea.value = 'A longer message for testing purposes';
+            contentTextarea.dispatchEvent(new Event('input'));
+
+            assertEqual(charCount.textContent, '38', 'Character count should be 38');
+
+            cleanupPublishTest();
+        });
+
+        it('should update event preview correctly', function() {
+            const app = createPublishTestApp();
+
+            const kindSelect = container.querySelector('#publish-kind');
+            const contentTextarea = container.querySelector('#publish-content');
+            const previewContainer = container.querySelector('#event-preview');
+
+            kindSelect.value = '1';
+            contentTextarea.value = 'Test message';
+            app.publishTags = [['t', 'test']];
+
+            app.updateEventPreview();
+
+            assertTrue(previewContainer.innerHTML.includes('Kind'), 'Preview should include Kind');
+            assertTrue(previewContainer.innerHTML.includes('Content'), 'Preview should include Content');
+            assertTrue(previewContainer.innerHTML.includes('Test message'), 'Preview should include content text');
+            assertTrue(previewContainer.innerHTML.includes('Tags'), 'Preview should include Tags');
+
+            cleanupPublishTest();
+        });
+
+        it('should load publish relays correctly', function() {
+            const app = createPublishTestApp();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true },
+                { url: 'wss://relay.offline.com', connected: false }
+            ];
+
+            app.loadPublishRelays();
+
+            const relayList = container.querySelector('#publish-relay-list');
+            const checkboxes = relayList.querySelectorAll('input[type="checkbox"]');
+
+            assertEqual(checkboxes.length, 3, 'Should render 3 relay checkboxes');
+
+            // Connected relays should be checked by default
+            assertTrue(checkboxes[0].checked, 'Connected relay should be checked');
+            assertTrue(checkboxes[1].checked, 'Connected relay should be checked');
+            assertFalse(checkboxes[2].checked, 'Disconnected relay should not be checked');
+
+            cleanupPublishTest();
+        });
+
+        it('should get selected publish relays', function() {
+            const app = createPublishTestApp();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true }
+            ];
+            app.loadPublishRelays();
+
+            const selectedRelays = app.getSelectedPublishRelays();
+
+            assertEqual(selectedRelays.length, 2, 'Should return 2 selected relays');
+            assertTrue(selectedRelays.includes('wss://relay.damus.io'), 'Should include damus relay');
+            assertTrue(selectedRelays.includes('wss://nos.lol'), 'Should include nos.lol relay');
+
+            cleanupPublishTest();
+        });
+
+        it('should toggle nsec input visibility', function() {
+            const app = createPublishTestApp();
+
+            const nsecInput = container.querySelector('#publish-nsec');
+            const toggleBtn = container.querySelector('#toggle-publish-nsec');
+
+            assertEqual(nsecInput.type, 'password', 'Input should be password type initially');
+
+            toggleBtn.click();
+            assertEqual(nsecInput.type, 'text', 'Input should be text type after toggle');
+            assertEqual(toggleBtn.textContent, 'Hide', 'Button text should be Hide');
+
+            toggleBtn.click();
+            assertEqual(nsecInput.type, 'password', 'Input should be password type after second toggle');
+            assertEqual(toggleBtn.textContent, 'Show', 'Button text should be Show');
+
+            cleanupPublishTest();
+        });
+
+        it('should add to publish history', function() {
+            const app = createPublishTestApp();
+
+            const entry = {
+                event: { kind: 1, content: 'Test' },
+                results: [{ relay: 'wss://test.relay', success: true }],
+                timestamp: Date.now()
+            };
+
+            app.addToPublishHistory(entry);
+
+            assertEqual(app.publishHistory.length, 1, 'Should have 1 history entry');
+            assertEqual(app.publishHistory[0].event.content, 'Test', 'Entry content should match');
+
+            cleanupPublishTest();
+        });
+
+        it('should limit publish history to 10 entries', function() {
+            const app = createPublishTestApp();
+
+            for (let i = 0; i < 15; i++) {
+                app.addToPublishHistory({
+                    event: { kind: 1, content: `Test ${i}` },
+                    results: [{ relay: 'wss://test.relay', success: true }],
+                    timestamp: Date.now()
+                });
+            }
+
+            assertEqual(app.publishHistory.length, 10, 'Should have max 10 history entries');
+            assertEqual(app.publishHistory[0].event.content, 'Test 14', 'Most recent entry should be first');
+
+            cleanupPublishTest();
+        });
+
+        it('should render publish history correctly', function() {
+            const app = createPublishTestApp();
+
+            app.publishHistory = [{
+                event: { kind: 1, content: 'Hello world' },
+                results: [
+                    { relay: 'wss://relay1.com', success: true },
+                    { relay: 'wss://relay2.com', success: false }
+                ],
+                timestamp: Date.now()
+            }];
+
+            app.renderPublishHistory();
+
+            const historyContainer = container.querySelector('#publish-history');
+            const historyItem = historyContainer.querySelector('.publish-history-item');
+
+            assertDefined(historyItem, 'History item should exist');
+            assertTrue(historyItem.innerHTML.includes('Kind 1'), 'Should show kind');
+            assertTrue(historyItem.innerHTML.includes('Hello world'), 'Should show content');
+            assertTrue(historyItem.innerHTML.includes('1/2'), 'Should show relay success count');
+
+            cleanupPublishTest();
+        });
+
+        it('should show empty state when no publish history', function() {
+            const app = createPublishTestApp();
+
+            app.publishHistory = [];
+            app.renderPublishHistory();
+
+            const historyContainer = container.querySelector('#publish-history');
+            assertTrue(historyContainer.innerHTML.includes('No events published yet'), 'Should show empty state message');
+
+            cleanupPublishTest();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
