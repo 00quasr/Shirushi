@@ -23,6 +23,7 @@ type RelayPool interface {
 	Stats() map[string]types.RelayStats
 	Count() int
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
+	QueryEventsWithTiming(kindStr, author, limitStr string) (*types.EventsQueryResponse, error)
 	QueryEventsByIDs(ids []string) ([]types.Event, error)
 	QueryEventReplies(eventID string) ([]types.Event, error)
 	QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelaysResponse
@@ -236,6 +237,7 @@ func (a *API) HandleRelayInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleEvents handles event queries.
+// Accepts optional query params: kind, author, limit, timing (if timing=true, returns per-relay timing data)
 func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -246,6 +248,17 @@ func (a *API) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	kindStr := r.URL.Query().Get("kind")
 	author := r.URL.Query().Get("author")
 	limit := r.URL.Query().Get("limit")
+	includeTiming := r.URL.Query().Get("timing") == "true"
+
+	if includeTiming {
+		response, err := a.relayPool.QueryEventsWithTiming(kindStr, author, limit)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, response)
+		return
+	}
 
 	events, err := a.relayPool.QueryEvents(kindStr, author, limit)
 	if err != nil {

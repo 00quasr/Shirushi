@@ -1403,16 +1403,105 @@ class Shirushi {
         try {
             const kind = document.getElementById('filter-kind').value;
             const author = document.getElementById('filter-author').value;
+            const showTiming = document.getElementById('show-timing')?.checked || false;
 
             let url = '/api/events?';
             if (kind) url += `kind=${kind}&`;
             if (author) url += `author=${author}&`;
+            if (showTiming) url += 'timing=true&';
 
             const response = await fetch(url);
-            this.events = await response.json() || [];
+            const data = await response.json();
+
+            if (showTiming && data.relay_timings) {
+                // Response includes timing data
+                this.events = data.events || [];
+                this.renderFetchTiming(data);
+            } else {
+                // Legacy response format (just events array)
+                this.events = data || [];
+                this.hideFetchTiming();
+            }
             this.renderEvents();
         } catch (error) {
             console.error('Failed to load events:', error);
+        }
+    }
+
+    /**
+     * Render fetch timing panel with per-relay timing data
+     * @param {Object} data - EventsQueryResponse with relay_timings
+     */
+    renderFetchTiming(data) {
+        const panel = document.getElementById('fetch-timing-panel');
+        const content = panel.querySelector('.fetch-timing-content');
+        const totalSpan = panel.querySelector('.fetch-timing-total');
+
+        if (!data.relay_timings || data.relay_timings.length === 0) {
+            panel.classList.add('hidden');
+            return;
+        }
+
+        // Sort by latency (fastest first)
+        const sortedTimings = [...data.relay_timings].sort((a, b) => a.latency_ms - b.latency_ms);
+
+        // Calculate max latency for progress bar scaling
+        const maxLatency = Math.max(...sortedTimings.map(t => t.latency_ms), 1);
+
+        // Find fastest relay (exclude errors)
+        const successfulTimings = sortedTimings.filter(t => !t.error);
+        const fastest = successfulTimings.length > 0 ? successfulTimings[0] : null;
+
+        totalSpan.textContent = `Total: ${data.total_time_ms}ms`;
+
+        content.innerHTML = sortedTimings.map(t => {
+            const isFastest = fastest && t.url === fastest.url;
+            const hasError = !!t.error;
+            const latencyPct = Math.min(100, (t.latency_ms / maxLatency) * 100);
+
+            // Determine status class
+            let statusClass = 'normal';
+            if (hasError) {
+                statusClass = 'error';
+            } else if (isFastest) {
+                statusClass = 'fastest';
+            } else if (t.latency_ms > 2000) {
+                statusClass = 'slow';
+            } else if (t.latency_ms > 500) {
+                statusClass = 'medium';
+            }
+
+            const truncatedUrl = t.url.length > 35 ? t.url.substring(0, 32) + '...' : t.url;
+
+            return `
+                <div class="fetch-timing-row ${statusClass}">
+                    <div class="fetch-timing-relay">
+                        <span class="fetch-timing-url" title="${this.escapeHtml(t.url)}">${this.escapeHtml(truncatedUrl)}</span>
+                        ${isFastest ? '<span class="fetch-timing-badge fastest">Fastest</span>' : ''}
+                        ${hasError ? `<span class="fetch-timing-badge error" title="${this.escapeHtml(t.error)}">Error</span>` : ''}
+                    </div>
+                    <div class="fetch-timing-stats">
+                        <span class="fetch-timing-events">${t.event_count} event${t.event_count !== 1 ? 's' : ''}</span>
+                        ${t.first_event_ms > 0 ? `<span class="fetch-timing-first">First: ${t.first_event_ms}ms</span>` : ''}
+                        <span class="fetch-timing-latency">${t.latency_ms}ms</span>
+                    </div>
+                    <div class="fetch-timing-bar-container">
+                        <div class="fetch-timing-bar ${statusClass}" style="width: ${latencyPct}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        panel.classList.remove('hidden');
+    }
+
+    /**
+     * Hide the fetch timing panel
+     */
+    hideFetchTiming() {
+        const panel = document.getElementById('fetch-timing-panel');
+        if (panel) {
+            panel.classList.add('hidden');
         }
     }
 

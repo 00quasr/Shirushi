@@ -7813,3 +7813,179 @@ a.nip-badge:hover {
         flex-wrap: wrap;
     }
 }
+
+/* Fetch Timing Panel */
+.fetch-timing-panel {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.fetch-timing-panel.hidden {
+    display: none;
+}
+
+.fetch-timing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.fetch-timing-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-1);
+}
+
+.fetch-timing-total {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-2);
+    padding: 2px 8px;
+    background: var(--bg-2);
+    border-radius: 4px;
+}
+
+.fetch-timing-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fetch-timing-row {
+    display: grid;
+    grid-template-columns: 1fr auto minmax(100px, 150px);
+    gap: 12px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg-2);
+    border-radius: 6px;
+    border-left: 3px solid var(--border);
+}
+
+.fetch-timing-row.fastest {
+    border-left-color: var(--success);
+    background: color-mix(in srgb, var(--success) 8%, var(--bg-2));
+}
+
+.fetch-timing-row.slow {
+    border-left-color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 5%, var(--bg-2));
+}
+
+.fetch-timing-row.error {
+    border-left-color: var(--error);
+    background: color-mix(in srgb, var(--error) 8%, var(--bg-2));
+}
+
+.fetch-timing-relay {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.fetch-timing-url {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fetch-timing-badge {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.fetch-timing-badge.fastest {
+    background: var(--success);
+    color: var(--bg-0);
+}
+
+.fetch-timing-badge.error {
+    background: var(--error);
+    color: white;
+}
+
+.fetch-timing-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.fetch-timing-events {
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.fetch-timing-first {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.fetch-timing-latency {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-1);
+    min-width: 60px;
+    text-align: right;
+}
+
+.fetch-timing-bar-container {
+    height: 6px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.fetch-timing-bar {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+}
+
+.fetch-timing-bar.fastest {
+    background: var(--success);
+}
+
+.fetch-timing-bar.medium {
+    background: var(--warning);
+}
+
+.fetch-timing-bar.slow {
+    background: color-mix(in srgb, var(--warning) 70%, var(--error));
+}
+
+.fetch-timing-bar.error {
+    background: var(--error);
+}
+
+@media (max-width: 768px) {
+    .fetch-timing-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .fetch-timing-stats {
+        justify-content: flex-start;
+    }
+
+    .fetch-timing-bar-container {
+        width: 100%;
+    }
+}

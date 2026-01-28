@@ -1086,3 +1086,156 @@ func TestRelayLimitationRestrictedWrites(t *testing.T) {
 		t.Error("AuthRequired should be false")
 	}
 }
+
+func TestRelayFetchTimingJSONSerialization(t *testing.T) {
+	timing := RelayFetchTiming{
+		URL:          "wss://relay.example.com",
+		LatencyMs:    150,
+		EventCount:   5,
+		Error:        "",
+		Connected:    true,
+		FirstEventMs: 50,
+	}
+
+	data, err := json.Marshal(timing)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayFetchTiming: %v", err)
+	}
+
+	var decoded RelayFetchTiming
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayFetchTiming: %v", err)
+	}
+
+	if decoded.URL != timing.URL {
+		t.Errorf("URL mismatch: got %s, want %s", decoded.URL, timing.URL)
+	}
+	if decoded.LatencyMs != timing.LatencyMs {
+		t.Errorf("LatencyMs mismatch: got %d, want %d", decoded.LatencyMs, timing.LatencyMs)
+	}
+	if decoded.EventCount != timing.EventCount {
+		t.Errorf("EventCount mismatch: got %d, want %d", decoded.EventCount, timing.EventCount)
+	}
+	if decoded.Connected != timing.Connected {
+		t.Errorf("Connected mismatch: got %v, want %v", decoded.Connected, timing.Connected)
+	}
+	if decoded.FirstEventMs != timing.FirstEventMs {
+		t.Errorf("FirstEventMs mismatch: got %d, want %d", decoded.FirstEventMs, timing.FirstEventMs)
+	}
+}
+
+func TestRelayFetchTimingWithError(t *testing.T) {
+	timing := RelayFetchTiming{
+		URL:        "wss://relay.example.com",
+		LatencyMs:  5000,
+		EventCount: 0,
+		Error:      "timeout",
+		Connected:  false,
+	}
+
+	data, err := json.Marshal(timing)
+	if err != nil {
+		t.Fatalf("failed to marshal RelayFetchTiming: %v", err)
+	}
+
+	var decoded RelayFetchTiming
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal RelayFetchTiming: %v", err)
+	}
+
+	if decoded.Error != "timeout" {
+		t.Errorf("Error mismatch: got %s, want timeout", decoded.Error)
+	}
+	if decoded.Connected != false {
+		t.Error("Connected should be false")
+	}
+}
+
+func TestEventsQueryResponseJSONSerialization(t *testing.T) {
+	response := EventsQueryResponse{
+		Events: []Event{
+			{
+				ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Kind:      1,
+				PubKey:    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+				Content:   "Test event content",
+				CreatedAt: 1234567890,
+				Relay:     "wss://relay1.example.com",
+			},
+		},
+		RelayTimings: []RelayFetchTiming{
+			{
+				URL:          "wss://relay1.example.com",
+				LatencyMs:    100,
+				EventCount:   1,
+				Connected:    true,
+				FirstEventMs: 50,
+			},
+			{
+				URL:        "wss://relay2.example.com",
+				LatencyMs:  200,
+				EventCount: 0,
+				Connected:  true,
+			},
+		},
+		TotalTimeMs: 250,
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("failed to marshal EventsQueryResponse: %v", err)
+	}
+
+	var decoded EventsQueryResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal EventsQueryResponse: %v", err)
+	}
+
+	if len(decoded.Events) != 1 {
+		t.Errorf("Events length mismatch: got %d, want 1", len(decoded.Events))
+	}
+	if len(decoded.RelayTimings) != 2 {
+		t.Errorf("RelayTimings length mismatch: got %d, want 2", len(decoded.RelayTimings))
+	}
+	if decoded.TotalTimeMs != 250 {
+		t.Errorf("TotalTimeMs mismatch: got %d, want 250", decoded.TotalTimeMs)
+	}
+
+	// Check first relay timing
+	if decoded.RelayTimings[0].URL != "wss://relay1.example.com" {
+		t.Errorf("First relay URL mismatch: got %s", decoded.RelayTimings[0].URL)
+	}
+	if decoded.RelayTimings[0].FirstEventMs != 50 {
+		t.Errorf("FirstEventMs mismatch: got %d, want 50", decoded.RelayTimings[0].FirstEventMs)
+	}
+
+	// Check second relay timing has no first_event_ms
+	if decoded.RelayTimings[1].FirstEventMs != 0 {
+		t.Errorf("Second relay FirstEventMs should be 0, got %d", decoded.RelayTimings[1].FirstEventMs)
+	}
+}
+
+func TestEventsQueryResponseEmptyTimings(t *testing.T) {
+	response := EventsQueryResponse{
+		Events:       []Event{},
+		RelayTimings: []RelayFetchTiming{},
+		TotalTimeMs:  50,
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("failed to marshal EventsQueryResponse: %v", err)
+	}
+
+	var decoded EventsQueryResponse
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal EventsQueryResponse: %v", err)
+	}
+
+	if decoded.Events == nil {
+		t.Error("Events should be empty slice, not nil")
+	}
+	if decoded.RelayTimings == nil {
+		t.Error("RelayTimings should be empty slice, not nil")
+	}
+}

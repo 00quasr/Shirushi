@@ -395,8 +395,19 @@
                         <input type="checkbox" id="auto-scroll" checked>
                         Auto-scroll
                     </label>
+                    <label>
+                        <input type="checkbox" id="show-timing">
+                        Show fetch timing
+                    </label>
                     <button id="clear-events-btn" class="btn small">Clear</button>
                 </div>
+            </div>
+            <div id="fetch-timing-panel" class="fetch-timing-panel hidden">
+                <div class="fetch-timing-header">
+                    <span class="fetch-timing-title">Fetch Timing per Relay</span>
+                    <span class="fetch-timing-total"></span>
+                </div>
+                <div class="fetch-timing-content"></div>
             </div>
             <div id="event-list" class="event-stream">
                 <p class="hint">Waiting for events from connected relays...</p>

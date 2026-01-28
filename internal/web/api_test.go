@@ -89,6 +89,7 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
 	events            []types.Event
+	eventsWithTiming  *types.EventsQueryResponse
 	eventsByID        map[string]types.Event
 	repliesMap        map[string][]types.Event
 	allRelaysResponse *types.EventFetchAllRelaysResponse
@@ -116,6 +117,20 @@ func (m *mockRelayPool) Subscribe(kinds []int, authors []string, callback func(t
 }
 func (m *mockRelayPool) QueryEvents(kindStr, author, limitStr string) ([]types.Event, error) {
 	return m.events, m.err
+}
+func (m *mockRelayPool) QueryEventsWithTiming(kindStr, author, limitStr string) (*types.EventsQueryResponse, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.eventsWithTiming != nil {
+		return m.eventsWithTiming, nil
+	}
+	// Return default response with events if eventsWithTiming not set
+	return &types.EventsQueryResponse{
+		Events:       m.events,
+		RelayTimings: []types.RelayFetchTiming{},
+		TotalTimeMs:  100,
+	}, nil
 }
 func (m *mockRelayPool) QueryEventsByIDs(ids []string) ([]types.Event, error) {
 	if m.err != nil {
@@ -4281,5 +4296,302 @@ func TestHandleEventFetchAllRelays_WithRelayErrors(t *testing.T) {
 		t.Error("expected to find a result with an error")
 	} else if errorResult.Error != "connection error: timeout" {
 		t.Errorf("expected error 'connection error: timeout', got '%s'", errorResult.Error)
+	}
+}
+
+// Tests for HandleEvents with timing parameter
+
+func TestHandleEvents_WithTiming_Success(t *testing.T) {
+	mock := &mockRelayPool{
+		eventsWithTiming: &types.EventsQueryResponse{
+			Events: []types.Event{
+				{
+					ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					Kind:      1,
+					PubKey:    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+					Content:   "Test event",
+					CreatedAt: 1234567890,
+					Relay:     "wss://relay1.example.com",
+				},
+			},
+			RelayTimings: []types.RelayFetchTiming{
+				{
+					URL:          "wss://relay1.example.com",
+					LatencyMs:    150,
+					EventCount:   1,
+					Connected:    true,
+					FirstEventMs: 50,
+				},
+				{
+					URL:          "wss://relay2.example.com",
+					LatencyMs:    250,
+					EventCount:   0,
+					Connected:    true,
+					FirstEventMs: 0,
+				},
+			},
+			TotalTimeMs: 300,
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	req := httptest.NewRequest("GET", "/api/events?timing=true", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventsQueryResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Check events
+	if len(response.Events) != 1 {
+		t.Errorf("expected 1 event, got %d", len(response.Events))
+	}
+
+	// Check relay timings
+	if len(response.RelayTimings) != 2 {
+		t.Errorf("expected 2 relay timings, got %d", len(response.RelayTimings))
+	}
+
+	// Check total time
+	if response.TotalTimeMs != 300 {
+		t.Errorf("expected total_time_ms 300, got %d", response.TotalTimeMs)
+	}
+
+	// Check first relay timing details
+	if response.RelayTimings[0].URL != "wss://relay1.example.com" {
+		t.Errorf("expected relay1 URL, got %s", response.RelayTimings[0].URL)
+	}
+	if response.RelayTimings[0].LatencyMs != 150 {
+		t.Errorf("expected latency_ms 150, got %d", response.RelayTimings[0].LatencyMs)
+	}
+	if response.RelayTimings[0].EventCount != 1 {
+		t.Errorf("expected event_count 1, got %d", response.RelayTimings[0].EventCount)
+	}
+	if response.RelayTimings[0].FirstEventMs != 50 {
+		t.Errorf("expected first_event_ms 50, got %d", response.RelayTimings[0].FirstEventMs)
+	}
+}
+
+func TestHandleEvents_WithTiming_WithFilters(t *testing.T) {
+	mock := &mockRelayPool{
+		eventsWithTiming: &types.EventsQueryResponse{
+			Events: []types.Event{
+				{
+					ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					Kind:      1,
+					PubKey:    "testauthor123456789012345678901234567890123456789012345678901234",
+					Content:   "Filtered event",
+					CreatedAt: 1234567890,
+					Relay:     "wss://relay1.example.com",
+				},
+			},
+			RelayTimings: []types.RelayFetchTiming{
+				{
+					URL:        "wss://relay1.example.com",
+					LatencyMs:  100,
+					EventCount: 1,
+					Connected:  true,
+				},
+			},
+			TotalTimeMs: 100,
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	req := httptest.NewRequest("GET", "/api/events?kind=1&author=testauthor&timing=true", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventsQueryResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(response.Events) != 1 {
+		t.Errorf("expected 1 event, got %d", len(response.Events))
+	}
+}
+
+func TestHandleEvents_WithTiming_Error(t *testing.T) {
+	mock := &mockRelayPool{
+		err: fmt.Errorf("no connected relays"),
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	req := httptest.NewRequest("GET", "/api/events?timing=true", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestHandleEvents_WithTiming_RelayError(t *testing.T) {
+	mock := &mockRelayPool{
+		eventsWithTiming: &types.EventsQueryResponse{
+			Events: []types.Event{},
+			RelayTimings: []types.RelayFetchTiming{
+				{
+					URL:        "wss://relay1.example.com",
+					LatencyMs:  5000,
+					EventCount: 0,
+					Connected:  true,
+					Error:      "timeout",
+				},
+				{
+					URL:        "wss://relay2.example.com",
+					LatencyMs:  100,
+					EventCount: 0,
+					Connected:  false,
+					Error:      "connection error: connection refused",
+				},
+			},
+			TotalTimeMs: 5000,
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	req := httptest.NewRequest("GET", "/api/events?timing=true", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventsQueryResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Check relay timings have errors
+	if len(response.RelayTimings) != 2 {
+		t.Errorf("expected 2 relay timings, got %d", len(response.RelayTimings))
+	}
+
+	// Check first relay has timeout error
+	if response.RelayTimings[0].Error != "timeout" {
+		t.Errorf("expected error 'timeout', got '%s'", response.RelayTimings[0].Error)
+	}
+
+	// Check second relay has connection error
+	if response.RelayTimings[1].Error != "connection error: connection refused" {
+		t.Errorf("expected connection error, got '%s'", response.RelayTimings[1].Error)
+	}
+	if response.RelayTimings[1].Connected != false {
+		t.Error("expected relay2 to be disconnected")
+	}
+}
+
+func TestHandleEvents_WithoutTiming_LegacyFormat(t *testing.T) {
+	mock := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Kind:      1,
+				PubKey:    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+				Content:   "Test event",
+				CreatedAt: 1234567890,
+			},
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	// Request without timing parameter should return legacy format (array of events)
+	req := httptest.NewRequest("GET", "/api/events", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	// Should decode as array of events
+	var events []types.Event
+	if err := json.NewDecoder(w.Body).Decode(&events); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Errorf("expected 1 event, got %d", len(events))
+	}
+}
+
+func TestHandleEvents_TimingFalse_LegacyFormat(t *testing.T) {
+	mock := &mockRelayPool{
+		events: []types.Event{
+			{
+				ID:        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Kind:      1,
+				PubKey:    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+				Content:   "Test event",
+				CreatedAt: 1234567890,
+			},
+		},
+	}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	// Request with timing=false should return legacy format
+	req := httptest.NewRequest("GET", "/api/events?timing=false", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	// Should decode as array of events (not EventsQueryResponse)
+	var events []types.Event
+	if err := json.NewDecoder(w.Body).Decode(&events); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Errorf("expected 1 event, got %d", len(events))
+	}
+}
+
+func TestHandleEvents_MethodNotAllowed(t *testing.T) {
+	mock := &mockRelayPool{}
+
+	cfg := &config.Config{}
+	api := NewAPI(cfg, nil, mock, nil)
+
+	req := httptest.NewRequest("POST", "/api/events?timing=true", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEvents(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
 	}
 }

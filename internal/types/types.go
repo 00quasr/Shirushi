@@ -277,3 +277,20 @@ type EventFetchAllRelaysResponse struct {
 	FoundCount  int                `json:"found_count"`
 	TotalRelays int                `json:"total_relays"`
 }
+
+// RelayFetchTiming represents timing data for a single relay's fetch operation.
+type RelayFetchTiming struct {
+	URL          string `json:"url"`
+	LatencyMs    int64  `json:"latency_ms"`
+	EventCount   int    `json:"event_count"`
+	Error        string `json:"error,omitempty"`
+	Connected    bool   `json:"connected"`
+	FirstEventMs int64  `json:"first_event_ms,omitempty"` // Time to first event (0 if no events)
+}
+
+// EventsQueryResponse represents the response from querying events with timing data.
+type EventsQueryResponse struct {
+	Events       []Event            `json:"events"`
+	RelayTimings []RelayFetchTiming `json:"relay_timings"`
+	TotalTimeMs  int64              `json:"total_time_ms"`
+}
