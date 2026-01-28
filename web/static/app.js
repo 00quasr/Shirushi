@@ -1496,6 +1496,21 @@ class Shirushi {
         document.querySelector('[data-tab="publish"]').addEventListener('click', () => {
             this.loadPublishRelays();
         });
+
+        // Relay selector controls
+        const selectAllBtn = document.getElementById('select-all-relays');
+        const selectNoneBtn = document.getElementById('select-none-relays');
+        const selectConnectedBtn = document.getElementById('select-connected-relays');
+
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => this.selectAllRelays());
+        }
+        if (selectNoneBtn) {
+            selectNoneBtn.addEventListener('click', () => this.selectNoRelays());
+        }
+        if (selectConnectedBtn) {
+            selectConnectedBtn.addEventListener('click', () => this.selectConnectedRelays());
+        }
     }
 
     async updatePublishExtensionStatus() {
@@ -1535,6 +1550,7 @@ class Shirushi {
 
         if (this.relays.length === 0) {
             container.innerHTML = '<p class="hint">No relays connected. Add relays from the Relays tab.</p>';
+            this.updateRelaySelectionCount();
             return;
         }
 
@@ -1545,6 +1561,52 @@ class Shirushi {
                 <span class="relay-url">${this.escapeHtml(relay.url)}</span>
             </label>
         `).join('');
+
+        // Add change listeners to update count
+        container.querySelectorAll('input[name="publish-relay"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => this.updateRelaySelectionCount());
+        });
+
+        this.updateRelaySelectionCount();
+    }
+
+    updateRelaySelectionCount() {
+        const countEl = document.getElementById('relay-selection-count');
+        if (!countEl) return;
+
+        const checkboxes = document.querySelectorAll('input[name="publish-relay"]');
+        const checked = document.querySelectorAll('input[name="publish-relay"]:checked');
+
+        if (checkboxes.length === 0) {
+            countEl.textContent = '';
+            return;
+        }
+
+        countEl.textContent = `(${checked.length}/${checkboxes.length} selected)`;
+    }
+
+    selectAllRelays() {
+        document.querySelectorAll('input[name="publish-relay"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        this.updateRelaySelectionCount();
+    }
+
+    selectNoRelays() {
+        document.querySelectorAll('input[name="publish-relay"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        this.updateRelaySelectionCount();
+    }
+
+    selectConnectedRelays() {
+        const connectedUrls = new Set(
+            this.relays.filter(r => r.connected).map(r => r.url)
+        );
+        document.querySelectorAll('input[name="publish-relay"]').forEach(checkbox => {
+            checkbox.checked = connectedUrls.has(checkbox.value);
+        });
+        this.updateRelaySelectionCount();
     }
 
     addPublishTag() {

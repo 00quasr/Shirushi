@@ -1956,6 +1956,24 @@ main {
     flex: 1;
 }
 
+/* Relay Selector Controls */
+.relay-selector-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.relay-selector-controls .btn {
+    font-size: 11px;
+    padding: 4px 8px;
+}
+
+.relay-selection-count {
+    font-size: 12px;
+    color: var(--text-2);
+    font-weight: 400;
+}
+
 /* Relay Checkbox List */
 .relay-checkbox-list {
     display: flex;

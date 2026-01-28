@@ -453,7 +453,12 @@
                         </div>
 
                         <div class="form-group">
-                            <label>Target Relays</label>
+                            <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                            <div class="relay-selector-controls">
+                                <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                                <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                                <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                            </div>
                             <div id="publish-relay-list" class="relay-checkbox-list">
                                 <p class="hint">Loading relays...</p>
                             </div>

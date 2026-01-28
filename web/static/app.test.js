@@ -9516,6 +9516,245 @@
 
             cleanupPublishTest();
         });
+
+        it('should update relay selection count', function() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                    <div class="relay-selector-controls">
+                        <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                        <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                        <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                    </div>
+                    <div id="publish-relay-list" class="relay-checkbox-list"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            const app = new Shirushi();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true },
+                { url: 'wss://relay.offline.com', connected: false }
+            ];
+
+            app.loadPublishRelays();
+
+            const countEl = container.querySelector('#relay-selection-count');
+            assertEqual(countEl.textContent, '(2/3 selected)', 'Should show 2 of 3 selected (connected relays are pre-checked)');
+
+            cleanupPublishTest();
+        });
+
+        it('should select all relays when select all button is clicked', function() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                    <div class="relay-selector-controls">
+                        <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                        <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                        <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                    </div>
+                    <div id="publish-relay-list" class="relay-checkbox-list"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            const app = new Shirushi();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true },
+                { url: 'wss://relay.offline.com', connected: false }
+            ];
+
+            app.loadPublishRelays();
+            app.selectAllRelays();
+
+            const checkboxes = container.querySelectorAll('input[name="publish-relay"]');
+            let allChecked = true;
+            checkboxes.forEach(cb => {
+                if (!cb.checked) allChecked = false;
+            });
+
+            assertTrue(allChecked, 'All checkboxes should be checked after select all');
+
+            const countEl = container.querySelector('#relay-selection-count');
+            assertEqual(countEl.textContent, '(3/3 selected)', 'Should show all 3 selected');
+
+            cleanupPublishTest();
+        });
+
+        it('should deselect all relays when select none button is clicked', function() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                    <div class="relay-selector-controls">
+                        <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                        <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                        <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                    </div>
+                    <div id="publish-relay-list" class="relay-checkbox-list"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            const app = new Shirushi();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true },
+                { url: 'wss://relay.offline.com', connected: false }
+            ];
+
+            app.loadPublishRelays();
+            app.selectNoRelays();
+
+            const checkboxes = container.querySelectorAll('input[name="publish-relay"]');
+            let noneChecked = true;
+            checkboxes.forEach(cb => {
+                if (cb.checked) noneChecked = false;
+            });
+
+            assertTrue(noneChecked, 'No checkboxes should be checked after select none');
+
+            const countEl = container.querySelector('#relay-selection-count');
+            assertEqual(countEl.textContent, '(0/3 selected)', 'Should show 0 of 3 selected');
+
+            cleanupPublishTest();
+        });
+
+        it('should select only connected relays when connected only button is clicked', function() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                    <div class="relay-selector-controls">
+                        <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                        <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                        <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                    </div>
+                    <div id="publish-relay-list" class="relay-checkbox-list"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            const app = new Shirushi();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: false },
+                { url: 'wss://relay.offline.com', connected: false },
+                { url: 'wss://relay.snort.social', connected: true }
+            ];
+
+            app.loadPublishRelays();
+            // First select all to start from a known state
+            app.selectAllRelays();
+            // Then select only connected
+            app.selectConnectedRelays();
+
+            const checkboxes = container.querySelectorAll('input[name="publish-relay"]');
+
+            // Check that only connected relays are checked
+            assertTrue(checkboxes[0].checked, 'First relay (connected) should be checked');
+            assertFalse(checkboxes[1].checked, 'Second relay (disconnected) should not be checked');
+            assertFalse(checkboxes[2].checked, 'Third relay (disconnected) should not be checked');
+            assertTrue(checkboxes[3].checked, 'Fourth relay (connected) should be checked');
+
+            const countEl = container.querySelector('#relay-selection-count');
+            assertEqual(countEl.textContent, '(2/4 selected)', 'Should show 2 of 4 selected');
+
+            cleanupPublishTest();
+        });
+
+        it('should show empty state in relay count when no relays', function() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                    <div class="relay-selector-controls">
+                        <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                        <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                        <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                    </div>
+                    <div id="publish-relay-list" class="relay-checkbox-list"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            const app = new Shirushi();
+
+            app.relays = [];
+            app.loadPublishRelays();
+
+            const countEl = container.querySelector('#relay-selection-count');
+            assertEqual(countEl.textContent, '', 'Should show empty count when no relays');
+
+            const relayList = container.querySelector('#publish-relay-list');
+            assertTrue(relayList.innerHTML.includes('No relays connected'), 'Should show no relays message');
+
+            cleanupPublishTest();
+        });
+
+        it('should update count when checkbox is changed manually', function() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab" data-tab="publish">Publish</button>
+                </nav>
+                <section id="publish-tab" class="tab-content">
+                    <label>Target Relays <span id="relay-selection-count" class="relay-selection-count"></span></label>
+                    <div class="relay-selector-controls">
+                        <button type="button" id="select-all-relays" class="btn small">Select All</button>
+                        <button type="button" id="select-none-relays" class="btn small">Select None</button>
+                        <button type="button" id="select-connected-relays" class="btn small">Connected Only</button>
+                    </div>
+                    <div id="publish-relay-list" class="relay-checkbox-list"></div>
+                </section>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            const app = new Shirushi();
+
+            app.relays = [
+                { url: 'wss://relay.damus.io', connected: true },
+                { url: 'wss://nos.lol', connected: true }
+            ];
+
+            app.loadPublishRelays();
+
+            const countEl = container.querySelector('#relay-selection-count');
+            assertEqual(countEl.textContent, '(2/2 selected)', 'Should show 2 of 2 selected initially');
+
+            // Manually uncheck one checkbox
+            const checkboxes = container.querySelectorAll('input[name="publish-relay"]');
+            checkboxes[0].checked = false;
+            checkboxes[0].dispatchEvent(new Event('change'));
+
+            assertEqual(countEl.textContent, '(1/2 selected)', 'Should show 1 of 2 selected after manual change');
+
+            cleanupPublishTest();
+        });
     });
 
     // Export test runner for browser and Node.js
