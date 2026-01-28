@@ -1584,7 +1584,6 @@
                 <div id="monitoring-tab" class="tab-content">
                     <div id="monitoring-connected">0</div>
                     <div id="monitoring-total">0</div>
-                    <div id="monitoring-events-sec">0</div>
                     <div id="monitoring-total-events">0</div>
                     <div id="relay-health-list"></div>
                     <div class="chart-container" style="width: 400px; height: 200px;">
@@ -2065,7 +2064,6 @@
                 <div id="monitoring-tab" class="tab-content">
                     <div id="monitoring-connected">0</div>
                     <div id="monitoring-total">0</div>
-                    <div id="monitoring-events-sec">0</div>
                     <div id="monitoring-total-events">0</div>
                     <div id="relay-health-list"></div>
                     <div class="chart-container" style="width: 400px; height: 200px;">
@@ -2537,7 +2535,6 @@
                 <div id="monitoring-tab" class="tab-content">
                     <div id="monitoring-connected">0</div>
                     <div id="monitoring-total">0</div>
-                    <div id="monitoring-events-sec">0</div>
                     <div id="monitoring-total-events">0</div>
                     <div id="relay-health-list"></div>
                     <div class="chart-container" style="width: 400px; height: 200px;">

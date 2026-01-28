@@ -3063,8 +3063,6 @@ class Shirushi {
         // Update summary stats
         document.getElementById('monitoring-connected').textContent = data.connected_count || 0;
         document.getElementById('monitoring-total').textContent = data.total_count || 0;
-        document.getElementById('monitoring-events-sec').textContent =
-            (data.events_per_sec || 0).toFixed(1);
         document.getElementById('monitoring-total-events').textContent =
             this.formatNumber(data.total_events || 0);
 
