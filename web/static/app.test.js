@@ -13025,6 +13025,284 @@
             // Cleanup
             document.body.removeChild(resultDiv);
         });
+
+        it('should have computeRelayEventDifferences method', () => {
+            assertDefined(Shirushi.prototype.computeRelayEventDifferences, 'computeRelayEventDifferences method should exist');
+        });
+
+        it('should have renderTagDifferencesAcrossRelays method', () => {
+            assertDefined(Shirushi.prototype.renderTagDifferencesAcrossRelays, 'renderTagDifferencesAcrossRelays method should exist');
+        });
+
+        it('should detect no differences with single event', () => {
+            const instance = new Shirushi();
+            const eventsWithRelays = [
+                {
+                    relay: 'wss://relay1.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [] }
+                }
+            ];
+
+            const result = instance.computeRelayEventDifferences(eventsWithRelays);
+
+            assertFalse(result.hasDifferences, 'Single event should have no differences');
+            assertEqual(result.differingFields.length, 0, 'Should have no differing fields');
+        });
+
+        it('should detect no differences when events are identical', () => {
+            const instance = new Shirushi();
+            const eventsWithRelays = [
+                {
+                    relay: 'wss://relay1.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [['e', 'ref1']] }
+                },
+                {
+                    relay: 'wss://relay2.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [['e', 'ref1']] }
+                }
+            ];
+
+            const result = instance.computeRelayEventDifferences(eventsWithRelays);
+
+            assertFalse(result.hasDifferences, 'Identical events should have no differences');
+            assertEqual(result.differingFields.length, 0, 'Should have no differing fields');
+        });
+
+        it('should detect differences in scalar fields', () => {
+            const instance = new Shirushi();
+            const eventsWithRelays = [
+                {
+                    relay: 'wss://relay1.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [] }
+                },
+                {
+                    relay: 'wss://relay2.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'different content', sig: 'sig1', tags: [] }
+                }
+            ];
+
+            const result = instance.computeRelayEventDifferences(eventsWithRelays);
+
+            assertTrue(result.hasDifferences, 'Should detect differences');
+            assertTrue(result.differingFields.includes('content'), 'Content field should be marked as different');
+        });
+
+        it('should detect differences in tags', () => {
+            const instance = new Shirushi();
+            const eventsWithRelays = [
+                {
+                    relay: 'wss://relay1.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [['e', 'ref1']] }
+                },
+                {
+                    relay: 'wss://relay2.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [['e', 'ref2']] }
+                }
+            ];
+
+            const result = instance.computeRelayEventDifferences(eventsWithRelays);
+
+            assertTrue(result.hasDifferences, 'Should detect tag differences');
+            assertTrue(result.differingFields.includes('tags'), 'Tags field should be marked as different');
+        });
+
+        it('should detect multiple differences', () => {
+            const instance = new Shirushi();
+            const eventsWithRelays = [
+                {
+                    relay: 'wss://relay1.com',
+                    event: { id: 'abc', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [] }
+                },
+                {
+                    relay: 'wss://relay2.com',
+                    event: { id: 'def', pubkey: 'p1', created_at: 1234567891, kind: 1, content: 'goodbye', sig: 'sig2', tags: [['t', 'extra']] }
+                }
+            ];
+
+            const result = instance.computeRelayEventDifferences(eventsWithRelays);
+
+            assertTrue(result.hasDifferences, 'Should detect multiple differences');
+            assertTrue(result.differingFields.includes('id'), 'ID field should be different');
+            assertTrue(result.differingFields.includes('created_at'), 'created_at field should be different');
+            assertTrue(result.differingFields.includes('content'), 'content field should be different');
+            assertTrue(result.differingFields.includes('sig'), 'sig field should be different');
+            assertTrue(result.differingFields.includes('tags'), 'tags field should be different');
+        });
+
+        it('should show data consistency check section when multiple relays have event', () => {
+            const instance = new Shirushi();
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 2,
+                total_relays: 2,
+                results: [
+                    {
+                        url: 'wss://relay1.com',
+                        found: true,
+                        latency_ms: 50,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [] }
+                    },
+                    {
+                        url: 'wss://relay2.com',
+                        found: true,
+                        latency_ms: 60,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [] }
+                    }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify data consistency section exists
+            const dataDiffSection = resultDiv.querySelector('.relay-data-diff');
+            assertDefined(dataDiffSection, 'Data consistency check section should exist');
+
+            // Verify "no differences" summary for identical events
+            const summary = resultDiv.querySelector('.relay-data-diff-summary.no-differences');
+            assertDefined(summary, 'Should show no-differences summary for identical events');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should not show data consistency section with only one relay result', () => {
+            const instance = new Shirushi();
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 1,
+                total_relays: 2,
+                results: [
+                    {
+                        url: 'wss://relay1.com',
+                        found: true,
+                        latency_ms: 50,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [] }
+                    },
+                    { url: 'wss://relay2.com', found: false, latency_ms: 60 }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify data consistency section does NOT exist
+            const dataDiffSection = resultDiv.querySelector('.relay-data-diff');
+            assertTrue(dataDiffSection === null, 'Data consistency section should not exist for single event');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should show differences when events differ across relays', () => {
+            const instance = new Shirushi();
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 2,
+                total_relays: 2,
+                results: [
+                    {
+                        url: 'wss://relay1.com',
+                        found: true,
+                        latency_ms: 50,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'version1', sig: 'sig1', tags: [] }
+                    },
+                    {
+                        url: 'wss://relay2.com',
+                        found: true,
+                        latency_ms: 60,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'version2', sig: 'sig2', tags: [] }
+                    }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify data consistency section exists
+            const dataDiffSection = resultDiv.querySelector('.relay-data-diff');
+            assertDefined(dataDiffSection, 'Data consistency check section should exist');
+
+            // Verify "has differences" summary
+            const summary = resultDiv.querySelector('.relay-data-diff-summary.has-differences');
+            assertDefined(summary, 'Should show has-differences summary');
+
+            // Verify difference details table exists
+            const detailsTable = resultDiv.querySelector('.relay-data-diff-table');
+            assertDefined(detailsTable, 'Details table should exist when differences found');
+
+            // Verify different rows are highlighted
+            const diffRows = resultDiv.querySelectorAll('.relay-data-diff-row.different');
+            assertTrue(diffRows.length > 0, 'Should have highlighted rows for different fields');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
+
+        it('should show tag differences detail when tags differ', () => {
+            const instance = new Shirushi();
+
+            // Create mock result container
+            const resultDiv = document.createElement('div');
+            resultDiv.id = 'all-relays-result';
+            resultDiv.className = 'all-relays-result hidden';
+            resultDiv.innerHTML = '<div class="all-relays-result-content"></div>';
+            document.body.appendChild(resultDiv);
+
+            const mockResult = {
+                event_id: 'abc123def456',
+                found_count: 2,
+                total_relays: 2,
+                results: [
+                    {
+                        url: 'wss://relay1.com',
+                        found: true,
+                        latency_ms: 50,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [['e', 'ref1']] }
+                    },
+                    {
+                        url: 'wss://relay2.com',
+                        found: true,
+                        latency_ms: 60,
+                        event: { id: 'abc123def456', pubkey: 'p1', created_at: 1234567890, kind: 1, content: 'hello', sig: 'sig1', tags: [['e', 'ref2']] }
+                    }
+                ]
+            };
+
+            instance.showAllRelaysResult(mockResult);
+
+            // Verify tag differences section exists
+            const tagDiffSection = resultDiv.querySelector('.relay-data-diff-tags');
+            assertDefined(tagDiffSection, 'Tag differences section should exist');
+
+            // Verify tag table exists
+            const tagTable = resultDiv.querySelector('.relay-data-diff-tags-table');
+            assertDefined(tagTable, 'Tag differences table should exist');
+
+            // Cleanup
+            document.body.removeChild(resultDiv);
+        });
     });
 
     // Export test runner for browser and Node.js

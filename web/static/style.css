@@ -6855,6 +6855,144 @@ a.nip-badge:hover {
     font-size: 13px;
 }
 
+/* Relay Data Consistency Check / Diff Section */
+.relay-data-diff {
+    margin: 12px 0;
+    padding: 12px;
+    background: var(--bg-1);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+
+.relay-data-diff-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.relay-data-diff-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-0);
+}
+
+.relay-data-diff-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+}
+
+.relay-data-diff-summary.no-differences {
+    background: color-mix(in srgb, var(--success) 15%, transparent);
+    color: var(--success);
+}
+
+.relay-data-diff-summary.has-differences {
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
+}
+
+.relay-data-diff-icon {
+    font-size: 14px;
+}
+
+.relay-data-diff-details {
+    overflow-x: auto;
+}
+
+.relay-data-diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.relay-data-diff-table th,
+.relay-data-diff-table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.relay-data-diff-table th {
+    background: var(--bg-2);
+    font-weight: 600;
+    color: var(--text-1);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.relay-data-diff-table th.relay-data-diff-field {
+    width: 100px;
+    min-width: 100px;
+}
+
+.relay-data-diff-table th.relay-data-diff-relay {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.relay-data-diff-row.same {
+    background: transparent;
+}
+
+.relay-data-diff-row.different {
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.relay-data-diff-row.different:hover {
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.relay-data-diff-field {
+    font-weight: 500;
+    color: var(--text-1);
+}
+
+.relay-data-diff-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-2);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.relay-data-diff-value.empty {
+    color: var(--text-3);
+}
+
+.relay-data-diff-tags {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.relay-data-diff-tags-header {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-1);
+    margin-bottom: 8px;
+}
+
+.relay-data-diff-tags-table th:first-child,
+.relay-data-diff-tags-table td:first-child {
+    width: 40px;
+    min-width: 40px;
+    text-align: center;
+}
+
 @media (max-width: 768px) {
     .all-relays-header {
         flex-direction: column;
@@ -6875,6 +7013,25 @@ a.nip-badge:hover {
     .all-relays-event-id {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .relay-data-diff-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .relay-data-diff-table {
+        font-size: 11px;
+    }
+
+    .relay-data-diff-table th,
+    .relay-data-diff-table td {
+        padding: 6px 8px;
+    }
+
+    .relay-data-diff-value {
+        max-width: 120px;
     }
 }
 

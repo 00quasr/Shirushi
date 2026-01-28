@@ -2648,6 +2648,14 @@ class Shirushi {
             return a.latency_ms - b.latency_ms;
         });
 
+        // Collect events from relays that have them for diff comparison
+        const eventsWithRelays = sortedResults
+            .filter(r => r.found && r.event)
+            .map(r => ({ relay: r.url, event: r.event }));
+
+        // Compute data differences between events from different relays
+        const dataDiff = this.computeRelayEventDifferences(eventsWithRelays);
+
         const renderRelayResults = () => {
             return sortedResults.map(r => {
                 const statusIcon = r.found ? '&#10003;' : (r.error ? '&#10007;' : '&#10060;');
@@ -2665,6 +2673,103 @@ class Shirushi {
                     </div>
                 `;
             }).join('');
+        };
+
+        // Render data differences section if we have multiple events to compare
+        const renderDataDifferences = () => {
+            if (eventsWithRelays.length < 2) {
+                return ''; // Need at least 2 events to compare
+            }
+
+            const summaryClass = dataDiff.hasDifferences ? 'has-differences' : 'no-differences';
+            const summaryIcon = dataDiff.hasDifferences ? '&#9888;' : '&#10003;';
+            const summaryText = dataDiff.hasDifferences
+                ? `${dataDiff.differingFields.length} field${dataDiff.differingFields.length !== 1 ? 's' : ''} differ${dataDiff.differingFields.length === 1 ? 's' : ''} across relays`
+                : 'All relays returned identical event data';
+
+            let html = `
+                <div class="relay-data-diff">
+                    <div class="relay-data-diff-header">
+                        <span class="relay-data-diff-title">Data Consistency Check</span>
+                        <span class="relay-data-diff-summary ${summaryClass}">
+                            <span class="relay-data-diff-icon">${summaryIcon}</span>
+                            ${summaryText}
+                        </span>
+                    </div>
+            `;
+
+            if (dataDiff.hasDifferences) {
+                const fieldLabels = {
+                    id: 'Event ID',
+                    pubkey: 'Author',
+                    created_at: 'Created At',
+                    kind: 'Kind',
+                    content: 'Content',
+                    sig: 'Signature',
+                    tags: 'Tags'
+                };
+
+                html += `
+                    <div class="relay-data-diff-details">
+                        <table class="relay-data-diff-table">
+                            <thead>
+                                <tr>
+                                    <th class="relay-data-diff-field">Field</th>
+                                    ${eventsWithRelays.map(e => `<th class="relay-data-diff-relay" title="${this.escapeHtml(e.relay)}">${this.escapeHtml(truncate(e.relay, 24))}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                // Show all fields, highlighting differences
+                const fields = ['id', 'pubkey', 'created_at', 'kind', 'content', 'sig'];
+                for (const field of fields) {
+                    const isDifferent = dataDiff.differingFields.includes(field);
+                    const rowClass = isDifferent ? 'different' : 'same';
+                    const label = fieldLabels[field] || field;
+
+                    html += `<tr class="relay-data-diff-row ${rowClass}">`;
+                    html += `<td class="relay-data-diff-field">${this.escapeHtml(label)}</td>`;
+
+                    for (const e of eventsWithRelays) {
+                        let value = e.event[field];
+                        // Format timestamps
+                        if (field === 'created_at' && value) {
+                            value = new Date(value * 1000).toLocaleString();
+                        }
+                        const displayValue = this.truncateForDiff(value);
+                        const fullValue = String(value || '');
+                        html += `<td class="relay-data-diff-value" title="${this.escapeHtml(fullValue)}">${this.escapeHtml(displayValue)}</td>`;
+                    }
+
+                    html += '</tr>';
+                }
+
+                // Tags comparison
+                const tagsAreDifferent = dataDiff.differingFields.includes('tags');
+                const tagsRowClass = tagsAreDifferent ? 'different' : 'same';
+                html += `<tr class="relay-data-diff-row ${tagsRowClass}">`;
+                html += `<td class="relay-data-diff-field">${fieldLabels.tags}</td>`;
+                for (const e of eventsWithRelays) {
+                    const tagCount = e.event.tags ? e.event.tags.length : 0;
+                    html += `<td class="relay-data-diff-value">${tagCount} tag${tagCount !== 1 ? 's' : ''}</td>`;
+                }
+                html += '</tr>';
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                // If tags differ, show detailed tag comparison
+                if (tagsAreDifferent) {
+                    html += this.renderTagDifferencesAcrossRelays(eventsWithRelays, truncate);
+                }
+            }
+
+            html += '</div>';
+            return html;
         };
 
         const html = `
@@ -2703,6 +2808,7 @@ class Shirushi {
                     ` : ''}
                 </div>
             </div>
+            ${renderDataDifferences()}
             <div class="all-relays-list">
                 <div class="relay-results-header">
                     <span class="relay-header-status">Status</span>
@@ -2742,6 +2848,119 @@ class Shirushi {
         resultDiv.classList.remove('hidden', 'success');
         resultDiv.classList.add('error');
         resultContent.innerHTML = html;
+    }
+
+    /**
+     * Compute differences between events from multiple relays
+     * @param {Array} eventsWithRelays - Array of {relay, event} objects
+     * @returns {Object} - Object with hasDifferences flag and list of differing fields
+     */
+    computeRelayEventDifferences(eventsWithRelays) {
+        const result = {
+            hasDifferences: false,
+            differingFields: []
+        };
+
+        if (eventsWithRelays.length < 2) {
+            return result;
+        }
+
+        const fields = ['id', 'pubkey', 'created_at', 'kind', 'content', 'sig'];
+        const referenceEvent = eventsWithRelays[0].event;
+
+        // Check each scalar field
+        for (const field of fields) {
+            const referenceValue = referenceEvent[field];
+            for (let i = 1; i < eventsWithRelays.length; i++) {
+                const compareValue = eventsWithRelays[i].event[field];
+                if (referenceValue !== compareValue) {
+                    result.hasDifferences = true;
+                    result.differingFields.push(field);
+                    break;
+                }
+            }
+        }
+
+        // Check tags
+        const referenceTags = JSON.stringify(referenceEvent.tags || []);
+        for (let i = 1; i < eventsWithRelays.length; i++) {
+            const compareTags = JSON.stringify(eventsWithRelays[i].event.tags || []);
+            if (referenceTags !== compareTags) {
+                result.hasDifferences = true;
+                result.differingFields.push('tags');
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Render detailed tag differences across relays
+     * @param {Array} eventsWithRelays - Array of {relay, event} objects
+     * @param {Function} truncate - Truncate function for display
+     * @returns {string} - HTML string
+     */
+    renderTagDifferencesAcrossRelays(eventsWithRelays, truncate) {
+        // Find max tag count across all events
+        let maxTagCount = 0;
+        for (const e of eventsWithRelays) {
+            const count = e.event.tags ? e.event.tags.length : 0;
+            if (count > maxTagCount) maxTagCount = count;
+        }
+
+        if (maxTagCount === 0) {
+            return '';
+        }
+
+        let html = `
+            <div class="relay-data-diff-tags">
+                <div class="relay-data-diff-tags-header">Tag Details</div>
+                <table class="relay-data-diff-table relay-data-diff-tags-table">
+                    <thead>
+                        <tr>
+                            <th class="relay-data-diff-field">#</th>
+                            ${eventsWithRelays.map(e => `<th class="relay-data-diff-relay" title="${this.escapeHtml(e.relay)}">${this.escapeHtml(truncate(e.relay, 24))}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        for (let i = 0; i < maxTagCount; i++) {
+            // Check if this tag row has any differences
+            const tagValues = eventsWithRelays.map(e => {
+                const tags = e.event.tags || [];
+                return tags[i] ? JSON.stringify(tags[i]) : null;
+            });
+            const firstValue = tagValues[0];
+            const hasDiff = tagValues.some(v => v !== firstValue);
+            const rowClass = hasDiff ? 'different' : 'same';
+
+            html += `<tr class="relay-data-diff-row ${rowClass}">`;
+            html += `<td class="relay-data-diff-field">${i + 1}</td>`;
+
+            for (const e of eventsWithRelays) {
+                const tags = e.event.tags || [];
+                const tag = tags[i];
+                if (tag) {
+                    const tagStr = JSON.stringify(tag);
+                    const displayValue = this.truncateForDiff(tagStr);
+                    html += `<td class="relay-data-diff-value" title="${this.escapeHtml(tagStr)}">${this.escapeHtml(displayValue)}</td>`;
+                } else {
+                    html += `<td class="relay-data-diff-value empty"><span class="diff-empty">—</span></td>`;
+                }
+            }
+
+            html += '</tr>';
+        }
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        return html;
     }
 
     /**
