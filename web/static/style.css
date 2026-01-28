@@ -485,6 +485,59 @@ main {
     margin-top: 16px;
 }
 
+/* Relay Info Panel (inline in card) */
+.relay-info-panel {
+    margin: 8px 0;
+    padding: 12px;
+    background: var(--bg-3);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+
+.relay-info-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.relay-info-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.relay-info-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.relay-info-value {
+    font-size: 12px;
+    color: var(--text-1);
+    line-height: 1.4;
+}
+
+.relay-info-value code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    background: var(--bg-2);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.relay-limits {
+    font-size: 11px;
+    color: var(--text-2);
+}
+
+.relay-actions .btn.active {
+    background: var(--accent);
+    color: white;
+}
+
 /* Presets */
 .presets {
     display: flex;

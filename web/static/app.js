@@ -357,9 +357,10 @@ class Shirushi {
                 </div>
                 ${this.renderSupportedNIPs(relay.supported_nips)}
                 ${relay.error ? `<div class="relay-error">${this.escapeHtml(relay.error)}</div>` : ''}
+                ${this.renderRelayInfoPanel(relay)}
                 <div class="relay-actions">
                     <button class="btn small copy-btn" data-copy-relay="${this.escapeHtml(relay.url)}">Copy URL</button>
-                    <button class="btn small" data-show-info="${this.escapeHtml(relay.url)}">Info</button>
+                    <button class="btn small" data-toggle-info="${this.escapeHtml(relay.url)}">Info</button>
                     <button class="btn small" onclick="app.removeRelay('${this.escapeHtml(relay.url)}')">Remove</button>
                 </div>
             </div>
@@ -374,12 +375,12 @@ class Shirushi {
             });
         });
 
-        // Attach info button handlers
-        container.querySelectorAll('[data-show-info]').forEach(btn => {
+        // Attach info toggle button handlers
+        container.querySelectorAll('[data-toggle-info]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const url = btn.dataset.showInfo;
-                this.showRelayInfo(url);
+                const url = btn.dataset.toggleInfo;
+                this.toggleRelayInfoPanel(url, btn);
             });
         });
     }
@@ -409,6 +410,109 @@ class Shirushi {
                 </div>
             </div>
         `;
+    }
+
+    renderRelayInfoPanel(relay) {
+        const info = relay.relay_info || {};
+        const hasInfo = info.description || info.software || info.version || info.contact || info.pubkey || info.limitation;
+
+        if (!hasInfo) {
+            return `
+                <div class="relay-info-panel" data-relay-info-panel="${this.escapeHtml(relay.url)}" style="display: none;">
+                    <div class="relay-info-panel-content">
+                        <p class="hint">No additional information available for this relay.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const limitation = info.limitation || {};
+
+        return `
+            <div class="relay-info-panel" data-relay-info-panel="${this.escapeHtml(relay.url)}" style="display: none;">
+                <div class="relay-info-panel-content">
+                    ${info.description ? `
+                        <div class="relay-info-row">
+                            <span class="relay-info-label">Description</span>
+                            <span class="relay-info-value">${this.escapeHtml(info.description)}</span>
+                        </div>
+                    ` : ''}
+                    ${info.software || info.version ? `
+                        <div class="relay-info-row">
+                            <span class="relay-info-label">Software</span>
+                            <span class="relay-info-value">${this.escapeHtml(info.software || '')}${info.version ? ` v${this.escapeHtml(info.version)}` : ''}</span>
+                        </div>
+                    ` : ''}
+                    ${info.contact ? `
+                        <div class="relay-info-row">
+                            <span class="relay-info-label">Contact</span>
+                            <span class="relay-info-value">${this.escapeHtml(info.contact)}</span>
+                        </div>
+                    ` : ''}
+                    ${info.pubkey ? `
+                        <div class="relay-info-row">
+                            <span class="relay-info-label">Operator</span>
+                            <span class="relay-info-value"><code>${info.pubkey.substring(0, 16)}...</code></span>
+                        </div>
+                    ` : ''}
+                    ${this.renderRelayLimitations(limitation)}
+                </div>
+            </div>
+        `;
+    }
+
+    renderRelayLimitations(limitation) {
+        const limits = [];
+
+        if (limitation.max_message_length) {
+            limits.push(`Max message: ${limitation.max_message_length.toLocaleString()} bytes`);
+        }
+        if (limitation.max_subscriptions) {
+            limits.push(`Max subs: ${limitation.max_subscriptions}`);
+        }
+        if (limitation.max_limit) {
+            limits.push(`Max limit: ${limitation.max_limit}`);
+        }
+        if (limitation.max_event_tags) {
+            limits.push(`Max tags: ${limitation.max_event_tags}`);
+        }
+        if (limitation.max_content_length) {
+            limits.push(`Max content: ${limitation.max_content_length.toLocaleString()}`);
+        }
+        if (limitation.auth_required) {
+            limits.push('Auth required');
+        }
+        if (limitation.payment_required) {
+            limits.push('Payment required');
+        }
+
+        if (limits.length === 0) {
+            return '';
+        }
+
+        return `
+            <div class="relay-info-row">
+                <span class="relay-info-label">Limits</span>
+                <span class="relay-info-value relay-limits">${limits.join(' · ')}</span>
+            </div>
+        `;
+    }
+
+    toggleRelayInfoPanel(url, button) {
+        const panel = document.querySelector(`[data-relay-info-panel="${CSS.escape(url)}"]`);
+        if (!panel) return;
+
+        const isVisible = panel.style.display !== 'none';
+
+        if (isVisible) {
+            panel.style.display = 'none';
+            button.textContent = 'Info';
+            button.classList.remove('active');
+        } else {
+            panel.style.display = 'block';
+            button.textContent = 'Hide';
+            button.classList.add('active');
+        }
     }
 
     async showRelayInfo(url) {
