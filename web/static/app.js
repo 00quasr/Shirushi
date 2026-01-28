@@ -42,6 +42,10 @@ class Shirushi {
         // Test history state
         this.testHistory = [];
 
+        // Keyboard shortcut state
+        this.pendingKeySequence = null;
+        this.keySequenceTimeout = null;
+
         this.init();
     }
 
@@ -58,6 +62,7 @@ class Shirushi {
         this.setupKeys();
         this.setupConsole();
         this.setupMonitoring();
+        this.setupKeyboardShortcuts();
         this.loadInitialData();
         this.updateExtensionStatus();
     }
@@ -4574,6 +4579,244 @@ class Shirushi {
         } catch (error) {
             this.toastError('Error', error.message || 'Failed to load event');
         }
+    }
+
+    // Keyboard Shortcuts
+    setupKeyboardShortcuts() {
+        // Tab name mapping for number keys 1-8
+        this.tabMapping = {
+            '1': 'relays',
+            '2': 'explorer',
+            '3': 'events',
+            '4': 'publish',
+            '5': 'testing',
+            '6': 'keys',
+            '7': 'console',
+            '8': 'monitoring'
+        };
+
+        // Two-key sequences starting with 'g' (go to)
+        this.goToMapping = {
+            'r': 'relays',
+            'e': 'explorer',
+            'v': 'events',
+            'p': 'publish',
+            't': 'testing',
+            'k': 'keys',
+            'c': 'console',
+            'm': 'monitoring'
+        };
+
+        // Primary input selectors for each tab (for '/' focus)
+        this.tabInputs = {
+            'relays': '#relay-url',
+            'explorer': '#profile-search',
+            'events': '#filter-kind',
+            'publish': '#publish-content',
+            'testing': null,
+            'keys': '#nip19-input',
+            'console': '#nak-command',
+            'monitoring': null
+        };
+
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcut(e));
+    }
+
+    handleKeyboardShortcut(e) {
+        // Ignore shortcuts when typing in inputs, textareas, or contenteditable
+        const target = e.target;
+        const isTyping = target.tagName === 'INPUT' ||
+                        target.tagName === 'TEXTAREA' ||
+                        target.tagName === 'SELECT' ||
+                        target.isContentEditable;
+
+        // Allow Escape to work anywhere (for closing modals)
+        if (e.key === 'Escape') {
+            // Clear any pending key sequence
+            this.clearKeySequence();
+            return; // Let existing handlers deal with Escape
+        }
+
+        // Don't process shortcuts when typing, except for specific keys
+        if (isTyping) {
+            return;
+        }
+
+        // Don't process if modal is open
+        if (this.modalOverlay && !this.modalOverlay.classList.contains('hidden')) {
+            return;
+        }
+
+        // Handle two-key sequences
+        if (this.pendingKeySequence === 'g') {
+            this.clearKeySequence();
+            const tabName = this.goToMapping[e.key.toLowerCase()];
+            if (tabName) {
+                e.preventDefault();
+                this.switchTab(tabName);
+                this.toastInfo('Navigation', `Switched to ${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+            }
+            return;
+        }
+
+        // Handle modifier keys
+        const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+
+        // '?' or Shift+/ shows help
+        if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+            e.preventDefault();
+            this.showKeyboardShortcutsHelp();
+            return;
+        }
+
+        // Skip if any modifier except shift is pressed for single-key shortcuts
+        if (hasModifier) {
+            return;
+        }
+
+        // Number keys 1-8 for tab navigation
+        if (this.tabMapping[e.key]) {
+            e.preventDefault();
+            const tabName = this.tabMapping[e.key];
+            this.switchTab(tabName);
+            return;
+        }
+
+        // 'g' starts a two-key sequence
+        if (e.key === 'g') {
+            e.preventDefault();
+            this.startKeySequence('g');
+            return;
+        }
+
+        // '/' focuses the primary input on the current tab
+        if (e.key === '/') {
+            e.preventDefault();
+            this.focusCurrentTabInput();
+            return;
+        }
+    }
+
+    startKeySequence(key) {
+        this.pendingKeySequence = key;
+        // Clear sequence after 1 second if no second key pressed
+        this.keySequenceTimeout = setTimeout(() => {
+            this.clearKeySequence();
+        }, 1000);
+    }
+
+    clearKeySequence() {
+        this.pendingKeySequence = null;
+        if (this.keySequenceTimeout) {
+            clearTimeout(this.keySequenceTimeout);
+            this.keySequenceTimeout = null;
+        }
+    }
+
+    focusCurrentTabInput() {
+        // Find the currently active tab
+        const activeTab = document.querySelector('.tab.active');
+        if (!activeTab) return;
+
+        const tabName = activeTab.dataset.tab;
+        const inputSelector = this.tabInputs[tabName];
+
+        if (inputSelector) {
+            const input = document.querySelector(inputSelector);
+            if (input) {
+                input.focus();
+                // Select all text if it's a text input
+                if (input.select) {
+                    input.select();
+                }
+            }
+        }
+    }
+
+    showKeyboardShortcutsHelp() {
+        const helpContent = `
+            <div class="shortcuts-help">
+                <div class="shortcuts-section">
+                    <h4>Tab Navigation</h4>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <kbd>1</kbd><span>Relays</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>2</kbd><span>Explorer</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>3</kbd><span>Events</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>4</kbd><span>Publish</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>5</kbd><span>Testing</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>6</kbd><span>Keys</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>7</kbd><span>Console</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>8</kbd><span>Monitoring</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="shortcuts-section">
+                    <h4>Go To (press g, then...)</h4>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>r</kbd><span>Relays</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>e</kbd><span>Explorer</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>v</kbd><span>Events</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>p</kbd><span>Publish</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>t</kbd><span>Testing</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>k</kbd><span>Keys</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>c</kbd><span>Console</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>g</kbd> <kbd>m</kbd><span>Monitoring</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="shortcuts-section">
+                    <h4>General</h4>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <kbd>/</kbd><span>Focus search/input</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>?</kbd><span>Show this help</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>Esc</kbd><span>Close modal/menu</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.showModal({
+            title: 'Keyboard Shortcuts',
+            body: helpContent,
+            size: 'md',
+            buttons: [{ text: 'Close', type: 'primary', value: null }]
+        });
     }
 }
 

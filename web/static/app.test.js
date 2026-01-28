@@ -8504,6 +8504,273 @@
         });
     });
 
+    // ===== Keyboard Shortcuts Tests =====
+    describe('Keyboard Shortcuts', function() {
+        let container;
+        let appInstance;
+
+        function createTestApp() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <nav class="tabs" id="main-nav">
+                    <button class="tab active" data-tab="relays">Relays</button>
+                    <button class="tab" data-tab="explorer">Explorer</button>
+                    <button class="tab" data-tab="events">Events</button>
+                    <button class="tab" data-tab="publish">Publish</button>
+                    <button class="tab" data-tab="testing">Testing</button>
+                    <button class="tab" data-tab="keys">Keys</button>
+                    <button class="tab" data-tab="console">Console</button>
+                    <button class="tab" data-tab="monitoring">Monitoring</button>
+                </nav>
+                <main>
+                    <section id="relays-tab" class="tab-content active">
+                        <input type="text" id="relay-url">
+                    </section>
+                    <section id="explorer-tab" class="tab-content">
+                        <input type="text" id="profile-search">
+                    </section>
+                    <section id="events-tab" class="tab-content">
+                        <input type="number" id="filter-kind">
+                    </section>
+                    <section id="publish-tab" class="tab-content">
+                        <textarea id="publish-content"></textarea>
+                    </section>
+                    <section id="testing-tab" class="tab-content"></section>
+                    <section id="keys-tab" class="tab-content">
+                        <input type="text" id="nip19-input">
+                    </section>
+                    <section id="console-tab" class="tab-content">
+                        <input type="text" id="nak-command">
+                    </section>
+                    <section id="monitoring-tab" class="tab-content"></section>
+                </main>
+                <div id="modal-overlay" class="modal-overlay hidden">
+                    <div class="modal">
+                        <div class="modal-header">
+                            <h2 class="modal-title" id="modal-title"></h2>
+                            <button class="modal-close">&times;</button>
+                        </div>
+                        <div class="modal-body" id="modal-body"></div>
+                        <div class="modal-footer" id="modal-footer"></div>
+                    </div>
+                </div>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+            document.body.appendChild(container);
+            appInstance = new Shirushi();
+            return appInstance;
+        }
+
+        function simulateKeydown(key, options = {}) {
+            const event = new KeyboardEvent('keydown', {
+                key: key,
+                bubbles: true,
+                cancelable: true,
+                ctrlKey: options.ctrlKey || false,
+                metaKey: options.metaKey || false,
+                altKey: options.altKey || false,
+                shiftKey: options.shiftKey || false
+            });
+            document.dispatchEvent(event);
+            return event;
+        }
+
+        function cleanup() {
+            if (container && container.parentNode) {
+                document.body.removeChild(container);
+            }
+        }
+
+        it('should initialize keyboard shortcuts state', function() {
+            const app = createTestApp();
+
+            assertDefined(app.tabMapping, 'Tab mapping should be defined');
+            assertDefined(app.goToMapping, 'Go-to mapping should be defined');
+            assertDefined(app.tabInputs, 'Tab inputs should be defined');
+            assertEqual(app.pendingKeySequence, null, 'Pending key sequence should be null initially');
+
+            cleanup();
+        });
+
+        it('should have correct tab mappings for number keys', function() {
+            const app = createTestApp();
+
+            assertEqual(app.tabMapping['1'], 'relays', 'Key 1 should map to relays');
+            assertEqual(app.tabMapping['2'], 'explorer', 'Key 2 should map to explorer');
+            assertEqual(app.tabMapping['3'], 'events', 'Key 3 should map to events');
+            assertEqual(app.tabMapping['4'], 'publish', 'Key 4 should map to publish');
+            assertEqual(app.tabMapping['5'], 'testing', 'Key 5 should map to testing');
+            assertEqual(app.tabMapping['6'], 'keys', 'Key 6 should map to keys');
+            assertEqual(app.tabMapping['7'], 'console', 'Key 7 should map to console');
+            assertEqual(app.tabMapping['8'], 'monitoring', 'Key 8 should map to monitoring');
+
+            cleanup();
+        });
+
+        it('should have correct go-to mappings', function() {
+            const app = createTestApp();
+
+            assertEqual(app.goToMapping['r'], 'relays', 'g+r should map to relays');
+            assertEqual(app.goToMapping['e'], 'explorer', 'g+e should map to explorer');
+            assertEqual(app.goToMapping['v'], 'events', 'g+v should map to events');
+            assertEqual(app.goToMapping['p'], 'publish', 'g+p should map to publish');
+            assertEqual(app.goToMapping['t'], 'testing', 'g+t should map to testing');
+            assertEqual(app.goToMapping['k'], 'keys', 'g+k should map to keys');
+            assertEqual(app.goToMapping['c'], 'console', 'g+c should map to console');
+            assertEqual(app.goToMapping['m'], 'monitoring', 'g+m should map to monitoring');
+
+            cleanup();
+        });
+
+        it('should switch tabs using number keys', function() {
+            const app = createTestApp();
+
+            // Initially on relays tab - use container-scoped query
+            assertTrue(container.querySelector('[data-tab="relays"]').classList.contains('active'), 'Should start on relays tab');
+
+            // Press 2 to go to explorer
+            simulateKeydown('2');
+            assertTrue(container.querySelector('[data-tab="explorer"]').classList.contains('active'), 'Should switch to explorer tab');
+            assertFalse(container.querySelector('[data-tab="relays"]').classList.contains('active'), 'Relays tab should not be active');
+
+            // Press 7 to go to console
+            simulateKeydown('7');
+            assertTrue(container.querySelector('[data-tab="console"]').classList.contains('active'), 'Should switch to console tab');
+
+            cleanup();
+        });
+
+        it('should handle g+key sequences for navigation', function() {
+            const app = createTestApp();
+
+            // Press 'g' to start sequence
+            simulateKeydown('g');
+            assertEqual(app.pendingKeySequence, 'g', 'Should set pending key sequence to g');
+
+            // Press 'e' to complete sequence to explorer
+            simulateKeydown('e');
+            assertEqual(app.pendingKeySequence, null, 'Should clear pending key sequence');
+            assertTrue(container.querySelector('[data-tab="explorer"]').classList.contains('active'), 'Should switch to explorer tab');
+
+            cleanup();
+        });
+
+        it('should clear key sequence after timeout', async function() {
+            const app = createTestApp();
+
+            // Press 'g' to start sequence
+            simulateKeydown('g');
+            assertEqual(app.pendingKeySequence, 'g', 'Should set pending key sequence');
+
+            // Wait for timeout (slightly more than 1 second)
+            await new Promise(resolve => setTimeout(resolve, 1100));
+
+            assertEqual(app.pendingKeySequence, null, 'Should clear pending key sequence after timeout');
+
+            cleanup();
+        });
+
+        it('should show help modal when ? is pressed', function() {
+            const app = createTestApp();
+
+            simulateKeydown('?');
+
+            const modal = container.querySelector('#modal-overlay');
+            assertFalse(modal.classList.contains('hidden'), 'Modal should be visible');
+
+            const title = container.querySelector('#modal-title');
+            assertEqual(title.textContent, 'Keyboard Shortcuts', 'Modal title should be Keyboard Shortcuts');
+
+            // Close modal for cleanup
+            app.closeModal();
+            cleanup();
+        });
+
+        it('should focus current tab input when / is pressed', function() {
+            const app = createTestApp();
+
+            // On relays tab, focus should go to relay-url input
+            simulateKeydown('/');
+            const relayInput = container.querySelector('#relay-url');
+            assertEqual(document.activeElement, relayInput, 'Should focus relay-url input');
+
+            // Switch to explorer and press /
+            simulateKeydown('2');
+            document.activeElement.blur();
+            simulateKeydown('/');
+            const profileInput = container.querySelector('#profile-search');
+            assertEqual(document.activeElement, profileInput, 'Should focus profile-search input');
+
+            cleanup();
+        });
+
+        it('should not trigger shortcuts when typing in input', function() {
+            const app = createTestApp();
+
+            const input = container.querySelector('#relay-url');
+            input.focus();
+
+            // Simulate typing '2' in input - should not switch tabs
+            const event = new KeyboardEvent('keydown', {
+                key: '2',
+                bubbles: true,
+                cancelable: true
+            });
+            input.dispatchEvent(event);
+
+            // Should still be on relays tab
+            assertTrue(container.querySelector('[data-tab="relays"]').classList.contains('active'), 'Should not switch tab when typing in input');
+
+            cleanup();
+        });
+
+        it('should not trigger shortcuts when modal is open', function() {
+            const app = createTestApp();
+
+            // Open help modal
+            app.showKeyboardShortcutsHelp();
+
+            // Try to switch tabs with '2'
+            simulateKeydown('2');
+
+            // Should still show modal and not switch tabs
+            const modal = container.querySelector('#modal-overlay');
+            assertFalse(modal.classList.contains('hidden'), 'Modal should still be visible');
+
+            // Close modal for cleanup
+            app.closeModal();
+            cleanup();
+        });
+
+        it('should clear pending key sequence on Escape', function() {
+            const app = createTestApp();
+
+            // Start a g sequence
+            simulateKeydown('g');
+            assertEqual(app.pendingKeySequence, 'g', 'Should have pending sequence');
+
+            // Press Escape - note: this also closes mobile menu if open, which clears sequence
+            simulateKeydown('Escape');
+            assertEqual(app.pendingKeySequence, null, 'Should clear pending sequence on Escape');
+
+            cleanup();
+        });
+
+        it('should not trigger shortcuts with modifier keys', function() {
+            const app = createTestApp();
+
+            // Ctrl+2 should not switch tabs (could be browser shortcut)
+            simulateKeydown('2', { ctrlKey: true });
+            assertTrue(container.querySelector('[data-tab="relays"]').classList.contains('active'), 'Should not switch with Ctrl modifier');
+
+            // Meta+2 should not switch tabs
+            simulateKeydown('2', { metaKey: true });
+            assertTrue(container.querySelector('[data-tab="relays"]').classList.contains('active'), 'Should not switch with Meta modifier');
+
+            cleanup();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;
