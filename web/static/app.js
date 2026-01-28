@@ -1358,6 +1358,10 @@ class Shirushi {
             this.exportEventsAsJson();
         });
 
+        document.getElementById('export-csv-btn').addEventListener('click', () => {
+            this.exportEventsAsCsv();
+        });
+
         // Verify event handlers
         document.getElementById('verify-event-btn').addEventListener('click', () => {
             this.verifyEvent();
@@ -2488,6 +2492,65 @@ class Shirushi {
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const filename = `nostr-events-${timestamp}.json`;
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        this.toastSuccess('Exported', `${this.events.length} events saved to ${filename}`);
+    }
+
+    /**
+     * Export all events as a CSV file download (flattened format)
+     */
+    exportEventsAsCsv() {
+        if (this.events.length === 0) {
+            this.toastError('No Events', 'No events to export');
+            return;
+        }
+
+        // CSV headers
+        const headers = ['id', 'kind', 'pubkey', 'content', 'created_at', 'tags', 'sig', 'relay'];
+
+        // Helper to escape CSV values
+        const escapeCSV = (value) => {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            const str = String(value);
+            // If value contains comma, newline, or double quote, wrap in quotes and escape double quotes
+            if (str.includes(',') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        };
+
+        // Build CSV rows
+        const rows = this.events.map(event => {
+            const { _isNew, ...cleanEvent } = event;
+            return [
+                escapeCSV(cleanEvent.id),
+                escapeCSV(cleanEvent.kind),
+                escapeCSV(cleanEvent.pubkey),
+                escapeCSV(cleanEvent.content),
+                escapeCSV(cleanEvent.created_at),
+                escapeCSV(JSON.stringify(cleanEvent.tags || [])),
+                escapeCSV(cleanEvent.sig),
+                escapeCSV(cleanEvent.relay || '')
+            ].join(',');
+        });
+
+        // Combine headers and rows
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `nostr-events-${timestamp}.csv`;
 
         const link = document.createElement('a');
         link.href = url;
