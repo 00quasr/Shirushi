@@ -25,6 +25,7 @@ type RelayPool interface {
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
 	QueryEventsByIDs(ids []string) ([]types.Event, error)
 	QueryEventReplies(eventID string) ([]types.Event, error)
+	QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelaysResponse
 	Subscribe(kinds []int, authors []string, callback func(types.Event)) string
 	MonitoringData() *types.MonitoringData
 	GetRelayInfo(url string) *types.RelayInfo
@@ -841,6 +842,55 @@ func (a *API) HandleEventLookup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, events[0])
+}
+
+// HandleEventFetchAllRelays fetches an event by ID from all connected relays,
+// returning individual results for each relay.
+func (a *API) HandleEventFetchAllRelays(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// Get the event ID from query parameter
+	eventID := r.URL.Query().Get("id")
+	if eventID == "" {
+		writeError(w, http.StatusBadRequest, "event ID is required")
+		return
+	}
+
+	eventID = strings.TrimSpace(eventID)
+
+	// If input is note1... or nevent1..., decode it to hex
+	if strings.HasPrefix(eventID, "note1") || strings.HasPrefix(eventID, "nevent1") {
+		if a.nak == nil {
+			writeError(w, http.StatusServiceUnavailable, "nak CLI not available for decoding")
+			return
+		}
+		decoded, err := a.nak.Decode(eventID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("failed to decode event ID: %v", err))
+			return
+		}
+		eventID = decoded.Hex
+	}
+
+	// Validate hex format (64 characters, valid hex)
+	if len(eventID) != 64 {
+		writeError(w, http.StatusBadRequest, "event ID must be 64 hex characters")
+		return
+	}
+	for _, c := range eventID {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			writeError(w, http.StatusBadRequest, "event ID must contain only hexadecimal characters")
+			return
+		}
+	}
+
+	// Query the event from all relays
+	response := a.relayPool.QueryEventFromAllRelays(eventID)
+
+	writeJSON(w, response)
 }
 
 // HandleEventPublish publishes a signed event to connected relays.

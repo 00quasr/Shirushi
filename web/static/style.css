@@ -6557,6 +6557,214 @@ a.nip-badge:hover {
 }
 
 /* ========================================
+   All Relays Result Section
+   ======================================== */
+
+.all-relays-result {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
+}
+
+.all-relays-result.hidden {
+    display: none;
+}
+
+.all-relays-result.success {
+    background: var(--bg-2);
+    border-color: var(--border);
+}
+
+.all-relays-result.error {
+    background: color-mix(in srgb, var(--error) 10%, var(--bg-2));
+    border-color: var(--error);
+}
+
+.all-relays-result-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.all-relays-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.all-relays-header.error {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.all-relays-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-0);
+}
+
+.all-relays-summary {
+    font-size: 13px;
+    color: var(--text-2);
+}
+
+.all-relays-event-id {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-1);
+    border-radius: 4px;
+}
+
+.all-relays-label {
+    font-size: 12px;
+    color: var(--text-2);
+}
+
+.all-relays-id {
+    font-size: 12px;
+    color: var(--text-1);
+    flex: 1;
+}
+
+.all-relays-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.relay-results-header {
+    display: grid;
+    grid-template-columns: 32px 1fr 120px 80px;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-1);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-transform: uppercase;
+}
+
+.relay-result-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 120px 80px;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    align-items: center;
+    transition: background 0.15s ease;
+}
+
+.relay-result-row:hover {
+    background: var(--bg-3);
+}
+
+.relay-result-row.found {
+    background: color-mix(in srgb, var(--success) 8%, var(--bg-2));
+}
+
+.relay-result-row.found:hover {
+    background: color-mix(in srgb, var(--success) 12%, var(--bg-2));
+}
+
+.relay-result-row.error {
+    background: color-mix(in srgb, var(--error) 8%, var(--bg-2));
+}
+
+.relay-result-row.error:hover {
+    background: color-mix(in srgb, var(--error) 12%, var(--bg-2));
+}
+
+.relay-result-icon {
+    font-size: 14px;
+    text-align: center;
+}
+
+.relay-result-icon.found {
+    color: var(--success);
+}
+
+.relay-result-icon.error {
+    color: var(--error);
+}
+
+.relay-result-icon.not-found {
+    color: var(--text-3);
+}
+
+.relay-result-url {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.relay-result-status {
+    font-size: 12px;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.relay-result-row.found .relay-result-status {
+    color: var(--success);
+    font-weight: 500;
+}
+
+.relay-result-row.error .relay-result-status {
+    color: var(--error);
+}
+
+.relay-result-latency {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-2);
+    text-align: right;
+}
+
+.all-relays-error {
+    padding: 12px;
+}
+
+.all-relays-error-message {
+    color: var(--error);
+    font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    .all-relays-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .relay-results-header,
+    .relay-result-row {
+        grid-template-columns: 24px 1fr 60px;
+    }
+
+    .relay-header-result,
+    .relay-result-status {
+        display: none;
+    }
+
+    .all-relays-event-id {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ========================================
    Verify Event Section
    ======================================== */
 

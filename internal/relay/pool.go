@@ -481,6 +481,108 @@ func (p *Pool) QueryEventReplies(eventID string) ([]types.Event, error) {
 	return events, nil
 }
 
+// QueryEventFromAllRelays fetches an event by ID from all connected relays,
+// returning individual results for each relay (whether found, latency, errors).
+func (p *Pool) QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelaysResponse {
+	relays := p.GetConnected()
+	response := &types.EventFetchAllRelaysResponse{
+		EventID:     eventID,
+		Results:     make([]types.EventRelayResult, 0, len(relays)),
+		TotalRelays: len(relays),
+	}
+
+	if len(relays) == 0 {
+		return response
+	}
+
+	filter := nostr.Filter{
+		IDs:   []string{eventID},
+		Limit: 1,
+	}
+
+	// Query each relay individually to get per-relay results
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	resultsChan := make(chan types.EventRelayResult, len(relays))
+
+	for _, relayURL := range relays {
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+
+			result := types.EventRelayResult{
+				URL:   url,
+				Found: false,
+			}
+
+			start := time.Now()
+			ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+			defer cancel()
+
+			// Get a single relay from the pool for this specific query
+			relay, err := p.pool.EnsureRelay(url)
+			if err != nil {
+				result.Error = fmt.Sprintf("connection error: %v", err)
+				result.Latency = time.Since(start).Milliseconds()
+				resultsChan <- result
+				return
+			}
+
+			sub, err := relay.Subscribe(ctx, nostr.Filters{filter})
+			if err != nil {
+				result.Error = fmt.Sprintf("subscribe error: %v", err)
+				result.Latency = time.Since(start).Milliseconds()
+				resultsChan <- result
+				return
+			}
+			defer sub.Unsub()
+
+			// Wait for either an event or EOSE
+			select {
+			case ev := <-sub.Events:
+				if ev != nil {
+					result.Found = true
+					result.Event = &types.Event{
+						ID:        ev.ID,
+						Kind:      ev.Kind,
+						PubKey:    ev.PubKey,
+						Content:   ev.Content,
+						CreatedAt: int64(ev.CreatedAt),
+						Tags:      convertTags(ev.Tags),
+						Sig:       ev.Sig,
+						Relay:     url,
+					}
+				}
+			case <-sub.EndOfStoredEvents:
+				// No event found, result.Found remains false
+			case <-ctx.Done():
+				result.Error = "timeout"
+			}
+
+			result.Latency = time.Since(start).Milliseconds()
+			resultsChan <- result
+		}(relayURL)
+	}
+
+	// Close the channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	// Collect results
+	for result := range resultsChan {
+		mu.Lock()
+		response.Results = append(response.Results, result)
+		if result.Found {
+			response.FoundCount++
+		}
+		mu.Unlock()
+	}
+
+	return response
+}
+
 // GetRelayInfo returns the NIP-11 info for a specific relay.
 // First checks the active connection, then falls back to cache.
 func (p *Pool) GetRelayInfo(url string) *types.RelayInfo {

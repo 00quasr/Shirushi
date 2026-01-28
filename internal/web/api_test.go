@@ -91,6 +91,7 @@ type mockRelayPool struct {
 	events            []types.Event
 	eventsByID        map[string]types.Event
 	repliesMap        map[string][]types.Event
+	allRelaysResponse *types.EventFetchAllRelaysResponse
 	err               error
 	refreshInfoErr    error
 	monitoringData    *types.MonitoringData
@@ -136,6 +137,18 @@ func (m *mockRelayPool) QueryEventReplies(eventID string) ([]types.Event, error)
 		return m.repliesMap[eventID], nil
 	}
 	return nil, nil
+}
+func (m *mockRelayPool) QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelaysResponse {
+	if m.allRelaysResponse != nil {
+		return m.allRelaysResponse
+	}
+	// Return empty response by default
+	return &types.EventFetchAllRelaysResponse{
+		EventID:     eventID,
+		Results:     []types.EventRelayResult{},
+		FoundCount:  0,
+		TotalRelays: 0,
+	}
 }
 func (m *mockRelayPool) MonitoringData() *types.MonitoringData {
 	return m.monitoringData
@@ -3976,5 +3989,297 @@ func TestHandleEventLookup_QueryError(t *testing.T) {
 
 	if !strings.Contains(errResp["error"], "failed to query event") {
 		t.Errorf("expected error about query failure, got '%s'", errResp["error"])
+	}
+}
+
+// Tests for HandleEventFetchAllRelays
+
+func TestHandleEventFetchAllRelays_Success(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		allRelaysResponse: &types.EventFetchAllRelaysResponse{
+			EventID: eventID,
+			Results: []types.EventRelayResult{
+				{
+					URL:   "wss://relay1.example.com",
+					Found: true,
+					Event: &types.Event{
+						ID:        eventID,
+						Kind:      1,
+						PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+						Content:   "Hello, Nostr!",
+						CreatedAt: 1700000000,
+					},
+					Latency: 50,
+				},
+				{
+					URL:     "wss://relay2.example.com",
+					Found:   false,
+					Latency: 100,
+				},
+				{
+					URL:   "wss://relay3.example.com",
+					Found: true,
+					Event: &types.Event{
+						ID:        eventID,
+						Kind:      1,
+						PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+						Content:   "Hello, Nostr!",
+						CreatedAt: 1700000000,
+					},
+					Latency: 75,
+				},
+			},
+			FoundCount:  2,
+			TotalRelays: 3,
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventFetchAllRelaysResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.EventID != eventID {
+		t.Errorf("expected event ID '%s', got '%s'", eventID, response.EventID)
+	}
+
+	if response.FoundCount != 2 {
+		t.Errorf("expected found_count 2, got %d", response.FoundCount)
+	}
+
+	if response.TotalRelays != 3 {
+		t.Errorf("expected total_relays 3, got %d", response.TotalRelays)
+	}
+
+	if len(response.Results) != 3 {
+		t.Errorf("expected 3 results, got %d", len(response.Results))
+	}
+}
+
+func TestHandleEventFetchAllRelays_NoRelays(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		allRelaysResponse: &types.EventFetchAllRelaysResponse{
+			EventID:     eventID,
+			Results:     []types.EventRelayResult{},
+			FoundCount:  0,
+			TotalRelays: 0,
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventFetchAllRelaysResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.TotalRelays != 0 {
+		t.Errorf("expected total_relays 0, got %d", response.TotalRelays)
+	}
+}
+
+func TestHandleEventFetchAllRelays_MissingID(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event ID is required" {
+		t.Errorf("expected error 'event ID is required', got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventFetchAllRelays_InvalidIDLength(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays?id=tooshort", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event ID must be 64 hex characters" {
+		t.Errorf("expected error about 64 characters, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventFetchAllRelays_InvalidHexCharacters(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Use 64-char string with invalid hex characters
+	invalidID := "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays?id="+invalidID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "event ID must contain only hexadecimal characters" {
+		t.Errorf("expected error about hex characters, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleEventFetchAllRelays_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/events/fetch-all-relays", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleEventFetchAllRelays_WithNote1Format(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		allRelaysResponse: &types.EventFetchAllRelaysResponse{
+			EventID: eventID,
+			Results: []types.EventRelayResult{
+				{
+					URL:     "wss://relay1.example.com",
+					Found:   true,
+					Latency: 50,
+				},
+			},
+			FoundCount:  1,
+			TotalRelays: 1,
+		},
+	}
+	nakClient := &mockNakClient{
+		decoded: &nak.Decoded{
+			Type: "note",
+			Hex:  eventID,
+		},
+	}
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays?id=note1xyz", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventFetchAllRelaysResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.EventID != eventID {
+		t.Errorf("expected event ID '%s', got '%s'", eventID, response.EventID)
+	}
+}
+
+func TestHandleEventFetchAllRelays_WithRelayErrors(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	pool := &mockRelayPool{
+		allRelaysResponse: &types.EventFetchAllRelaysResponse{
+			EventID: eventID,
+			Results: []types.EventRelayResult{
+				{
+					URL:     "wss://relay1.example.com",
+					Found:   true,
+					Latency: 50,
+				},
+				{
+					URL:     "wss://relay2.example.com",
+					Found:   false,
+					Error:   "connection error: timeout",
+					Latency: 10000,
+				},
+			},
+			FoundCount:  1,
+			TotalRelays: 2,
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/fetch-all-relays?id="+eventID, nil)
+	w := httptest.NewRecorder()
+
+	api.HandleEventFetchAllRelays(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.EventFetchAllRelaysResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.FoundCount != 1 {
+		t.Errorf("expected found_count 1, got %d", response.FoundCount)
+	}
+
+	// Check that error is captured
+	var errorResult *types.EventRelayResult
+	for i := range response.Results {
+		if response.Results[i].Error != "" {
+			errorResult = &response.Results[i]
+			break
+		}
+	}
+
+	if errorResult == nil {
+		t.Error("expected to find a result with an error")
+	} else if errorResult.Error != "connection error: timeout" {
+		t.Errorf("expected error 'connection error: timeout', got '%s'", errorResult.Error)
 	}
 }

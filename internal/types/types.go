@@ -260,3 +260,20 @@ type PublishResponse struct {
 	EventID string          `json:"event_id"`
 	Results []PublishResult `json:"results"`
 }
+
+// EventRelayResult represents the result of fetching an event from a specific relay.
+type EventRelayResult struct {
+	URL     string `json:"url"`
+	Found   bool   `json:"found"`
+	Event   *Event `json:"event,omitempty"`
+	Latency int64  `json:"latency_ms"`
+	Error   string `json:"error,omitempty"`
+}
+
+// EventFetchAllRelaysResponse represents the response from fetching an event from all relays.
+type EventFetchAllRelaysResponse struct {
+	EventID     string             `json:"event_id"`
+	Results     []EventRelayResult `json:"results"`
+	FoundCount  int                `json:"found_count"`
+	TotalRelays int                `json:"total_relays"`
+}

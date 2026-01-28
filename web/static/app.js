@@ -1382,6 +1382,10 @@ class Shirushi {
             this.lookupEvent();
         });
 
+        document.getElementById('fetch-all-relays-btn').addEventListener('click', () => {
+            this.fetchEventFromAllRelays();
+        });
+
         document.getElementById('clear-lookup-btn').addEventListener('click', () => {
             this.clearLookupInput();
         });
@@ -2557,7 +2561,145 @@ class Shirushi {
         const resultDiv = document.getElementById('lookup-result');
         resultDiv.classList.add('hidden');
         resultDiv.classList.remove('success', 'error');
+        const allRelaysResult = document.getElementById('all-relays-result');
+        allRelaysResult.classList.add('hidden');
         this.lastLookupEvent = null;
+        this.lastAllRelaysResult = null;
+    }
+
+    /**
+     * Fetch an event from all connected relays and show per-relay results
+     */
+    async fetchEventFromAllRelays() {
+        const input = document.getElementById('event-lookup-input');
+        const fetchBtn = document.getElementById('fetch-all-relays-btn');
+        const eventId = input.value.trim();
+
+        if (!eventId) {
+            this.toastError('Error', 'Please enter an event ID to fetch');
+            return;
+        }
+
+        // Validate format (should be hex or note1.../nevent1...)
+        const isHex = /^[0-9a-fA-F]{64}$/.test(eventId);
+        const isNote = eventId.startsWith('note1');
+        const isNevent = eventId.startsWith('nevent1');
+
+        if (!isHex && !isNote && !isNevent) {
+            this.toastError('Error', 'Invalid format. Use 64-char hex, note1..., or nevent1...');
+            return;
+        }
+
+        // Disable button during fetch
+        fetchBtn.disabled = true;
+        fetchBtn.textContent = 'Fetching...';
+
+        try {
+            const response = await fetch(`/api/events/fetch-all-relays?id=${encodeURIComponent(eventId)}`);
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Failed to fetch event' }));
+                throw new Error(error.error || 'Failed to fetch event');
+            }
+
+            const result = await response.json();
+            this.showAllRelaysResult(result);
+            this.toastSuccess('Complete', `Found on ${result.found_count}/${result.total_relays} relays`);
+        } catch (error) {
+            console.error('Fetch all relays error:', error);
+            this.showAllRelaysError(error.message);
+            this.toastError('Error', error.message);
+        } finally {
+            fetchBtn.disabled = false;
+            fetchBtn.textContent = 'Fetch from All Relays';
+        }
+    }
+
+    /**
+     * Display the results of fetching from all relays
+     * @param {Object} result - The fetch result object
+     */
+    showAllRelaysResult(result) {
+        const resultDiv = document.getElementById('all-relays-result');
+        const resultContent = resultDiv.querySelector('.all-relays-result-content');
+
+        const truncate = (str, len = 32) => {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len / 2) + '...' + str.substring(str.length - len / 2) : str;
+        };
+
+        // Sort results: found first, then by latency
+        const sortedResults = [...result.results].sort((a, b) => {
+            if (a.found !== b.found) return b.found ? 1 : -1;
+            return a.latency_ms - b.latency_ms;
+        });
+
+        const renderRelayResults = () => {
+            return sortedResults.map(r => {
+                const statusIcon = r.found ? '&#10003;' : (r.error ? '&#10007;' : '&#8212;');
+                const statusClass = r.found ? 'found' : (r.error ? 'error' : 'not-found');
+                const statusText = r.found ? 'Found' : (r.error ? this.escapeHtml(r.error) : 'Not found');
+
+                return `
+                    <div class="relay-result-row ${statusClass}">
+                        <span class="relay-result-icon ${statusClass}">${statusIcon}</span>
+                        <span class="relay-result-url" title="${this.escapeHtml(r.url)}">${this.escapeHtml(truncate(r.url, 40))}</span>
+                        <span class="relay-result-status">${statusText}</span>
+                        <span class="relay-result-latency">${r.latency_ms}ms</span>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const html = `
+            <div class="all-relays-header">
+                <span class="all-relays-title">Relay Results for Event</span>
+                <span class="all-relays-summary">${result.found_count} of ${result.total_relays} relays have this event</span>
+            </div>
+            <div class="all-relays-event-id">
+                <span class="all-relays-label">Event ID:</span>
+                <span class="all-relays-id monospace" title="${this.escapeHtml(result.event_id)}">${this.escapeHtml(truncate(result.event_id, 40))}</span>
+                <button class="btn small copy-btn" onclick="app.copyToClipboard('${this.escapeHtml(result.event_id)}')">Copy</button>
+            </div>
+            <div class="all-relays-list">
+                <div class="relay-results-header">
+                    <span class="relay-header-status">Status</span>
+                    <span class="relay-header-url">Relay</span>
+                    <span class="relay-header-result">Result</span>
+                    <span class="relay-header-latency">Latency</span>
+                </div>
+                ${renderRelayResults()}
+            </div>
+        `;
+
+        // Store the result for later use
+        this.lastAllRelaysResult = result;
+
+        resultDiv.classList.remove('hidden', 'error');
+        resultDiv.classList.add('success');
+        resultContent.innerHTML = html;
+    }
+
+    /**
+     * Display an error for the all-relays fetch
+     * @param {string} message - The error message
+     */
+    showAllRelaysError(message) {
+        const resultDiv = document.getElementById('all-relays-result');
+        const resultContent = resultDiv.querySelector('.all-relays-result-content');
+
+        const html = `
+            <div class="all-relays-header error">
+                <span class="all-relays-title">Fetch Failed</span>
+            </div>
+            <div class="all-relays-error">
+                <span class="all-relays-error-message">${this.escapeHtml(message)}</span>
+            </div>
+        `;
+
+        resultDiv.classList.remove('hidden', 'success');
+        resultDiv.classList.add('error');
+        resultContent.innerHTML = html;
     }
 
     /**
