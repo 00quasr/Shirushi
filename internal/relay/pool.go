@@ -29,6 +29,7 @@ type Pool struct {
 	mu             sync.RWMutex
 	pool           *nostr.SimplePool
 	monitor        *Monitor
+	infoCache      *RelayInfoCache
 	ctx            context.Context
 	cancel         context.CancelFunc
 	subCounter     int
@@ -52,10 +53,11 @@ type RelayConn struct {
 func NewPool(defaultRelays []string) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
-		relays: make(map[string]*RelayConn),
-		pool:   nostr.NewSimplePool(ctx),
-		ctx:    ctx,
-		cancel: cancel,
+		relays:    make(map[string]*RelayConn),
+		pool:      nostr.NewSimplePool(ctx),
+		infoCache: NewRelayInfoCache(DefaultCacheTTL),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 	p.monitor = NewMonitor(p)
 
@@ -184,65 +186,18 @@ func (p *Pool) fetchRelayInfo(url string) {
 		return
 	}
 
+	relayInfo := p.convertNIP11Info(&info)
+
 	p.mu.Lock()
 
 	conn, exists := p.relays[url]
 	if !exists {
 		p.mu.Unlock()
+		// Still cache it even if relay was removed during fetch
+		if p.infoCache != nil {
+			p.infoCache.Set(url, relayInfo)
+		}
 		return
-	}
-
-	// Convert nip11.RelayInformationDocument to types.RelayInfo
-	relayInfo := &types.RelayInfo{
-		Name:          info.Name,
-		Description:   info.Description,
-		PubKey:        info.PubKey,
-		Contact:       info.Contact,
-		SupportedNIPs: info.SupportedNIPs,
-		Software:      info.Software,
-		Version:       info.Version,
-		Icon:          info.Icon,
-		PaymentsURL:   info.PaymentsURL,
-	}
-
-	// Copy limitation info if available
-	if info.Limitation != nil {
-		relayInfo.Limitation = &types.RelayLimitation{
-			MaxMessageLength: info.Limitation.MaxMessageLength,
-			MaxSubscriptions: info.Limitation.MaxSubscriptions,
-			MaxLimit:         info.Limitation.MaxLimit,
-			MaxEventTags:     info.Limitation.MaxEventTags,
-			MaxContentLength: info.Limitation.MaxContentLength,
-			MinPOWDifficulty: info.Limitation.MinPowDifficulty,
-			AuthRequired:     info.Limitation.AuthRequired,
-			PaymentRequired:  info.Limitation.PaymentRequired,
-			RestrictedWrites: info.Limitation.RestrictedWrites,
-		}
-	}
-
-	// Copy fees info if available
-	if info.Fees != nil {
-		relayInfo.Fees = &types.RelayFees{}
-		for _, a := range info.Fees.Admission {
-			relayInfo.Fees.Admission = append(relayInfo.Fees.Admission, types.RelayFeeEntry{
-				Amount: a.Amount,
-				Unit:   a.Unit,
-			})
-		}
-		for _, s := range info.Fees.Subscription {
-			relayInfo.Fees.Subscription = append(relayInfo.Fees.Subscription, types.RelayFeeEntry{
-				Amount: s.Amount,
-				Unit:   s.Unit,
-				Period: s.Period,
-			})
-		}
-		for _, p := range info.Fees.Publication {
-			relayInfo.Fees.Publication = append(relayInfo.Fees.Publication, types.RelayFeeEntry{
-				Amount: p.Amount,
-				Unit:   p.Unit,
-				Kinds:  p.Kinds,
-			})
-		}
 	}
 
 	conn.Info = relayInfo
@@ -251,6 +206,11 @@ func (p *Pool) fetchRelayInfo(url string) {
 	log.Printf("[Relay] Fetched NIP-11 info for %s: %s (supports %d NIPs)", url, info.Name, len(info.SupportedNIPs))
 
 	p.mu.Unlock()
+
+	// Store in cache (thread-safe, separate lock)
+	if p.infoCache != nil {
+		p.infoCache.Set(url, relayInfo)
+	}
 
 	// Notify callback after releasing mutex
 	p.notifyRelayInfo(url, relayInfo)
@@ -522,12 +482,20 @@ func (p *Pool) QueryEventReplies(eventID string) ([]types.Event, error) {
 }
 
 // GetRelayInfo returns the NIP-11 info for a specific relay.
+// First checks the active connection, then falls back to cache.
 func (p *Pool) GetRelayInfo(url string) *types.RelayInfo {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
+	conn, exists := p.relays[url]
+	p.mu.RUnlock()
 
-	if conn, exists := p.relays[url]; exists {
+	// First try to get from active connection
+	if exists && conn.Info != nil {
 		return conn.Info
+	}
+
+	// Fall back to cache (returns nil if expired or not found)
+	if p.infoCache != nil {
+		return p.infoCache.Get(url)
 	}
 	return nil
 }
@@ -551,15 +519,84 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 		return fmt.Errorf("failed to fetch NIP-11 info: %w", err)
 	}
 
+	relayInfo := p.convertNIP11Info(&info)
+
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	conn, exists := p.relays[url]
 	if !exists {
+		p.mu.Unlock()
+		// Still cache it even if relay was removed during fetch
+		if p.infoCache != nil {
+			p.infoCache.Set(url, relayInfo)
+		}
 		return fmt.Errorf("relay removed during fetch")
 	}
 
-	conn.Info = &types.RelayInfo{
+	conn.Info = relayInfo
+	conn.SupportedNIPs = info.SupportedNIPs
+
+	p.mu.Unlock()
+
+	// Also update the cache
+	if p.infoCache != nil {
+		p.infoCache.Set(url, relayInfo)
+	}
+
+	return nil
+}
+
+// GetCachedRelayInfo returns cached relay info regardless of connection state.
+// This allows getting info for relays that are not currently in the pool.
+func (p *Pool) GetCachedRelayInfo(url string) *types.RelayInfo {
+	if p.infoCache == nil {
+		return nil
+	}
+	return p.infoCache.Get(url)
+}
+
+// GetCachedRelayInfoWithMetadata returns cached info with cache metadata.
+func (p *Pool) GetCachedRelayInfoWithMetadata(url string) *CachedRelayInfo {
+	if p.infoCache == nil {
+		return nil
+	}
+	return p.infoCache.GetWithMetadata(url)
+}
+
+// FetchRelayInfoCached fetches and caches relay info for any relay URL.
+// This can be used to get info for relays not in the pool.
+// If info is already cached and not expired, returns cached info.
+// Set forceRefresh to true to bypass cache and fetch fresh info.
+func (p *Pool) FetchRelayInfoCached(url string, forceRefresh bool) (*types.RelayInfo, error) {
+	// Check cache first (unless force refresh)
+	if !forceRefresh && p.infoCache != nil {
+		if info := p.infoCache.Get(url); info != nil {
+			return info, nil
+		}
+	}
+
+	// Fetch from network
+	ctx, cancel := context.WithTimeout(p.ctx, 7*time.Second)
+	defer cancel()
+
+	info, err := nip11.Fetch(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch NIP-11 info: %w", err)
+	}
+
+	relayInfo := p.convertNIP11Info(&info)
+
+	// Store in cache
+	if p.infoCache != nil {
+		p.infoCache.Set(url, relayInfo)
+	}
+
+	return relayInfo, nil
+}
+
+// convertNIP11Info converts nip11.RelayInformationDocument to types.RelayInfo.
+func (p *Pool) convertNIP11Info(info *nip11.RelayInformationDocument) *types.RelayInfo {
+	relayInfo := &types.RelayInfo{
 		Name:          info.Name,
 		Description:   info.Description,
 		PubKey:        info.PubKey,
@@ -572,7 +609,7 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 	}
 
 	if info.Limitation != nil {
-		conn.Info.Limitation = &types.RelayLimitation{
+		relayInfo.Limitation = &types.RelayLimitation{
 			MaxMessageLength: info.Limitation.MaxMessageLength,
 			MaxSubscriptions: info.Limitation.MaxSubscriptions,
 			MaxLimit:         info.Limitation.MaxLimit,
@@ -585,34 +622,36 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 		}
 	}
 
-	// Copy fees info if available
 	if info.Fees != nil {
-		conn.Info.Fees = &types.RelayFees{}
+		relayInfo.Fees = &types.RelayFees{}
 		for _, a := range info.Fees.Admission {
-			conn.Info.Fees.Admission = append(conn.Info.Fees.Admission, types.RelayFeeEntry{
+			relayInfo.Fees.Admission = append(relayInfo.Fees.Admission, types.RelayFeeEntry{
 				Amount: a.Amount,
 				Unit:   a.Unit,
 			})
 		}
 		for _, s := range info.Fees.Subscription {
-			conn.Info.Fees.Subscription = append(conn.Info.Fees.Subscription, types.RelayFeeEntry{
+			relayInfo.Fees.Subscription = append(relayInfo.Fees.Subscription, types.RelayFeeEntry{
 				Amount: s.Amount,
 				Unit:   s.Unit,
 				Period: s.Period,
 			})
 		}
-		for _, p := range info.Fees.Publication {
-			conn.Info.Fees.Publication = append(conn.Info.Fees.Publication, types.RelayFeeEntry{
-				Amount: p.Amount,
-				Unit:   p.Unit,
-				Kinds:  p.Kinds,
+		for _, pub := range info.Fees.Publication {
+			relayInfo.Fees.Publication = append(relayInfo.Fees.Publication, types.RelayFeeEntry{
+				Amount: pub.Amount,
+				Unit:   pub.Unit,
+				Kinds:  pub.Kinds,
 			})
 		}
 	}
 
-	conn.SupportedNIPs = info.SupportedNIPs
+	return relayInfo
+}
 
-	return nil
+// InfoCache returns the relay info cache for direct access.
+func (p *Pool) InfoCache() *RelayInfoCache {
+	return p.infoCache
 }
 
 // PublishEvent publishes an event to the specified relays.
