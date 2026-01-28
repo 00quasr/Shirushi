@@ -8985,6 +8985,56 @@
             assertTrue(code.textContent.length > 0, 'Code should have content');
             assertTrue(desc.textContent.length > 0, 'Description should have content');
         });
+
+        it('command reference should have expected section categories', () => {
+            const content = document.getElementById('command-reference-content');
+            const sections = content.querySelectorAll('.command-reference-section');
+            const sectionHeaders = Array.from(sections).map(s => s.querySelector('h4').textContent);
+
+            // Check that we have the expected categories
+            assertTrue(sectionHeaders.includes('Key Management'), 'Should have Key Management section');
+            assertTrue(sectionHeaders.includes('Encoding/Decoding'), 'Should have Encoding/Decoding section');
+            assertTrue(sectionHeaders.includes('Utility'), 'Should have Utility section');
+        });
+
+        it('Key Management section should have key generate command', () => {
+            const content = document.getElementById('command-reference-content');
+            const keyGenItem = content.querySelector('[data-command="key generate"]');
+            assertDefined(keyGenItem, 'Should have key generate command');
+            assertTrue(keyGenItem.querySelector('.command-desc').textContent.includes('keypair'), 'Description should mention keypair');
+        });
+
+        it('Encoding/Decoding section should have decode command', () => {
+            const content = document.getElementById('command-reference-content');
+            const decodeItem = content.querySelector('[data-command="decode npub1..."]');
+            assertDefined(decodeItem, 'Should have decode command');
+            assertTrue(decodeItem.querySelector('.command-desc').textContent.toLowerCase().includes('decode'), 'Description should mention decoding');
+        });
+
+        it('Utility section should have help command', () => {
+            const content = document.getElementById('command-reference-content');
+            const helpItem = content.querySelector('[data-command="--help"]');
+            assertDefined(helpItem, 'Should have --help command');
+            assertTrue(helpItem.querySelector('.command-desc').textContent.toLowerCase().includes('command'), 'Description should mention commands');
+        });
+
+        it('should have at least 10 command items for comprehensive reference', () => {
+            const content = document.getElementById('command-reference-content');
+            const commandItems = content.querySelectorAll('.command-item');
+            assertTrue(commandItems.length >= 10, `Should have at least 10 command items, found ${commandItems.length}`);
+        });
+
+        it('all command items should have non-empty data-command attribute', () => {
+            const content = document.getElementById('command-reference-content');
+            const commandItems = content.querySelectorAll('.command-item');
+            let emptyCount = 0;
+            commandItems.forEach(item => {
+                if (!item.dataset.command || item.dataset.command.trim() === '') {
+                    emptyCount++;
+                }
+            });
+            assertEqual(emptyCount, 0, 'All command items should have non-empty data-command');
+        });
     });
 
     // Export test runner for browser and Node.js

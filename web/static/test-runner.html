@@ -130,14 +130,81 @@
                     <h4>Key Management</h4>
                     <div class="command-item" data-command="key generate">
                         <code class="command-code">key generate</code>
-                        <span class="command-desc">Generate a new keypair</span>
+                        <span class="command-desc">Generate a new keypair (nsec + npub)</span>
+                    </div>
+                    <div class="command-item" data-command="key public">
+                        <code class="command-code">key public</code>
+                        <span class="command-desc">Derive public key from private key (requires stdin)</span>
+                    </div>
+                    <div class="command-item" data-command="key encrypt">
+                        <code class="command-code">key encrypt</code>
+                        <span class="command-desc">Encrypt private key with password (NIP-49)</span>
+                    </div>
+                    <div class="command-item" data-command="key decrypt">
+                        <code class="command-code">key decrypt</code>
+                        <span class="command-desc">Decrypt encrypted private key (NIP-49)</span>
                     </div>
                 </div>
                 <div class="command-reference-section">
                     <h4>Encoding/Decoding</h4>
                     <div class="command-item" data-command="decode npub1...">
-                        <code class="command-code">decode &lt;npub|nsec|note&gt;</code>
-                        <span class="command-desc">Decode bech32-encoded entities</span>
+                        <code class="command-code">decode &lt;bech32&gt;</code>
+                        <span class="command-desc">Decode npub, nsec, note, nevent, nprofile, naddr</span>
+                    </div>
+                    <div class="command-item" data-command="encode npub <hex>">
+                        <code class="command-code">encode npub &lt;hex&gt;</code>
+                        <span class="command-desc">Encode hex pubkey to npub format</span>
+                    </div>
+                    <div class="command-item" data-command="encode nsec <hex>">
+                        <code class="command-code">encode nsec &lt;hex&gt;</code>
+                        <span class="command-desc">Encode hex privkey to nsec format</span>
+                    </div>
+                </div>
+                <div class="command-reference-section">
+                    <h4>Event Operations</h4>
+                    <div class="command-item" data-command="event --content 'Hello Nostr!'">
+                        <code class="command-code">event --content &lt;text&gt;</code>
+                        <span class="command-desc">Create unsigned kind 1 text note</span>
+                    </div>
+                    <div class="command-item" data-command="verify">
+                        <code class="command-code">verify</code>
+                        <span class="command-desc">Verify event signature (requires stdin)</span>
+                    </div>
+                </div>
+                <div class="command-reference-section">
+                    <h4>Relay Queries</h4>
+                    <div class="command-item" data-command="req -k 1 -l 5 wss://relay.damus.io">
+                        <code class="command-code">req -k &lt;kind&gt; -l &lt;limit&gt;</code>
+                        <span class="command-desc">Query events by kind with limit</span>
+                    </div>
+                    <div class="command-item" data-command="req -a <pubkey> -l 10 wss://relay.damus.io">
+                        <code class="command-code">req -a &lt;pubkey&gt;</code>
+                        <span class="command-desc">Query events by author pubkey</span>
+                    </div>
+                </div>
+                <div class="command-reference-section">
+                    <h4>Fetch &amp; Publish</h4>
+                    <div class="command-item" data-command="fetch nevent1...">
+                        <code class="command-code">fetch &lt;nevent|nprofile|naddr&gt;</code>
+                        <span class="command-desc">Fetch event by bech32 identifier</span>
+                    </div>
+                </div>
+                <div class="command-reference-section">
+                    <h4>NIP-05 &amp; DNS</h4>
+                    <div class="command-item" data-command="nip05 user@domain.com">
+                        <code class="command-code">nip05 &lt;identifier&gt;</code>
+                        <span class="command-desc">Resolve NIP-05 identifier to pubkey</span>
+                    </div>
+                </div>
+                <div class="command-reference-section">
+                    <h4>Utility</h4>
+                    <div class="command-item" data-command="--help">
+                        <code class="command-code">--help</code>
+                        <span class="command-desc">Show all available commands</span>
+                    </div>
+                    <div class="command-item" data-command="--version">
+                        <code class="command-code">--version</code>
+                        <span class="command-desc">Show nak version</span>
                     </div>
                 </div>
             </div>
