@@ -30,6 +30,7 @@ type RelayPool interface {
 	GetRelayInfo(url string) *types.RelayInfo
 	RefreshRelayInfo(url string) error
 	SetStatusCallback(callback func(url string, connected bool, err string))
+	PublishEventJSON(eventJSON []byte, relayURLs []string) (string, []types.PublishResult)
 }
 
 // TestRunner defines the interface for running NIP tests
@@ -775,14 +776,12 @@ func (a *API) HandleEventVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleEventPublish publishes a signed event to connected relays.
+// Request body can be either:
+// 1. A signed event JSON directly
+// 2. An object with "event" (signed event) and optional "relays" (array of relay URLs)
 func (a *API) HandleEventPublish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	if a.nak == nil {
-		writeError(w, http.StatusServiceUnavailable, "nak CLI not available")
 		return
 	}
 
@@ -792,32 +791,68 @@ func (a *API) HandleEventPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventJSON := string(body)
+	var eventJSON []byte
+	var targetRelays []string
 
-	// Get connected relays
-	relays := a.relayPool.List()
-	var connectedRelays []string
-	for _, relay := range relays {
-		if relay.Connected {
-			connectedRelays = append(connectedRelays, relay.URL)
+	// Try to parse as a publish request with optional relays
+	var publishReq struct {
+		Event  json.RawMessage `json:"event"`
+		Relays []string        `json:"relays"`
+	}
+	if err := json.Unmarshal(body, &publishReq); err == nil && publishReq.Event != nil {
+		eventJSON = publishReq.Event
+		targetRelays = publishReq.Relays
+	} else {
+		// Assume the body is the event itself
+		eventJSON = body
+	}
+
+	// Validate that we have event JSON
+	if len(eventJSON) == 0 {
+		writeError(w, http.StatusBadRequest, "event data is required")
+		return
+	}
+
+	// If no specific relays provided, use all connected relays
+	if len(targetRelays) == 0 {
+		relays := a.relayPool.List()
+		for _, relay := range relays {
+			if relay.Connected {
+				targetRelays = append(targetRelays, relay.URL)
+			}
 		}
 	}
 
-	if len(connectedRelays) == 0 {
+	if len(targetRelays) == 0 {
 		writeError(w, http.StatusBadRequest, "no connected relays")
 		return
 	}
 
-	// Publish to first connected relay
-	err = a.nak.Publish(eventJSON, connectedRelays[0])
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to publish: "+err.Error())
+	// Publish to relays using the relay pool
+	eventID, results := a.relayPool.PublishEventJSON(eventJSON, targetRelays)
+
+	// Check if at least one relay succeeded
+	hasSuccess := false
+	for _, result := range results {
+		if result.Success {
+			hasSuccess = true
+			break
+		}
+	}
+
+	if !hasSuccess && eventID == "" {
+		// If we don't have an event ID, there was a parsing error
+		if len(results) > 0 && results[0].Error != "" {
+			writeError(w, http.StatusBadRequest, results[0].Error)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to publish event")
 		return
 	}
 
-	writeJSON(w, map[string]interface{}{
-		"success": true,
-		"relay":   connectedRelays[0],
+	writeJSON(w, types.PublishResponse{
+		EventID: eventID,
+		Results: results,
 	})
 }
 

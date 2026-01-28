@@ -3,6 +3,7 @@ package relay
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -526,31 +527,24 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 	return nil
 }
 
-// PublishResult represents the result of publishing an event to a relay.
-type PublishResult struct {
-	URL     string `json:"url"`
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
-}
-
 // PublishEvent publishes an event to the specified relays.
 // If relayURLs is empty, publishes to all connected relays.
 // Returns results for each relay attempted.
-func (p *Pool) PublishEvent(event *nostr.Event, relayURLs []string) []PublishResult {
+func (p *Pool) PublishEvent(event *nostr.Event, relayURLs []string) []types.PublishResult {
 	// If no specific relays provided, use all connected relays
 	if len(relayURLs) == 0 {
 		relayURLs = p.GetConnected()
 	}
 
 	if len(relayURLs) == 0 {
-		return []PublishResult{{
+		return []types.PublishResult{{
 			URL:     "",
 			Success: false,
 			Error:   "no connected relays",
 		}}
 	}
 
-	results := make([]PublishResult, 0, len(relayURLs))
+	results := make([]types.PublishResult, 0, len(relayURLs))
 	var wg sync.WaitGroup
 	var resultsMu sync.Mutex
 
@@ -559,7 +553,7 @@ func (p *Pool) PublishEvent(event *nostr.Event, relayURLs []string) []PublishRes
 		go func(relayURL string) {
 			defer wg.Done()
 
-			result := PublishResult{URL: relayURL}
+			result := types.PublishResult{URL: relayURL}
 
 			p.mu.RLock()
 			conn, exists := p.relays[relayURL]
@@ -602,6 +596,22 @@ func (p *Pool) PublishEvent(event *nostr.Event, relayURLs []string) []PublishRes
 
 	wg.Wait()
 	return results
+}
+
+// PublishEventJSON publishes a signed event (as JSON bytes) to the specified relays.
+// This is a convenience method that parses the JSON and publishes the event.
+func (p *Pool) PublishEventJSON(eventJSON []byte, relayURLs []string) (string, []types.PublishResult) {
+	var event nostr.Event
+	if err := json.Unmarshal(eventJSON, &event); err != nil {
+		return "", []types.PublishResult{{
+			URL:     "",
+			Success: false,
+			Error:   "invalid event JSON: " + err.Error(),
+		}}
+	}
+
+	results := p.PublishEvent(&event, relayURLs)
+	return event.ID, results
 }
 
 // Close closes all relay connections.

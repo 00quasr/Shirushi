@@ -2147,6 +2147,219 @@ main {
     color: var(--error);
 }
 
+/* Publish History Event ID */
+.publish-history-item .history-event-id {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    margin-bottom: 6px;
+}
+
+.publish-history-item .history-event-id .label {
+    color: var(--text-3);
+}
+
+.publish-history-item .history-event-id code {
+    font-family: 'Geist Mono', monospace;
+    background: var(--bg-3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--accent);
+}
+
+.publish-history-item .history-event-id code:hover {
+    background: var(--bg-4);
+}
+
+/* Publish History Relay Details */
+.publish-history-item .history-relays-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.publish-history-item .relay-result {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    border-radius: 3px;
+    background: var(--bg-3);
+}
+
+.publish-history-item .relay-result.success {
+    color: var(--success);
+}
+
+.publish-history-item .relay-result.error {
+    color: var(--error);
+}
+
+.publish-history-item .relay-result .relay-icon {
+    font-size: 9px;
+}
+
+.publish-history-item .relay-result .relay-url {
+    font-family: 'Geist Mono', monospace;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Publish Result Modal */
+.publish-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.publish-result-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--bg-2);
+}
+
+.publish-result-header.success {
+    background: rgba(var(--success-rgb, 34, 197, 94), 0.1);
+    border: 1px solid var(--success);
+}
+
+.publish-result-header.partial {
+    background: rgba(var(--warning-rgb, 234, 179, 8), 0.1);
+    border: 1px solid var(--warning, #eab308);
+}
+
+.publish-result-header.error {
+    background: rgba(var(--error-rgb, 239, 68, 68), 0.1);
+    border: 1px solid var(--error);
+}
+
+.publish-result-header .result-icon {
+    font-size: 24px;
+}
+
+.publish-result-header.success .result-icon {
+    color: var(--success);
+}
+
+.publish-result-header.partial .result-icon {
+    color: var(--warning, #eab308);
+}
+
+.publish-result-header.error .result-icon {
+    color: var(--error);
+}
+
+.publish-result-header .result-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.publish-result-event-id label,
+.publish-result-relays label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.event-id-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.event-id-code {
+    flex: 1;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    word-break: break-all;
+}
+
+.relay-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.relay-result-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.relay-result-item.success {
+    border-color: var(--success);
+}
+
+.relay-result-item.error {
+    border-color: var(--error);
+}
+
+.relay-result-item .relay-status-icon {
+    font-size: 14px;
+    width: 18px;
+    text-align: center;
+}
+
+.relay-result-item.success .relay-status-icon {
+    color: var(--success);
+}
+
+.relay-result-item.error .relay-status-icon {
+    color: var(--error);
+}
+
+.relay-result-item .relay-url-full {
+    flex: 1;
+    font-family: 'Geist Mono', monospace;
+    color: var(--text-1);
+    word-break: break-all;
+}
+
+.relay-result-item .relay-error {
+    font-size: 11px;
+    color: var(--error);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.publish-result-summary {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+.publish-result-summary .summary-text {
+    font-size: 13px;
+    color: var(--text-2);
+}
+
 /* Signed Event Preview */
 .signed-event-preview {
     padding: 16px;

@@ -149,6 +149,58 @@ func (m *mockRelayPool) RefreshRelayInfo(url string) error {
 func (m *mockRelayPool) SetStatusCallback(callback func(url string, connected bool, err string)) {
 	m.statusCallback = callback
 }
+func (m *mockRelayPool) PublishEventJSON(eventJSON []byte, relayURLs []string) (string, []types.PublishResult) {
+	// Parse event to get ID
+	var event struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(eventJSON, &event); err != nil {
+		return "", []types.PublishResult{{
+			URL:     "",
+			Success: false,
+			Error:   "invalid event JSON",
+		}}
+	}
+
+	// If m.err is set, simulate failure for all relays
+	if m.err != nil {
+		results := make([]types.PublishResult, len(relayURLs))
+		for i, url := range relayURLs {
+			results[i] = types.PublishResult{
+				URL:     url,
+				Success: false,
+				Error:   m.err.Error(),
+			}
+		}
+		return event.ID, results
+	}
+
+	// Build results for provided relays based on relay status
+	results := make([]types.PublishResult, 0, len(relayURLs))
+	for _, url := range relayURLs {
+		// Check if relay is connected
+		connected := false
+		for _, relay := range m.relayList {
+			if relay.URL == url && relay.Connected {
+				connected = true
+				break
+			}
+		}
+		if connected {
+			results = append(results, types.PublishResult{
+				URL:     url,
+				Success: true,
+			})
+		} else {
+			results = append(results, types.PublishResult{
+				URL:     url,
+				Success: false,
+				Error:   "relay not connected",
+			})
+		}
+	}
+	return event.ID, results
+}
 
 func TestHandleProfileLookup_Success(t *testing.T) {
 	profileContent := `{"name":"testuser","display_name":"Test User","about":"A test profile","picture":"https://example.com/avatar.png","website":"https://example.com","nip05":"test@example.com","lud16":"test@getalby.com"}`
@@ -1307,18 +1359,44 @@ func TestHandleEventPublish_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestHandleEventPublish_NakUnavailable(t *testing.T) {
-	pool := &mockRelayPool{}
+func TestHandleEventPublish_Success(t *testing.T) {
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: true},
+			{URL: "wss://relay2.example.com", Connected: true},
+		},
+	}
 	api := NewAPI(&config.Config{}, nil, pool, nil)
 
-	body := `{"id":"test","pubkey":"test","sig":"test"}`
+	// Valid signed event with all required fields
+	body := `{"id":"abc123def456","pubkey":"pubkey123","kind":1,"content":"Hello","created_at":1234567890,"tags":[],"sig":"sig123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	api.HandleEventPublish(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp types.PublishResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.EventID != "abc123def456" {
+		t.Errorf("expected event_id 'abc123def456', got '%s'", resp.EventID)
+	}
+
+	if len(resp.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(resp.Results))
+	}
+
+	// Both relays should succeed
+	for _, result := range resp.Results {
+		if !result.Success {
+			t.Errorf("expected success for relay %s, got error: %s", result.URL, result.Error)
+		}
 	}
 }
 
@@ -1330,9 +1408,7 @@ func TestHandleEventPublish_NoConnectedRelays(t *testing.T) {
 			{URL: "wss://relay2.example.com", Connected: false},
 		},
 	}
-	// Create a nak instance (path doesn't matter since we fail before using it)
-	nakClient := nak.New("/nonexistent/nak")
-	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+	api := NewAPI(&config.Config{}, nil, pool, nil)
 
 	body := `{"id":"test","pubkey":"test","sig":"test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
@@ -1358,8 +1434,7 @@ func TestHandleEventPublish_EmptyRelayList(t *testing.T) {
 	pool := &mockRelayPool{
 		relayList: []types.RelayStatus{},
 	}
-	nakClient := nak.New("/nonexistent/nak")
-	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+	api := NewAPI(&config.Config{}, nil, pool, nil)
 
 	body := `{"id":"test","pubkey":"test","sig":"test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
@@ -2874,17 +2949,16 @@ func TestHandleEventPublish_EmptyBody(t *testing.T) {
 			{URL: "wss://relay.example.com", Connected: true},
 		},
 	}
-	nakClient := nak.New("/nonexistent/nak")
-	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+	api := NewAPI(&config.Config{}, nil, pool, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(""))
 	w := httptest.NewRecorder()
 
 	api.HandleEventPublish(w, req)
 
-	// Should fail because nak publish with empty input fails
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	// Should fail because empty body is invalid
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 
 	var resp map[string]string
@@ -2892,8 +2966,8 @@ func TestHandleEventPublish_EmptyBody(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if !strings.Contains(resp["error"], "failed to publish") {
-		t.Errorf("expected error to contain 'failed to publish', got '%s'", resp["error"])
+	if !strings.Contains(resp["error"], "event data is required") {
+		t.Errorf("expected error to contain 'event data is required', got '%s'", resp["error"])
 	}
 }
 
@@ -2903,8 +2977,7 @@ func TestHandleEventPublish_InvalidJSON(t *testing.T) {
 			{URL: "wss://relay.example.com", Connected: true},
 		},
 	}
-	nakClient := nak.New("/nonexistent/nak")
-	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+	api := NewAPI(&config.Config{}, nil, pool, nil)
 
 	body := `{invalid json}`
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
@@ -2912,9 +2985,9 @@ func TestHandleEventPublish_InvalidJSON(t *testing.T) {
 
 	api.HandleEventPublish(w, req)
 
-	// Should fail at nak publish stage
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	// Should fail because body is not valid JSON
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 
 	var resp map[string]string
@@ -2922,13 +2995,13 @@ func TestHandleEventPublish_InvalidJSON(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if !strings.Contains(resp["error"], "failed to publish") {
-		t.Errorf("expected error to contain 'failed to publish', got '%s'", resp["error"])
+	if !strings.Contains(resp["error"], "invalid event JSON") {
+		t.Errorf("expected error to contain 'invalid event JSON', got '%s'", resp["error"])
 	}
 }
 
 func TestHandleEventPublish_MultipleRelaysOnlyFirstConnected(t *testing.T) {
-	// Test that we correctly find the first connected relay when some are disconnected
+	// Test that we correctly find connected relays when some are disconnected
 	pool := &mockRelayPool{
 		relayList: []types.RelayStatus{
 			{URL: "wss://relay1.example.com", Connected: false},
@@ -2936,8 +3009,7 @@ func TestHandleEventPublish_MultipleRelaysOnlyFirstConnected(t *testing.T) {
 			{URL: "wss://relay3.example.com", Connected: false},
 		},
 	}
-	nakClient := nak.New("/nonexistent/nak")
-	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+	api := NewAPI(&config.Config{}, nil, pool, nil)
 
 	body := `{"id":"test123","pubkey":"abc","sig":"def"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
@@ -2945,9 +3017,31 @@ func TestHandleEventPublish_MultipleRelaysOnlyFirstConnected(t *testing.T) {
 
 	api.HandleEventPublish(w, req)
 
-	// Will fail at nak publish but confirms we found a connected relay (not 400 "no connected relays")
-	if w.Code == http.StatusBadRequest {
-		t.Errorf("expected to find connected relay, but got StatusBadRequest")
+	// Should succeed with the connected relay
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp types.PublishResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.EventID != "test123" {
+		t.Errorf("expected event_id 'test123', got '%s'", resp.EventID)
+	}
+
+	// Should have one result for the connected relay
+	if len(resp.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(resp.Results))
+	}
+
+	if resp.Results[0].URL != "wss://relay2.example.com" {
+		t.Errorf("expected relay URL 'wss://relay2.example.com', got '%s'", resp.Results[0].URL)
+	}
+
+	if !resp.Results[0].Success {
+		t.Errorf("expected success for connected relay, got error: %s", resp.Results[0].Error)
 	}
 }
 
@@ -2959,8 +3053,7 @@ func TestHandleEventPublish_AllRelaysDisconnected(t *testing.T) {
 			{URL: "wss://relay3.example.com", Connected: false},
 		},
 	}
-	nakClient := nak.New("/nonexistent/nak")
-	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+	api := NewAPI(&config.Config{}, nil, pool, nil)
 
 	body := `{"id":"test","pubkey":"test","sig":"test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
@@ -2979,5 +3072,101 @@ func TestHandleEventPublish_AllRelaysDisconnected(t *testing.T) {
 
 	if resp["error"] != "no connected relays" {
 		t.Errorf("expected error 'no connected relays', got '%s'", resp["error"])
+	}
+}
+
+func TestHandleEventPublish_WithSpecificRelays(t *testing.T) {
+	// Test publishing to specific relays passed in the request
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: true},
+			{URL: "wss://relay2.example.com", Connected: true},
+			{URL: "wss://relay3.example.com", Connected: true},
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Request specifies only 2 specific relays
+	body := `{"event":{"id":"event456","pubkey":"abc","sig":"def"},"relays":["wss://relay1.example.com","wss://relay3.example.com"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp types.PublishResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.EventID != "event456" {
+		t.Errorf("expected event_id 'event456', got '%s'", resp.EventID)
+	}
+
+	// Should have 2 results for the specified relays
+	if len(resp.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(resp.Results))
+	}
+
+	// Both should succeed since both are connected
+	for _, result := range resp.Results {
+		if !result.Success {
+			t.Errorf("expected success for relay %s, got error: %s", result.URL, result.Error)
+		}
+	}
+}
+
+func TestHandleEventPublish_PartialSuccess(t *testing.T) {
+	// Test publishing to multiple relays where some fail
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: true},
+			{URL: "wss://relay2.example.com", Connected: false}, // Not connected
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Request publishes to both relays
+	body := `{"event":{"id":"event789","pubkey":"abc","sig":"def"},"relays":["wss://relay1.example.com","wss://relay2.example.com"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	// Should still return OK since at least one relay succeeded
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var resp types.PublishResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.EventID != "event789" {
+		t.Errorf("expected event_id 'event789', got '%s'", resp.EventID)
+	}
+
+	// Should have 2 results
+	if len(resp.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(resp.Results))
+	}
+
+	// Count successes and failures
+	successCount := 0
+	failCount := 0
+	for _, result := range resp.Results {
+		if result.Success {
+			successCount++
+		} else {
+			failCount++
+		}
+	}
+
+	if successCount != 1 || failCount != 1 {
+		t.Errorf("expected 1 success and 1 failure, got %d successes and %d failures", successCount, failCount)
 	}
 }

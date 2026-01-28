@@ -1962,38 +1962,39 @@ class Shirushi {
             // Display signed event
             this.displaySignedEvent(signedEvent);
 
-            // Publish to selected relays
-            const publishResults = [];
-            for (const relay of selectedRelays) {
-                try {
-                    const publishResponse = await fetch('/api/events/publish', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(signedEvent)
-                    });
+            // Publish to selected relays (single API call)
+            const publishResponse = await fetch('/api/events/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event: signedEvent,
+                    relays: selectedRelays
+                })
+            });
 
-                    if (publishResponse.ok) {
-                        const result = await publishResponse.json();
-                        publishResults.push({ relay, success: true, result });
-                    } else {
-                        const error = await publishResponse.json();
-                        publishResults.push({ relay, success: false, error: error.error });
-                    }
-                } catch (err) {
-                    publishResults.push({ relay, success: false, error: err.message });
-                }
+            if (!publishResponse.ok) {
+                const error = await publishResponse.json();
+                throw new Error(error.error || 'Failed to publish event');
             }
+
+            const publishData = await publishResponse.json();
+            const eventId = publishData.event_id;
+            const publishResults = publishData.results || [];
 
             // Check results
             const successCount = publishResults.filter(r => r.success).length;
             const failCount = publishResults.length - successCount;
 
-            // Add to history
+            // Add to history with event ID
             this.addToPublishHistory({
                 event: signedEvent,
+                eventId: eventId,
                 results: publishResults,
                 timestamp: Date.now()
             });
+
+            // Show publish result modal
+            this.showPublishResult(eventId, publishResults);
 
             // Clear form on success
             if (successCount > 0) {
@@ -2004,9 +2005,9 @@ class Shirushi {
                 this.updateEventPreview();
 
                 if (failCount === 0) {
-                    this.toastSuccess('Event Published', `Successfully signed and published to ${successCount} relay${successCount > 1 ? 's' : ''}`);
+                    this.toastSuccess('Event Published', `Successfully published to ${successCount} relay${successCount > 1 ? 's' : ''}`);
                 } else {
-                    this.toastWarning('Partially Published', `Signed and published to ${successCount} relay(s), failed on ${failCount}`);
+                    this.toastWarning('Partially Published', `Published to ${successCount} relay(s), failed on ${failCount}`);
                 }
             } else {
                 throw new Error('Failed to publish to any relay');
@@ -2040,20 +2041,105 @@ class Shirushi {
             const successCount = entry.results.filter(r => r.success).length;
             const totalCount = entry.results.length;
             const isSuccess = successCount > 0;
+            const eventId = entry.eventId || entry.event?.id || '';
+            const shortEventId = eventId ? eventId.substring(0, 8) + '...' + eventId.substring(eventId.length - 8) : '';
 
             return `
-                <div class="publish-history-item">
+                <div class="publish-history-item" data-event-id="${this.escapeHtml(eventId)}">
                     <div class="history-header">
                         <span class="history-kind">Kind ${entry.event.kind}</span>
                         <span class="history-time">${this.formatTime(Math.floor(entry.timestamp / 1000))}</span>
                     </div>
+                    ${eventId ? `<div class="history-event-id" title="${this.escapeHtml(eventId)}"><span class="label">Event ID:</span> <code class="copyable" data-copy="${this.escapeHtml(eventId)}">${shortEventId}</code></div>` : ''}
                     <div class="history-content">${this.escapeHtml(entry.event.content.substring(0, 100))}${entry.event.content.length > 100 ? '...' : ''}</div>
-                    <div class="history-status ${isSuccess ? 'success' : 'error'}">
-                        ${isSuccess ? '✓' : '✗'} ${successCount}/${totalCount} relays
+                    <div class="history-relays-detail">
+                        ${entry.results.map(r => `
+                            <div class="relay-result ${r.success ? 'success' : 'error'}" title="${r.error || 'Success'}">
+                                <span class="relay-icon">${r.success ? '✓' : '✗'}</span>
+                                <span class="relay-url">${this.escapeHtml(this.shortenRelayUrl(r.url))}</span>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Add click handlers for copyable elements
+        container.querySelectorAll('.copyable').forEach(el => {
+            el.addEventListener('click', () => {
+                const text = el.dataset.copy;
+                navigator.clipboard.writeText(text).then(() => {
+                    this.toastSuccess('Copied', 'Event ID copied to clipboard');
+                });
+            });
+        });
+    }
+
+    /**
+     * Shorten a relay URL for display
+     */
+    shortenRelayUrl(url) {
+        if (!url) return '';
+        try {
+            const parsed = new URL(url);
+            return parsed.hostname;
+        } catch {
+            return url.substring(0, 30) + (url.length > 30 ? '...' : '');
+        }
+    }
+
+    /**
+     * Show publish result with event ID and relay confirmations
+     */
+    showPublishResult(eventId, results) {
+        const successCount = results.filter(r => r.success).length;
+        const failCount = results.length - successCount;
+        const isFullSuccess = failCount === 0;
+
+        const modalContent = `
+            <div class="publish-result">
+                <div class="publish-result-header ${isFullSuccess ? 'success' : (successCount > 0 ? 'partial' : 'error')}">
+                    <span class="result-icon">${isFullSuccess ? '✓' : (successCount > 0 ? '⚠' : '✗')}</span>
+                    <span class="result-title">${isFullSuccess ? 'Event Published' : (successCount > 0 ? 'Partially Published' : 'Publish Failed')}</span>
+                </div>
+
+                <div class="publish-result-event-id">
+                    <label>Event ID</label>
+                    <div class="event-id-display">
+                        <code class="event-id-code">${this.escapeHtml(eventId)}</code>
+                        <button class="btn btn-small copy-btn" data-copy="${this.escapeHtml(eventId)}" title="Copy Event ID">Copy</button>
+                    </div>
+                </div>
+
+                <div class="publish-result-relays">
+                    <label>Relay Confirmations</label>
+                    <div class="relay-results-list">
+                        ${results.map(r => `
+                            <div class="relay-result-item ${r.success ? 'success' : 'error'}">
+                                <span class="relay-status-icon">${r.success ? '✓' : '✗'}</span>
+                                <span class="relay-url-full">${this.escapeHtml(r.url)}</span>
+                                ${r.error ? `<span class="relay-error" title="${this.escapeHtml(r.error)}">${this.escapeHtml(r.error.substring(0, 50))}${r.error.length > 50 ? '...' : ''}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="publish-result-summary">
+                    <span class="summary-text">${successCount}/${results.length} relays confirmed</span>
+                </div>
+            </div>
+        `;
+
+        this.showModal('Publish Result', modalContent);
+
+        // Add copy handler
+        document.querySelector('.publish-result .copy-btn')?.addEventListener('click', (e) => {
+            const text = e.target.dataset.copy;
+            navigator.clipboard.writeText(text).then(() => {
+                e.target.textContent = 'Copied!';
+                setTimeout(() => e.target.textContent = 'Copy', 2000);
+            });
+        });
     }
 
     // Testing Tab

@@ -228,3 +228,16 @@ type Thread struct {
 	MaxDepth  int           `json:"max_depth"`
 	TargetID  string        `json:"target_id"`
 }
+
+// PublishResult represents the result of publishing an event to a relay.
+type PublishResult struct {
+	URL     string `json:"url"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// PublishResponse represents the response from publishing an event.
+type PublishResponse struct {
+	EventID string          `json:"event_id"`
+	Results []PublishResult `json:"results"`
+}

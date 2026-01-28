@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/keanuklestil/shirushi/internal/types"
 )
 
 func TestSetOnStatusChange(t *testing.T) {
@@ -388,7 +390,7 @@ func TestPublishEventMultipleRelaysMixedResults(t *testing.T) {
 	}
 
 	// Check results (order may vary due to concurrent execution)
-	resultMap := make(map[string]PublishResult)
+	resultMap := make(map[string]types.PublishResult)
 	for _, r := range results {
 		resultMap[r.URL] = r
 	}
@@ -526,5 +528,144 @@ func TestPublishResultFields(t *testing.T) {
 	}
 	if result.Error == "" {
 		t.Error("expected Error to be non-empty")
+	}
+}
+
+// Tests for PublishEventJSON
+
+func TestPublishEventJSON_InvalidJSON(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+	}
+
+	eventID, results := pool.PublishEventJSON([]byte(`{invalid json`), []string{"wss://test.relay.com"})
+
+	if eventID != "" {
+		t.Errorf("expected empty event ID for invalid JSON, got '%s'", eventID)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	if results[0].Success {
+		t.Error("expected success to be false for invalid JSON")
+	}
+
+	if results[0].Error == "" {
+		t.Error("expected error message for invalid JSON")
+	}
+}
+
+func TestPublishEventJSON_ExtractsEventID(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Relay with nil connection (will fail to publish but we can still test ID extraction)
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+		Relay:     nil,
+	}
+
+	eventJSON := `{"id":"abc123def456","pubkey":"testpubkey","kind":1,"content":"hello"}`
+	eventID, results := pool.PublishEventJSON([]byte(eventJSON), []string{"wss://test.relay.com"})
+
+	if eventID != "abc123def456" {
+		t.Errorf("expected event ID 'abc123def456', got '%s'", eventID)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	if results[0].URL != "wss://test.relay.com" {
+		t.Errorf("expected relay URL 'wss://test.relay.com', got '%s'", results[0].URL)
+	}
+}
+
+func TestPublishEventJSON_NoConnectedRelays(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	eventJSON := `{"id":"test123","pubkey":"testpubkey","kind":1,"content":"hello"}`
+	eventID, results := pool.PublishEventJSON([]byte(eventJSON), nil)
+
+	if eventID != "test123" {
+		t.Errorf("expected event ID 'test123', got '%s'", eventID)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	if results[0].Success {
+		t.Error("expected success to be false when no connected relays")
+	}
+
+	if results[0].Error != "no connected relays" {
+		t.Errorf("expected error 'no connected relays', got '%s'", results[0].Error)
+	}
+}
+
+func TestPublishEventJSON_MultipleRelays(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add relays with nil connections (will fail to publish)
+	pool.relays["wss://relay1.com"] = &RelayConn{
+		URL:       "wss://relay1.com",
+		Connected: true,
+		Relay:     nil,
+	}
+	pool.relays["wss://relay2.com"] = &RelayConn{
+		URL:       "wss://relay2.com",
+		Connected: false, // Not connected
+	}
+
+	eventJSON := `{"id":"multirelay123","pubkey":"testpubkey","kind":1,"content":"hello"}`
+	eventID, results := pool.PublishEventJSON([]byte(eventJSON), []string{"wss://relay1.com", "wss://relay2.com"})
+
+	if eventID != "multirelay123" {
+		t.Errorf("expected event ID 'multirelay123', got '%s'", eventID)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// Check results for each relay
+	urlResults := make(map[string]types.PublishResult)
+	for _, r := range results {
+		urlResults[r.URL] = r
+	}
+
+	// relay1 should have an error (nil Relay connection)
+	if r, ok := urlResults["wss://relay1.com"]; ok {
+		if r.Success {
+			t.Error("expected success to be false for relay with nil connection")
+		}
+	} else {
+		t.Error("missing result for wss://relay1.com")
+	}
+
+	// relay2 should have an error (not connected)
+	if r, ok := urlResults["wss://relay2.com"]; ok {
+		if r.Success {
+			t.Error("expected success to be false for disconnected relay")
+		}
+		if r.Error != "relay not connected" {
+			t.Errorf("expected error 'relay not connected', got '%s'", r.Error)
+		}
+	} else {
+		t.Error("missing result for wss://relay2.com")
 	}
 }
