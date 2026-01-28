@@ -1,0 +1,15 @@
+{
+  "name": "shirushi",
+  "version": "1.0.0",
+  "description": "A web-based Nostr protocol testing and monitoring tool built in Go",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "nostr",
+    "protocol",
+    "relay",
+    "monitoring"
+  ],
+  "license": "ISC"
+}
