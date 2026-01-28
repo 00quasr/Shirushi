@@ -12236,6 +12236,219 @@
         });
     });
 
+    // Test: Event Diff Feature
+    describe('Event Diff Feature', () => {
+        it('should have compareEvents method', () => {
+            assertDefined(Shirushi.prototype.compareEvents, 'compareEvents method should exist');
+        });
+
+        it('should have computeEventDiff method', () => {
+            assertDefined(Shirushi.prototype.computeEventDiff, 'computeEventDiff method should exist');
+        });
+
+        it('should have showDiffResult method', () => {
+            assertDefined(Shirushi.prototype.showDiffResult, 'showDiffResult method should exist');
+        });
+
+        it('should have swapDiffEvents method', () => {
+            assertDefined(Shirushi.prototype.swapDiffEvents, 'swapDiffEvents method should exist');
+        });
+
+        it('should have clearDiffInputs method', () => {
+            assertDefined(Shirushi.prototype.clearDiffInputs, 'clearDiffInputs method should exist');
+        });
+
+        it('should have truncateForDiff method', () => {
+            assertDefined(Shirushi.prototype.truncateForDiff, 'truncateForDiff method should exist');
+        });
+
+        it('should detect identical events', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+
+            const eventA = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['e', 'ref1']],
+                content: 'Hello world',
+                sig: 'sig123'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventA);
+
+            assertTrue(diff.identical, 'Identical events should be marked as identical');
+            assertTrue(diff.fields.id.equal, 'ID field should be equal');
+            assertTrue(diff.fields.pubkey.equal, 'Pubkey field should be equal');
+            assertTrue(diff.fields.content.equal, 'Content field should be equal');
+            assertEqual(diff.tags.added.length, 0, 'No tags should be added');
+            assertEqual(diff.tags.removed.length, 0, 'No tags should be removed');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should detect different events', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+
+            const eventA = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['e', 'ref1']],
+                content: 'Hello world',
+                sig: 'sig123'
+            };
+
+            const eventB = {
+                id: 'def456',
+                pubkey: 'pub123',
+                created_at: 1700000100,
+                kind: 1,
+                tags: [['e', 'ref2']],
+                content: 'Hello nostr',
+                sig: 'sig456'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+
+            assertFalse(diff.identical, 'Different events should not be marked as identical');
+            assertFalse(diff.fields.id.equal, 'ID field should be different');
+            assertTrue(diff.fields.pubkey.equal, 'Pubkey field should be equal');
+            assertTrue(diff.fields.kind.equal, 'Kind field should be equal');
+            assertFalse(diff.fields.content.equal, 'Content field should be different');
+            assertFalse(diff.fields.sig.equal, 'Signature field should be different');
+            assertEqual(diff.tags.added.length, 1, 'One tag should be added');
+            assertEqual(diff.tags.removed.length, 1, 'One tag should be removed');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should detect tag changes correctly', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+
+            const eventA = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['e', 'ref1'], ['p', 'pubkey1']],
+                content: 'Hello',
+                sig: 'sig123'
+            };
+
+            const eventB = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['e', 'ref1'], ['t', 'tag1']],
+                content: 'Hello',
+                sig: 'sig123'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+
+            assertFalse(diff.identical, 'Events with different tags should not be identical');
+            assertEqual(diff.tags.added.length, 1, 'One tag should be added');
+            assertEqual(diff.tags.removed.length, 1, 'One tag should be removed');
+            assertEqual(JSON.stringify(diff.tags.removed[0]), JSON.stringify(['p', 'pubkey1']), 'Removed tag should be p tag');
+            assertEqual(JSON.stringify(diff.tags.added[0]), JSON.stringify(['t', 'tag1']), 'Added tag should be t tag');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should truncate long strings correctly', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+
+            const shortString = 'hello';
+            const longString = 'a'.repeat(100);
+
+            assertEqual(instance.truncateForDiff(shortString), shortString, 'Short strings should not be truncated');
+            assertTrue(instance.truncateForDiff(longString).length < 100, 'Long strings should be truncated');
+            assertTrue(instance.truncateForDiff(longString).includes('...'), 'Truncated strings should contain ellipsis');
+            assertEqual(instance.truncateForDiff(null), 'N/A', 'Null should return N/A');
+            assertEqual(instance.truncateForDiff(undefined), 'N/A', 'Undefined should return N/A');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should handle empty tags arrays', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+
+            const eventA = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Hello',
+                sig: 'sig123'
+            };
+
+            const eventB = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['e', 'ref1']],
+                content: 'Hello',
+                sig: 'sig123'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+
+            assertFalse(diff.identical, 'Events with different tags should not be identical');
+            assertEqual(diff.tags.added.length, 1, 'One tag should be added');
+            assertEqual(diff.tags.removed.length, 0, 'No tags should be removed');
+
+            Shirushi.prototype.init = originalInit;
+        });
+
+        it('should handle missing tags property', () => {
+            const originalInit = Shirushi.prototype.init;
+            Shirushi.prototype.init = function() {};
+            const instance = new Shirushi();
+
+            const eventA = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                content: 'Hello',
+                sig: 'sig123'
+            };
+
+            const eventB = {
+                id: 'abc123',
+                pubkey: 'pub123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [['e', 'ref1']],
+                content: 'Hello',
+                sig: 'sig123'
+            };
+
+            const diff = instance.computeEventDiff(eventA, eventB);
+
+            assertFalse(diff.identical, 'Events with different tags should not be identical');
+            assertEqual(diff.tags.added.length, 1, 'One tag should be added');
+            assertEqual(diff.tags.removed.length, 0, 'No tags should be removed from undefined tags');
+
+            Shirushi.prototype.init = originalInit;
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

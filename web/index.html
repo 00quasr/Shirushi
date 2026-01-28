@@ -341,6 +341,30 @@
                 </div>
             </div>
             <div class="panel">
+                <h2>Compare Events (Diff)</h2>
+                <p class="hint">Paste two Nostr events to compare their differences</p>
+                <div class="diff-section">
+                    <div class="diff-inputs">
+                        <div class="diff-input-group">
+                            <label for="diff-event-a">Event A</label>
+                            <textarea id="diff-event-a" class="form-textarea diff-textarea" rows="6" placeholder='{"id":"...","pubkey":"...","created_at":...,"kind":...,"tags":[...],"content":"...","sig":"..."}'></textarea>
+                        </div>
+                        <div class="diff-input-group">
+                            <label for="diff-event-b">Event B</label>
+                            <textarea id="diff-event-b" class="form-textarea diff-textarea" rows="6" placeholder='{"id":"...","pubkey":"...","created_at":...,"kind":...,"tags":[...],"content":"...","sig":"..."}'></textarea>
+                        </div>
+                    </div>
+                    <div class="diff-actions">
+                        <button id="compare-events-btn" class="btn primary">Compare Events</button>
+                        <button id="swap-events-btn" class="btn">Swap A/B</button>
+                        <button id="clear-diff-btn" class="btn">Clear</button>
+                    </div>
+                    <div id="diff-result" class="diff-result hidden">
+                        <div class="diff-result-content"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
                 <h2>Event Stream</h2>
                 <div class="filters">
                     <input type="number" id="filter-kind" placeholder="Kind (e.g., 1)">

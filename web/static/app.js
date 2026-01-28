@@ -1363,6 +1363,19 @@ class Shirushi {
                 this.verifyEvent();
             }
         });
+
+        // Diff event handlers
+        document.getElementById('compare-events-btn').addEventListener('click', () => {
+            this.compareEvents();
+        });
+
+        document.getElementById('swap-events-btn').addEventListener('click', () => {
+            this.swapDiffEvents();
+        });
+
+        document.getElementById('clear-diff-btn').addEventListener('click', () => {
+            this.clearDiffInputs();
+        });
     }
 
     async loadEvents() {
@@ -2354,6 +2367,251 @@ class Shirushi {
             console.error('Failed to paste:', error);
             this.toastError('Paste Failed', 'Could not read from clipboard');
         }
+    }
+
+    /**
+     * Compare two Nostr events and show their differences
+     */
+    compareEvents() {
+        const inputA = document.getElementById('diff-event-a');
+        const inputB = document.getElementById('diff-event-b');
+        const jsonA = inputA.value.trim();
+        const jsonB = inputB.value.trim();
+
+        if (!jsonA || !jsonB) {
+            this.toastError('Error', 'Please enter both events to compare');
+            return;
+        }
+
+        let eventA, eventB;
+        try {
+            eventA = JSON.parse(jsonA);
+        } catch (e) {
+            this.toastError('Error', 'Event A has invalid JSON format');
+            return;
+        }
+
+        try {
+            eventB = JSON.parse(jsonB);
+        } catch (e) {
+            this.toastError('Error', 'Event B has invalid JSON format');
+            return;
+        }
+
+        const diff = this.computeEventDiff(eventA, eventB);
+        this.showDiffResult(diff, eventA, eventB);
+    }
+
+    /**
+     * Compute the differences between two event objects
+     * @param {Object} eventA - First event
+     * @param {Object} eventB - Second event
+     * @returns {Object} - Diff object with field comparisons
+     */
+    computeEventDiff(eventA, eventB) {
+        const fields = ['id', 'pubkey', 'created_at', 'kind', 'content', 'sig'];
+        const diff = {
+            fields: {},
+            tags: { added: [], removed: [], modified: [] },
+            identical: true
+        };
+
+        // Compare scalar fields
+        for (const field of fields) {
+            const valueA = eventA[field];
+            const valueB = eventB[field];
+            const isEqual = valueA === valueB;
+
+            diff.fields[field] = {
+                a: valueA,
+                b: valueB,
+                equal: isEqual
+            };
+
+            if (!isEqual) {
+                diff.identical = false;
+            }
+        }
+
+        // Compare tags
+        const tagsA = eventA.tags || [];
+        const tagsB = eventB.tags || [];
+        const tagSetA = new Set(tagsA.map(t => JSON.stringify(t)));
+        const tagSetB = new Set(tagsB.map(t => JSON.stringify(t)));
+
+        // Tags in B but not in A (added)
+        for (const tag of tagsB) {
+            const tagStr = JSON.stringify(tag);
+            if (!tagSetA.has(tagStr)) {
+                diff.tags.added.push(tag);
+                diff.identical = false;
+            }
+        }
+
+        // Tags in A but not in B (removed)
+        for (const tag of tagsA) {
+            const tagStr = JSON.stringify(tag);
+            if (!tagSetB.has(tagStr)) {
+                diff.tags.removed.push(tag);
+                diff.identical = false;
+            }
+        }
+
+        return diff;
+    }
+
+    /**
+     * Display the diff result
+     * @param {Object} diff - The computed diff
+     * @param {Object} eventA - First event
+     * @param {Object} eventB - Second event
+     */
+    showDiffResult(diff, eventA, eventB) {
+        const resultDiv = document.getElementById('diff-result');
+        const resultContent = resultDiv.querySelector('.diff-result-content');
+
+        resultDiv.classList.remove('hidden');
+        resultDiv.classList.remove('identical', 'different');
+        resultDiv.classList.add(diff.identical ? 'identical' : 'different');
+
+        let html = '';
+
+        // Summary header
+        if (diff.identical) {
+            html += `
+                <div class="diff-summary identical">
+                    <span class="diff-summary-icon">&#61;</span>
+                    <span class="diff-summary-text">Events are identical</span>
+                </div>
+            `;
+        } else {
+            const changedCount = Object.values(diff.fields).filter(f => !f.equal).length;
+            const tagChanges = diff.tags.added.length + diff.tags.removed.length;
+            html += `
+                <div class="diff-summary different">
+                    <span class="diff-summary-icon">&#8800;</span>
+                    <span class="diff-summary-text">${changedCount} field${changedCount !== 1 ? 's' : ''} differ${changedCount === 1 ? 's' : ''}, ${tagChanges} tag change${tagChanges !== 1 ? 's' : ''}</span>
+                </div>
+            `;
+        }
+
+        // Field comparisons
+        html += '<div class="diff-fields">';
+
+        const fieldLabels = {
+            id: 'Event ID',
+            pubkey: 'Author',
+            created_at: 'Created At',
+            kind: 'Kind',
+            content: 'Content',
+            sig: 'Signature'
+        };
+
+        for (const [field, info] of Object.entries(diff.fields)) {
+            const statusClass = info.equal ? 'equal' : 'changed';
+            const label = fieldLabels[field] || field;
+
+            let valueA = info.a;
+            let valueB = info.b;
+
+            // Format timestamps
+            if (field === 'created_at') {
+                valueA = valueA ? new Date(valueA * 1000).toLocaleString() : 'N/A';
+                valueB = valueB ? new Date(valueB * 1000).toLocaleString() : 'N/A';
+            }
+
+            // Truncate long strings for display
+            const displayA = this.truncateForDiff(valueA);
+            const displayB = this.truncateForDiff(valueB);
+
+            html += `
+                <div class="diff-field ${statusClass}">
+                    <div class="diff-field-header">
+                        <span class="diff-field-label">${this.escapeHtml(label)}</span>
+                        <span class="diff-field-status ${statusClass}">${info.equal ? 'Same' : 'Different'}</span>
+                    </div>
+                    <div class="diff-field-values">
+                        <div class="diff-value diff-value-a" title="${this.escapeHtml(String(info.a || ''))}">
+                            <span class="diff-value-label">A:</span>
+                            <span class="diff-value-content">${this.escapeHtml(displayA)}</span>
+                        </div>
+                        <div class="diff-value diff-value-b" title="${this.escapeHtml(String(info.b || ''))}">
+                            <span class="diff-value-label">B:</span>
+                            <span class="diff-value-content">${this.escapeHtml(displayB)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+
+        // Tag changes
+        if (diff.tags.added.length > 0 || diff.tags.removed.length > 0) {
+            html += '<div class="diff-tags">';
+            html += '<div class="diff-tags-header">Tag Changes</div>';
+
+            if (diff.tags.removed.length > 0) {
+                html += '<div class="diff-tags-section removed">';
+                html += '<span class="diff-tags-label">Removed from A:</span>';
+                for (const tag of diff.tags.removed) {
+                    html += `<div class="diff-tag removed">${this.escapeHtml(JSON.stringify(tag))}</div>`;
+                }
+                html += '</div>';
+            }
+
+            if (diff.tags.added.length > 0) {
+                html += '<div class="diff-tags-section added">';
+                html += '<span class="diff-tags-label">Added in B:</span>';
+                for (const tag of diff.tags.added) {
+                    html += `<div class="diff-tag added">${this.escapeHtml(JSON.stringify(tag))}</div>`;
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+        }
+
+        resultContent.innerHTML = html;
+    }
+
+    /**
+     * Truncate a value for diff display
+     * @param {*} value - The value to truncate
+     * @returns {string} - Truncated string representation
+     */
+    truncateForDiff(value) {
+        if (value === null || value === undefined) {
+            return 'N/A';
+        }
+        const str = String(value);
+        if (str.length > 60) {
+            return str.substring(0, 28) + '...' + str.substring(str.length - 28);
+        }
+        return str;
+    }
+
+    /**
+     * Swap the two diff input values
+     */
+    swapDiffEvents() {
+        const inputA = document.getElementById('diff-event-a');
+        const inputB = document.getElementById('diff-event-b');
+        const tempValue = inputA.value;
+        inputA.value = inputB.value;
+        inputB.value = tempValue;
+        this.toastSuccess('Swapped', 'Events A and B have been swapped');
+    }
+
+    /**
+     * Clear the diff inputs and result
+     */
+    clearDiffInputs() {
+        document.getElementById('diff-event-a').value = '';
+        document.getElementById('diff-event-b').value = '';
+        const resultDiv = document.getElementById('diff-result');
+        resultDiv.classList.add('hidden');
+        resultDiv.classList.remove('identical', 'different');
     }
 
     // Publish Tab
