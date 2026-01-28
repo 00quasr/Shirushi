@@ -97,7 +97,7 @@ func (p *Pool) SetOnStatusChange(callback StatusChangeCallback) {
 
 // SetStatusCallback sets the callback function that is invoked when a relay's
 // connection status changes. This is an alias for SetOnStatusChange.
-func (p *Pool) SetStatusCallback(callback StatusChangeCallback) {
+func (p *Pool) SetStatusCallback(callback func(url string, connected bool, err string)) {
 	p.SetOnStatusChange(callback)
 }
 

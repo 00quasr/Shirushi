@@ -93,6 +93,7 @@ type mockRelayPool struct {
 	monitoringData *types.MonitoringData
 	relayList      []types.RelayStatus
 	relayInfoMap   map[string]*types.RelayInfo
+	statusCallback func(url string, connected bool, err string)
 }
 
 func (m *mockRelayPool) Add(url string) error { return nil }
@@ -143,6 +144,9 @@ func (m *mockRelayPool) GetRelayInfo(url string) *types.RelayInfo {
 }
 func (m *mockRelayPool) RefreshRelayInfo(url string) error {
 	return nil
+}
+func (m *mockRelayPool) SetStatusCallback(callback func(url string, connected bool, err string)) {
+	m.statusCallback = callback
 }
 
 func TestHandleProfileLookup_Success(t *testing.T) {

@@ -29,6 +29,7 @@ type RelayPool interface {
 	MonitoringData() *types.MonitoringData
 	GetRelayInfo(url string) *types.RelayInfo
 	RefreshRelayInfo(url string) error
+	SetStatusCallback(callback func(url string, connected bool, err string))
 }
 
 // TestRunner defines the interface for running NIP tests

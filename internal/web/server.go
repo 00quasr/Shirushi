@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/keanuklestil/shirushi/internal/types"
 )
 
 const (
@@ -39,6 +40,18 @@ type Server struct {
 func NewServer(addr string, staticFS fs.FS, api *API) *Server {
 	hub := NewHub()
 	api.SetHub(hub)
+
+	// Wire up relay status changes to broadcast via WebSocket
+	if api.relayPool != nil {
+		api.relayPool.SetStatusCallback(func(url string, connected bool, errMsg string) {
+			hub.BroadcastRelayStatus(types.RelayStatus{
+				URL:       url,
+				Connected: connected,
+				Error:     errMsg,
+			})
+		})
+	}
+
 	return &Server{
 		hub:      hub,
 		api:      api,
