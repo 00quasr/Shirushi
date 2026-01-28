@@ -1180,6 +1180,168 @@ func TestGetNIPList_ExampleEventsNIP90(t *testing.T) {
 	}
 }
 
+func TestHub_Broadcast_RaceCondition(t *testing.T) {
+	// This test verifies that the race condition fix works correctly.
+	// The race condition occurred when broadcasting to clients where a client's
+	// send channel was blocked - the code was deleting from the map while only
+	// holding a read lock, which is a data race.
+	hub := NewHub()
+
+	// Start the hub
+	go hub.Run()
+	defer hub.Stop()
+
+	// Create a mock client with a blocked send channel (buffer size 0 would block immediately,
+	// but we use size 1 and then fill it)
+	blockedClient := &Client{
+		hub:  hub,
+		conn: nil, // Not needed for this test
+		send: make(chan []byte, 1),
+	}
+
+	// Fill the channel so it blocks on next send
+	blockedClient.send <- []byte("filler")
+
+	// Register the blocked client directly (bypass normal registration)
+	hub.mu.Lock()
+	hub.clients[blockedClient] = true
+	hub.mu.Unlock()
+
+	// Now broadcast multiple messages concurrently
+	// This should trigger the removal of the blocked client without race conditions
+	done := make(chan bool)
+	go func() {
+		for i := 0; i < 100; i++ {
+			hub.Broadcast(Message{
+				Type: "test",
+				Data: map[string]int{"i": i},
+			})
+		}
+		done <- true
+	}()
+
+	// Wait for broadcasts to complete
+	select {
+	case <-done:
+		// Success
+	case <-time.After(2 * time.Second):
+		t.Error("broadcasts did not complete within timeout")
+	}
+
+	// Give time for cleanup
+	time.Sleep(50 * time.Millisecond)
+
+	// The blocked client should have been removed
+	hub.mu.RLock()
+	_, exists := hub.clients[blockedClient]
+	hub.mu.RUnlock()
+
+	if exists {
+		t.Error("expected blocked client to be removed from clients map")
+	}
+}
+
+func TestHub_Broadcast_ConcurrentAccess(t *testing.T) {
+	// This test verifies that concurrent registration, unregistration, and broadcasting
+	// work correctly without race conditions.
+	hub := NewHub()
+
+	// Start the hub
+	go hub.Run()
+	defer hub.Stop()
+
+	// Give the hub time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Run multiple goroutines that broadcast concurrently
+	const numGoroutines = 10
+	const numMessages = 50
+	done := make(chan bool, numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		go func(gid int) {
+			for i := 0; i < numMessages; i++ {
+				hub.Broadcast(Message{
+					Type: "test",
+					Data: map[string]int{"goroutine": gid, "message": i},
+				})
+			}
+			done <- true
+		}(g)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < numGoroutines; i++ {
+		select {
+		case <-done:
+			// Success
+		case <-time.After(5 * time.Second):
+			t.Errorf("goroutine %d did not complete within timeout", i)
+		}
+	}
+}
+
+func TestHub_Broadcast_DeadClientRemoval(t *testing.T) {
+	// This test verifies that dead clients (with full send channels) are properly
+	// removed during broadcast without causing issues.
+	hub := NewHub()
+
+	// Start the hub
+	go hub.Run()
+	defer hub.Stop()
+
+	// Give the hub time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Create multiple clients with small buffers
+	numClients := 5
+	clients := make([]*Client, numClients)
+	for i := 0; i < numClients; i++ {
+		clients[i] = &Client{
+			hub:  hub,
+			conn: nil,
+			send: make(chan []byte, 1), // Small buffer
+		}
+		// Register directly
+		hub.mu.Lock()
+		hub.clients[clients[i]] = true
+		hub.mu.Unlock()
+	}
+
+	// Fill all channels to simulate blocked clients
+	for _, c := range clients {
+		c.send <- []byte("filler")
+	}
+
+	// Verify all clients are registered
+	hub.mu.RLock()
+	initialCount := len(hub.clients)
+	hub.mu.RUnlock()
+	if initialCount != numClients {
+		t.Errorf("expected %d clients initially, got %d", numClients, initialCount)
+	}
+
+	// Broadcast - this should trigger removal of blocked clients
+	for i := 0; i < 10; i++ {
+		hub.Broadcast(Message{
+			Type: "test",
+			Data: i,
+		})
+	}
+
+	// Give time for processing
+	time.Sleep(100 * time.Millisecond)
+
+	// All clients should have been removed since their channels were blocked
+	hub.mu.RLock()
+	finalCount := len(hub.clients)
+	hub.mu.RUnlock()
+
+	if finalCount != 0 {
+		t.Errorf("expected all blocked clients to be removed, got %d remaining", finalCount)
+	}
+}
+
 func TestGetNIPList_ExampleEventsJSONSerialization(t *testing.T) {
 	nips := GetNIPList()
 

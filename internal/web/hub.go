@@ -82,16 +82,29 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 		case message := <-h.broadcast:
+			// Collect clients that fail to receive the message
+			var deadClients []*Client
 			h.mu.RLock()
 			for client := range h.clients {
 				select {
 				case client.send <- message:
 				default:
-					close(client.send)
-					delete(h.clients, client)
+					deadClients = append(deadClients, client)
 				}
 			}
 			h.mu.RUnlock()
+
+			// Remove dead clients with proper write lock
+			if len(deadClients) > 0 {
+				h.mu.Lock()
+				for _, client := range deadClients {
+					if _, ok := h.clients[client]; ok {
+						delete(h.clients, client)
+						close(client.send)
+					}
+				}
+				h.mu.Unlock()
+			}
 
 		case <-h.eventTicker.C:
 			h.flushEventBuffer()
