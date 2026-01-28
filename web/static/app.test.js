@@ -10299,6 +10299,379 @@
         });
     });
 
+    // Event Verification Tests
+    describe('Event Verification', function() {
+        let container;
+        let originalFetch;
+        let mockFetchResponses;
+
+        function setupVerifyTestDOM() {
+            container = document.createElement('div');
+            container.innerHTML = `
+                <div id="verify-event-input" class="form-textarea"></div>
+                <button id="verify-event-btn" class="btn primary">Verify Signature</button>
+                <button id="clear-verify-btn" class="btn">Clear</button>
+                <button id="paste-verify-btn" class="btn small">Paste from Clipboard</button>
+                <div id="verify-result" class="verify-result hidden">
+                    <div class="verify-result-content"></div>
+                </div>
+                <div id="toast-container" class="toast-container"></div>
+            `;
+
+            // Change input to textarea
+            const input = container.querySelector('#verify-event-input');
+            const textarea = document.createElement('textarea');
+            textarea.id = 'verify-event-input';
+            textarea.className = input.className;
+            input.replaceWith(textarea);
+
+            document.body.appendChild(container);
+        }
+
+        function cleanupVerifyTestDOM() {
+            if (container && container.parentNode) {
+                container.parentNode.removeChild(container);
+            }
+        }
+
+        function createVerifyTestApp() {
+            // Mock toastContainer
+            const app = {
+                toastContainer: container.querySelector('#toast-container'),
+                toastQueue: [],
+                maxToasts: 5,
+                escapeHtml: function(text) {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                },
+                toastSuccess: function(title, message) {
+                    console.log(`Toast Success: ${title} - ${message}`);
+                },
+                toastError: function(title, message) {
+                    console.log(`Toast Error: ${title} - ${message}`);
+                },
+                showVerifyResult: Shirushi.prototype.showVerifyResult,
+                verifyEvent: Shirushi.prototype.verifyEvent,
+                clearVerifyInput: Shirushi.prototype.clearVerifyInput,
+                pasteVerifyInput: Shirushi.prototype.pasteVerifyInput
+            };
+            return app;
+        }
+
+        it('should have all verify UI elements', function() {
+            setupVerifyTestDOM();
+
+            const verifyInput = container.querySelector('#verify-event-input');
+            assertDefined(verifyInput, 'Verify input should exist');
+
+            const verifyBtn = container.querySelector('#verify-event-btn');
+            assertDefined(verifyBtn, 'Verify button should exist');
+
+            const clearBtn = container.querySelector('#clear-verify-btn');
+            assertDefined(clearBtn, 'Clear button should exist');
+
+            const pasteBtn = container.querySelector('#paste-verify-btn');
+            assertDefined(pasteBtn, 'Paste button should exist');
+
+            const resultDiv = container.querySelector('#verify-result');
+            assertDefined(resultDiv, 'Result div should exist');
+            assertTrue(resultDiv.classList.contains('hidden'), 'Result should be hidden initially');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should show error for empty input', async function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            let errorCalled = false;
+            app.toastError = function(title, message) {
+                errorCalled = true;
+                assertEqual(title, 'Error', 'Toast title should be Error');
+                assertTrue(message.includes('enter'), 'Message should mention entering JSON');
+            };
+
+            document.getElementById('verify-event-input').value = '';
+            await app.verifyEvent();
+
+            assertTrue(errorCalled, 'Toast error should be called for empty input');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should show error for invalid JSON', async function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            let showVerifyResultCalled = false;
+            app.showVerifyResult = function(valid, title, event, errorDetail) {
+                showVerifyResultCalled = true;
+                assertEqual(valid, false, 'Valid should be false for invalid JSON');
+                assertEqual(title, 'Invalid JSON format', 'Title should indicate invalid JSON');
+            };
+
+            document.getElementById('verify-event-input').value = 'not valid json {{{';
+            await app.verifyEvent();
+
+            assertTrue(showVerifyResultCalled, 'showVerifyResult should be called for invalid JSON');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should show error for missing required fields', async function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            let showVerifyResultCalled = false;
+            app.showVerifyResult = function(valid, title, event, errorDetail) {
+                showVerifyResultCalled = true;
+                assertEqual(valid, false, 'Valid should be false for missing fields');
+                assertEqual(title, 'Missing required fields', 'Title should indicate missing fields');
+                assertTrue(errorDetail.includes('sig'), 'Error should mention missing sig');
+            };
+
+            // Missing 'sig' field
+            const incompleteEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test'
+            };
+
+            document.getElementById('verify-event-input').value = JSON.stringify(incompleteEvent);
+            await app.verifyEvent();
+
+            assertTrue(showVerifyResultCalled, 'showVerifyResult should be called for missing fields');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should display valid result correctly', function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            const event = {
+                id: 'abc123def456abc123def456abc123def456abc123def456abc123def456abcd',
+                pubkey: 'pubkey12345678901234567890123456789012345678901234567890pubkey',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test content',
+                sig: 'sig12345678901234567890123456789012345678901234567890signature'
+            };
+
+            app.showVerifyResult(true, 'Signature is valid', event);
+
+            const resultDiv = container.querySelector('#verify-result');
+            assertFalse(resultDiv.classList.contains('hidden'), 'Result should not be hidden');
+            assertTrue(resultDiv.classList.contains('valid'), 'Result should have valid class');
+            assertFalse(resultDiv.classList.contains('invalid'), 'Result should not have invalid class');
+
+            const resultContent = resultDiv.querySelector('.verify-result-content');
+            assertTrue(resultContent.innerHTML.includes('Signature is valid'), 'Should show valid title');
+            assertTrue(resultContent.innerHTML.includes('Event ID'), 'Should show event ID label');
+            assertTrue(resultContent.innerHTML.includes('Author'), 'Should show author label');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should display invalid result correctly', function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            const event = {
+                id: 'abc123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'badsig'
+            };
+
+            app.showVerifyResult(false, 'Signature is invalid', event, 'Verification failed');
+
+            const resultDiv = container.querySelector('#verify-result');
+            assertFalse(resultDiv.classList.contains('hidden'), 'Result should not be hidden');
+            assertTrue(resultDiv.classList.contains('invalid'), 'Result should have invalid class');
+            assertFalse(resultDiv.classList.contains('valid'), 'Result should not have valid class');
+
+            const resultContent = resultDiv.querySelector('.verify-result-content');
+            assertTrue(resultContent.innerHTML.includes('Signature is invalid'), 'Should show invalid title');
+            assertTrue(resultContent.innerHTML.includes('Verification failed'), 'Should show error detail');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should clear input and result on clear button', function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            // Set up some state
+            document.getElementById('verify-event-input').value = 'some text';
+            const resultDiv = container.querySelector('#verify-result');
+            resultDiv.classList.remove('hidden');
+            resultDiv.classList.add('valid');
+
+            app.clearVerifyInput();
+
+            assertEqual(document.getElementById('verify-event-input').value, '', 'Input should be cleared');
+            assertTrue(resultDiv.classList.contains('hidden'), 'Result should be hidden after clear');
+            assertFalse(resultDiv.classList.contains('valid'), 'Valid class should be removed');
+            assertFalse(resultDiv.classList.contains('invalid'), 'Invalid class should be removed');
+
+            cleanupVerifyTestDOM();
+        });
+
+        it('should call API with correct event JSON', async function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            const testEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'signature123'
+            };
+
+            let fetchCalled = false;
+            let fetchBody = null;
+
+            const originalFetch = window.fetch;
+            window.fetch = async function(url, options) {
+                fetchCalled = true;
+                assertEqual(url, '/api/events/verify', 'Should call correct API endpoint');
+                assertEqual(options.method, 'POST', 'Should use POST method');
+                fetchBody = options.body;
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            document.getElementById('verify-event-input').value = JSON.stringify(testEvent);
+            await app.verifyEvent();
+
+            assertTrue(fetchCalled, 'Fetch should be called');
+            assertEqual(fetchBody, JSON.stringify(testEvent), 'Fetch body should contain event JSON');
+
+            window.fetch = originalFetch;
+            cleanupVerifyTestDOM();
+        });
+
+        it('should disable button during verification', async function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            const testEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'signature123'
+            };
+
+            let buttonStatesDuringFetch = [];
+
+            const originalFetch = window.fetch;
+            window.fetch = async function(url, options) {
+                const btn = document.getElementById('verify-event-btn');
+                buttonStatesDuringFetch.push({
+                    disabled: btn.disabled,
+                    text: btn.textContent
+                });
+                return {
+                    ok: true,
+                    json: async () => ({ valid: true })
+                };
+            };
+
+            document.getElementById('verify-event-input').value = JSON.stringify(testEvent);
+            await app.verifyEvent();
+
+            assertTrue(buttonStatesDuringFetch.length > 0, 'Button state should be captured during fetch');
+            assertTrue(buttonStatesDuringFetch[0].disabled, 'Button should be disabled during fetch');
+            assertEqual(buttonStatesDuringFetch[0].text, 'Verifying...', 'Button text should change during fetch');
+
+            // After verification completes
+            const btn = document.getElementById('verify-event-btn');
+            assertFalse(btn.disabled, 'Button should be enabled after fetch');
+            assertEqual(btn.textContent, 'Verify Signature', 'Button text should be restored');
+
+            window.fetch = originalFetch;
+            cleanupVerifyTestDOM();
+        });
+
+        it('should handle API error gracefully', async function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            let errorToastCalled = false;
+            app.toastError = function(title, message) {
+                errorToastCalled = true;
+            };
+
+            const testEvent = {
+                id: 'test123',
+                pubkey: 'pubkey123',
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'signature123'
+            };
+
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                throw new Error('Network error');
+            };
+
+            document.getElementById('verify-event-input').value = JSON.stringify(testEvent);
+            await app.verifyEvent();
+
+            assertTrue(errorToastCalled, 'Error toast should be shown for network errors');
+
+            window.fetch = originalFetch;
+            cleanupVerifyTestDOM();
+        });
+
+        it('should truncate long values in result display', function() {
+            setupVerifyTestDOM();
+            const app = createVerifyTestApp();
+
+            const event = {
+                id: 'a'.repeat(64),
+                pubkey: 'b'.repeat(64),
+                created_at: 1700000000,
+                kind: 1,
+                tags: [],
+                content: 'Test',
+                sig: 'c'.repeat(128)
+            };
+
+            app.showVerifyResult(true, 'Signature is valid', event);
+
+            const resultContent = container.querySelector('.verify-result-content');
+            const truncatedValues = resultContent.querySelectorAll('.verify-detail-value.truncated');
+            assertTrue(truncatedValues.length > 0, 'Should have truncated values');
+
+            // Check that truncated values don't contain full length
+            truncatedValues.forEach(el => {
+                assertTrue(el.textContent.includes('...'), 'Truncated values should contain ellipsis');
+            });
+
+            cleanupVerifyTestDOM();
+        });
+    });
+
     // Export test runner for browser and Node.js
     if (typeof window !== 'undefined') {
         window.runShirushiTests = runTests;

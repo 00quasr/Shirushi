@@ -326,6 +326,21 @@
         <!-- Events Tab -->
         <section id="events-tab" class="tab-content">
             <div class="panel">
+                <h2>Verify Event Signature</h2>
+                <p class="hint">Paste a signed Nostr event JSON to verify its cryptographic signature</p>
+                <div class="verify-section">
+                    <textarea id="verify-event-input" class="form-textarea verify-textarea" rows="8" placeholder='{"id":"...","pubkey":"...","created_at":...,"kind":...,"tags":[...],"content":"...","sig":"..."}'></textarea>
+                    <div class="verify-actions">
+                        <button id="verify-event-btn" class="btn primary">Verify Signature</button>
+                        <button id="clear-verify-btn" class="btn">Clear</button>
+                        <button id="paste-verify-btn" class="btn small">Paste from Clipboard</button>
+                    </div>
+                    <div id="verify-result" class="verify-result hidden">
+                        <div class="verify-result-content"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
                 <h2>Event Stream</h2>
                 <div class="filters">
                     <input type="number" id="filter-kind" placeholder="Kind (e.g., 1)">

@@ -986,6 +986,27 @@ class Shirushi {
             this.events = [];
             this.renderEvents();
         });
+
+        // Verify event handlers
+        document.getElementById('verify-event-btn').addEventListener('click', () => {
+            this.verifyEvent();
+        });
+
+        document.getElementById('clear-verify-btn').addEventListener('click', () => {
+            this.clearVerifyInput();
+        });
+
+        document.getElementById('paste-verify-btn').addEventListener('click', () => {
+            this.pasteVerifyInput();
+        });
+
+        // Allow Enter key in textarea to trigger verification (Ctrl/Cmd + Enter)
+        document.getElementById('verify-event-input').addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                this.verifyEvent();
+            }
+        });
     }
 
     async loadEvents() {
@@ -1373,6 +1394,155 @@ class Shirushi {
         const result = await response.json();
         this.toastSuccess('Subscribed', `Subscription created: ${result.subscription_id.substring(0, 8)}...`);
         return result;
+    }
+
+    /**
+     * Verify a Nostr event signature
+     * Parses the input JSON and sends it to the /api/events/verify endpoint
+     */
+    async verifyEvent() {
+        const input = document.getElementById('verify-event-input');
+        const resultDiv = document.getElementById('verify-result');
+        const resultContent = resultDiv.querySelector('.verify-result-content');
+        const verifyBtn = document.getElementById('verify-event-btn');
+        const eventJson = input.value.trim();
+
+        if (!eventJson) {
+            this.toastError('Error', 'Please enter an event JSON to verify');
+            return;
+        }
+
+        // Parse and validate JSON
+        let event;
+        try {
+            event = JSON.parse(eventJson);
+        } catch (e) {
+            this.showVerifyResult(false, 'Invalid JSON format', null, e.message);
+            return;
+        }
+
+        // Validate required event fields
+        const requiredFields = ['id', 'pubkey', 'created_at', 'kind', 'tags', 'content', 'sig'];
+        const missingFields = requiredFields.filter(field => !(field in event));
+        if (missingFields.length > 0) {
+            this.showVerifyResult(false, 'Missing required fields', null, `Missing: ${missingFields.join(', ')}`);
+            return;
+        }
+
+        // Disable button during verification
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
+
+        try {
+            const response = await fetch('/api/events/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: eventJson
+            });
+
+            const result = await response.json();
+
+            if (result.valid) {
+                this.showVerifyResult(true, 'Signature is valid', event);
+                this.toastSuccess('Valid', 'Event signature verified successfully');
+            } else {
+                const errorMsg = result.error || 'Signature verification failed';
+                this.showVerifyResult(false, 'Signature is invalid', event, errorMsg);
+                this.toastError('Invalid', errorMsg);
+            }
+        } catch (error) {
+            console.error('Verification error:', error);
+            this.showVerifyResult(false, 'Verification failed', event, error.message);
+            this.toastError('Error', 'Failed to verify event');
+        } finally {
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify Signature';
+        }
+    }
+
+    /**
+     * Display the verification result
+     * @param {boolean} valid - Whether the signature is valid
+     * @param {string} title - Title message
+     * @param {Object|null} event - The parsed event object
+     * @param {string} [errorDetail] - Error detail message if invalid
+     */
+    showVerifyResult(valid, title, event, errorDetail = null) {
+        const resultDiv = document.getElementById('verify-result');
+        const resultContent = resultDiv.querySelector('.verify-result-content');
+
+        // Update CSS classes
+        resultDiv.classList.remove('hidden', 'valid', 'invalid');
+        resultDiv.classList.add(valid ? 'valid' : 'invalid');
+
+        // Build the result HTML
+        let html = `
+            <div class="verify-result-header">
+                <span class="verify-result-icon ${valid ? 'valid' : 'invalid'}">${valid ? '&#10003;' : '&#10007;'}</span>
+                <div class="verify-result-text">
+                    <span class="verify-result-title">${this.escapeHtml(title)}</span>
+                    ${errorDetail ? `<span class="verify-result-subtitle">${this.escapeHtml(errorDetail)}</span>` : ''}
+                </div>
+            </div>
+        `;
+
+        if (event) {
+            const truncate = (str, len = 24) => {
+                if (!str) return '';
+                return str.length > len ? str.substring(0, len / 2) + '...' + str.substring(str.length - len / 2) : str;
+            };
+
+            html += `
+                <div class="verify-result-details">
+                    <div class="verify-detail-row">
+                        <span class="verify-detail-label">Event ID:</span>
+                        <span class="verify-detail-value truncated" title="${this.escapeHtml(event.id)}">${this.escapeHtml(truncate(event.id, 32))}</span>
+                    </div>
+                    <div class="verify-detail-row">
+                        <span class="verify-detail-label">Author:</span>
+                        <span class="verify-detail-value truncated" title="${this.escapeHtml(event.pubkey)}">${this.escapeHtml(truncate(event.pubkey, 32))}</span>
+                    </div>
+                    <div class="verify-detail-row">
+                        <span class="verify-detail-label">Kind:</span>
+                        <span class="verify-detail-value">${event.kind}</span>
+                    </div>
+                    <div class="verify-detail-row">
+                        <span class="verify-detail-label">Created:</span>
+                        <span class="verify-detail-value">${new Date(event.created_at * 1000).toLocaleString()}</span>
+                    </div>
+                    <div class="verify-detail-row">
+                        <span class="verify-detail-label">Signature:</span>
+                        <span class="verify-detail-value truncated" title="${this.escapeHtml(event.sig)}">${this.escapeHtml(truncate(event.sig, 32))}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        resultContent.innerHTML = html;
+    }
+
+    /**
+     * Clear the verify input and result
+     */
+    clearVerifyInput() {
+        document.getElementById('verify-event-input').value = '';
+        const resultDiv = document.getElementById('verify-result');
+        resultDiv.classList.add('hidden');
+        resultDiv.classList.remove('valid', 'invalid');
+    }
+
+    /**
+     * Paste from clipboard into verify input
+     */
+    async pasteVerifyInput() {
+        try {
+            const text = await navigator.clipboard.readText();
+            document.getElementById('verify-event-input').value = text;
+            this.toastSuccess('Pasted', 'Content pasted from clipboard');
+        } catch (error) {
+            console.error('Failed to paste:', error);
+            this.toastError('Paste Failed', 'Could not read from clipboard');
+        }
     }
 
     // Publish Tab
