@@ -338,7 +338,6 @@ class Shirushi {
                 ${relay.relay_info?.name ? `<div class="relay-name">${this.escapeHtml(relay.relay_info.name)}</div>` : ''}
                 <div class="relay-stats">
                     <span>Latency: ${relay.latency_ms > 0 ? relay.latency_ms + 'ms' : 'N/A'}</span>
-                    <span>Events: ${(relay.events_per_sec || 0).toFixed(1)}/sec</span>
                 </div>
                 ${this.renderSupportedNIPs(relay.supported_nips)}
                 ${relay.error ? `<div class="relay-error">${this.escapeHtml(relay.error)}</div>` : ''}
@@ -3119,10 +3118,6 @@ class Shirushi {
                         <div class="relay-health-metric">
                             <span class="metric-label">Latency</span>
                             <span class="metric-value">${relay.latency_ms > 0 ? relay.latency_ms + 'ms' : 'N/A'}</span>
-                        </div>
-                        <div class="relay-health-metric">
-                            <span class="metric-label">Events/sec</span>
-                            <span class="metric-value">${(relay.events_per_sec || 0).toFixed(1)}</span>
                         </div>
                         <div class="relay-health-metric">
                             <span class="metric-label">Uptime</span>

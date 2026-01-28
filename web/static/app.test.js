@@ -2401,6 +2401,47 @@
 
             removeMockDOM(container);
         });
+
+        it('relay health cards should NOT display Events/sec metric', () => {
+            container = createChartMockDOM();
+
+            const instance = Object.create(Shirushi.prototype);
+            instance.escapeHtml = function(str) { return str; };
+            instance.getHealthClass = function(score, connected) {
+                if (!connected) return 'offline';
+                if (score >= 80) return 'healthy';
+                if (score >= 50) return 'warning';
+                return 'critical';
+            };
+
+            const relays = [
+                {
+                    url: 'wss://relay1.com',
+                    connected: true,
+                    latency_ms: 100,
+                    health_score: 90,
+                    events_per_sec: 5.5,
+                    uptime_percent: 99.5
+                }
+            ];
+
+            // Render health cards using the correct method name
+            instance.renderRelayHealthGrid(relays);
+
+            // Check the rendered HTML
+            const healthList = document.getElementById('relay-health-list');
+            assertDefined(healthList, 'Health list container should exist');
+
+            // Verify Events/sec is NOT displayed
+            assertFalse(healthList.innerHTML.includes('Events/sec'), 'Health cards should NOT display Events/sec metric');
+            assertFalse(healthList.innerHTML.includes('events_per_sec'), 'Health cards should NOT display events_per_sec');
+
+            // Verify other metrics ARE displayed
+            assertTrue(healthList.innerHTML.includes('Latency'), 'Health cards should still display Latency');
+            assertTrue(healthList.innerHTML.includes('Uptime'), 'Health cards should still display Uptime');
+
+            removeMockDOM(container);
+        });
     });
 
     // Chart Rendering Verification Tests
@@ -4405,6 +4446,25 @@
             const copyBtn = document.querySelector('[data-copy-relay]');
             assertDefined(copyBtn, 'Copy relay URL button should exist');
             assertEqual(copyBtn.dataset.copyRelay, 'wss://relay.test.com', 'Button should have relay URL in data attribute');
+        });
+
+        it('relay cards should NOT display events/sec in stats', async () => {
+            const appInstance = getApp();
+
+            // Set up mock relay data with events_per_sec
+            appInstance.relays = [
+                { url: 'wss://relay.test.com', connected: true, latency_ms: 50, events_per_sec: 2.5 }
+            ];
+
+            // Render relays
+            appInstance.renderRelays();
+
+            // Check that events/sec is NOT displayed in the relay stats
+            const relayStats = document.querySelector('.relay-stats');
+            assertDefined(relayStats, 'Relay stats container should exist');
+            assertFalse(relayStats.innerHTML.includes('Events:'), 'Relay stats should NOT display Events');
+            assertFalse(relayStats.innerHTML.includes('/sec'), 'Relay stats should NOT display /sec');
+            assertTrue(relayStats.innerHTML.includes('Latency'), 'Relay stats should still display Latency');
         });
     });
 
