@@ -264,3 +264,267 @@ func TestStatusChangeCallbackIsConcurrencySafe(t *testing.T) {
 	}
 	mu.Unlock()
 }
+
+func TestPublishEventNoConnectedRelays(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	results := pool.PublishEvent(nil, nil)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("expected success to be false when no connected relays")
+	}
+	if results[0].Error != "no connected relays" {
+		t.Errorf("expected error 'no connected relays', got '%s'", results[0].Error)
+	}
+}
+
+func TestPublishEventRelayNotInPool(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add a different relay to the pool
+	pool.relays["wss://other.relay.com"] = &RelayConn{
+		URL:       "wss://other.relay.com",
+		Connected: true,
+	}
+
+	// Try to publish to a relay that's not in the pool
+	results := pool.PublishEvent(nil, []string{"wss://nonexistent.relay.com"})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("expected success to be false for relay not in pool")
+	}
+	if results[0].URL != "wss://nonexistent.relay.com" {
+		t.Errorf("expected URL 'wss://nonexistent.relay.com', got '%s'", results[0].URL)
+	}
+	if results[0].Error != "relay not in pool" {
+		t.Errorf("expected error 'relay not in pool', got '%s'", results[0].Error)
+	}
+}
+
+func TestPublishEventRelayNotConnected(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add a disconnected relay
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: false,
+	}
+
+	results := pool.PublishEvent(nil, []string{"wss://test.relay.com"})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("expected success to be false for disconnected relay")
+	}
+	if results[0].URL != "wss://test.relay.com" {
+		t.Errorf("expected URL 'wss://test.relay.com', got '%s'", results[0].URL)
+	}
+	if results[0].Error != "relay not connected" {
+		t.Errorf("expected error 'relay not connected', got '%s'", results[0].Error)
+	}
+}
+
+func TestPublishEventRelayNilConnection(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add a relay marked as connected but with nil Relay object
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+		Relay:     nil,
+	}
+
+	results := pool.PublishEvent(nil, []string{"wss://test.relay.com"})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("expected success to be false when Relay object is nil")
+	}
+	if results[0].Error != "relay not connected" {
+		t.Errorf("expected error 'relay not connected', got '%s'", results[0].Error)
+	}
+}
+
+func TestPublishEventMultipleRelaysMixedResults(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add a connected relay (but nil Relay, so will fail)
+	pool.relays["wss://connected.relay.com"] = &RelayConn{
+		URL:       "wss://connected.relay.com",
+		Connected: true,
+		Relay:     nil,
+	}
+
+	// Add a disconnected relay
+	pool.relays["wss://disconnected.relay.com"] = &RelayConn{
+		URL:       "wss://disconnected.relay.com",
+		Connected: false,
+	}
+
+	results := pool.PublishEvent(nil, []string{"wss://connected.relay.com", "wss://disconnected.relay.com", "wss://notinpool.relay.com"})
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// Check results (order may vary due to concurrent execution)
+	resultMap := make(map[string]PublishResult)
+	for _, r := range results {
+		resultMap[r.URL] = r
+	}
+
+	// Check connected relay result (should fail because Relay is nil)
+	if r, ok := resultMap["wss://connected.relay.com"]; ok {
+		if r.Success {
+			t.Error("expected success to be false for relay with nil connection")
+		}
+		if r.Error != "relay not connected" {
+			t.Errorf("expected error 'relay not connected', got '%s'", r.Error)
+		}
+	} else {
+		t.Error("missing result for wss://connected.relay.com")
+	}
+
+	// Check disconnected relay result
+	if r, ok := resultMap["wss://disconnected.relay.com"]; ok {
+		if r.Success {
+			t.Error("expected success to be false for disconnected relay")
+		}
+		if r.Error != "relay not connected" {
+			t.Errorf("expected error 'relay not connected', got '%s'", r.Error)
+		}
+	} else {
+		t.Error("missing result for wss://disconnected.relay.com")
+	}
+
+	// Check not-in-pool relay result
+	if r, ok := resultMap["wss://notinpool.relay.com"]; ok {
+		if r.Success {
+			t.Error("expected success to be false for relay not in pool")
+		}
+		if r.Error != "relay not in pool" {
+			t.Errorf("expected error 'relay not in pool', got '%s'", r.Error)
+		}
+	} else {
+		t.Error("missing result for wss://notinpool.relay.com")
+	}
+}
+
+func TestPublishEventUsesAllConnectedRelaysWhenNoURLsProvided(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add connected relays (with nil Relay, so they'll fail but we can test selection logic)
+	pool.relays["wss://relay1.com"] = &RelayConn{
+		URL:       "wss://relay1.com",
+		Connected: true,
+		Relay:     nil,
+	}
+	pool.relays["wss://relay2.com"] = &RelayConn{
+		URL:       "wss://relay2.com",
+		Connected: true,
+		Relay:     nil,
+	}
+	// Add a disconnected relay that should NOT be included
+	pool.relays["wss://disconnected.com"] = &RelayConn{
+		URL:       "wss://disconnected.com",
+		Connected: false,
+	}
+
+	results := pool.PublishEvent(nil, nil) // Pass nil to use all connected relays
+
+	// Should only get results for connected relays
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results (only connected relays), got %d", len(results))
+	}
+
+	// Verify we got results for the connected relays
+	urls := make(map[string]bool)
+	for _, r := range results {
+		urls[r.URL] = true
+	}
+
+	if !urls["wss://relay1.com"] {
+		t.Error("expected result for wss://relay1.com")
+	}
+	if !urls["wss://relay2.com"] {
+		t.Error("expected result for wss://relay2.com")
+	}
+	if urls["wss://disconnected.com"] {
+		t.Error("should not have result for disconnected relay")
+	}
+}
+
+func TestPublishEventEmptyRelayURLsSlice(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	// Add a connected relay
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: true,
+		Relay:     nil,
+	}
+
+	// Pass empty slice (should use all connected relays)
+	results := pool.PublishEvent(nil, []string{})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].URL != "wss://test.relay.com" {
+		t.Errorf("expected URL 'wss://test.relay.com', got '%s'", results[0].URL)
+	}
+}
+
+func TestPublishResultFields(t *testing.T) {
+	pool := &Pool{
+		relays: make(map[string]*RelayConn),
+	}
+
+	pool.relays["wss://test.relay.com"] = &RelayConn{
+		URL:       "wss://test.relay.com",
+		Connected: false,
+	}
+
+	results := pool.PublishEvent(nil, []string{"wss://test.relay.com"})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	result := results[0]
+
+	// Verify all fields are set correctly
+	if result.URL != "wss://test.relay.com" {
+		t.Errorf("expected URL 'wss://test.relay.com', got '%s'", result.URL)
+	}
+	if result.Success != false {
+		t.Error("expected Success to be false")
+	}
+	if result.Error == "" {
+		t.Error("expected Error to be non-empty")
+	}
+}

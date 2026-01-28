@@ -526,6 +526,84 @@ func (p *Pool) RefreshRelayInfo(url string) error {
 	return nil
 }
 
+// PublishResult represents the result of publishing an event to a relay.
+type PublishResult struct {
+	URL     string `json:"url"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// PublishEvent publishes an event to the specified relays.
+// If relayURLs is empty, publishes to all connected relays.
+// Returns results for each relay attempted.
+func (p *Pool) PublishEvent(event *nostr.Event, relayURLs []string) []PublishResult {
+	// If no specific relays provided, use all connected relays
+	if len(relayURLs) == 0 {
+		relayURLs = p.GetConnected()
+	}
+
+	if len(relayURLs) == 0 {
+		return []PublishResult{{
+			URL:     "",
+			Success: false,
+			Error:   "no connected relays",
+		}}
+	}
+
+	results := make([]PublishResult, 0, len(relayURLs))
+	var wg sync.WaitGroup
+	var resultsMu sync.Mutex
+
+	for _, url := range relayURLs {
+		wg.Add(1)
+		go func(relayURL string) {
+			defer wg.Done()
+
+			result := PublishResult{URL: relayURL}
+
+			p.mu.RLock()
+			conn, exists := p.relays[relayURL]
+			p.mu.RUnlock()
+
+			if !exists {
+				result.Success = false
+				result.Error = "relay not in pool"
+				resultsMu.Lock()
+				results = append(results, result)
+				resultsMu.Unlock()
+				return
+			}
+
+			if !conn.Connected || conn.Relay == nil {
+				result.Success = false
+				result.Error = "relay not connected"
+				resultsMu.Lock()
+				results = append(results, result)
+				resultsMu.Unlock()
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+			defer cancel()
+
+			err := conn.Relay.Publish(ctx, *event)
+			if err != nil {
+				result.Success = false
+				result.Error = err.Error()
+			} else {
+				result.Success = true
+			}
+
+			resultsMu.Lock()
+			results = append(results, result)
+			resultsMu.Unlock()
+		}(url)
+	}
+
+	wg.Wait()
+	return results
+}
+
 // Close closes all relay connections.
 func (p *Pool) Close() {
 	p.cancel()
