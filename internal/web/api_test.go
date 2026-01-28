@@ -88,18 +88,19 @@ func TestVerifyNIP05_CaseInsensitive(t *testing.T) {
 
 // mockRelayPool is a mock implementation of RelayPool for testing.
 type mockRelayPool struct {
-	events            []types.Event
-	eventsWithTiming  *types.EventsQueryResponse
-	eventsByID        map[string]types.Event
-	repliesMap        map[string][]types.Event
-	allRelaysResponse *types.EventFetchAllRelaysResponse
-	err               error
-	refreshInfoErr    error
-	monitoringData    *types.MonitoringData
-	relayList         []types.RelayStatus
-	relayInfoMap      map[string]*types.RelayInfo
-	statusCallback    func(url string, connected bool, err string)
-	relayInfoCallback func(url string, info *types.RelayInfo)
+	events             []types.Event
+	eventsWithTiming   *types.EventsQueryResponse
+	eventsByID         map[string]types.Event
+	repliesMap         map[string][]types.Event
+	allRelaysResponse  *types.EventFetchAllRelaysResponse
+	batchQueryResponse *types.BatchQueryResponse
+	err                error
+	refreshInfoErr     error
+	monitoringData     *types.MonitoringData
+	relayList          []types.RelayStatus
+	relayInfoMap       map[string]*types.RelayInfo
+	statusCallback     func(url string, connected bool, err string)
+	relayInfoCallback  func(url string, info *types.RelayInfo)
 }
 
 func (m *mockRelayPool) Add(url string) error { return nil }
@@ -163,6 +164,33 @@ func (m *mockRelayPool) QueryEventFromAllRelays(eventID string) *types.EventFetc
 		Results:     []types.EventRelayResult{},
 		FoundCount:  0,
 		TotalRelays: 0,
+	}
+}
+func (m *mockRelayPool) QueryBatchEventsByIDs(ids []string) *types.BatchQueryResponse {
+	if m.batchQueryResponse != nil {
+		return m.batchQueryResponse
+	}
+	// Build default response from eventsByID
+	results := make([]types.BatchEventResult, len(ids))
+	totalFound := 0
+	for i, id := range ids {
+		results[i] = types.BatchEventResult{
+			EventID:   id,
+			FoundOn:   []string{},
+			MissingOn: []string{},
+		}
+		if event, ok := m.eventsByID[id]; ok {
+			results[i].Event = &event
+			results[i].Found = true
+			results[i].FoundOn = []string{"wss://relay1.example.com"}
+			totalFound++
+		}
+	}
+	return &types.BatchQueryResponse{
+		Results:      results,
+		TotalFound:   totalFound,
+		TotalQueried: len(ids),
+		TotalTimeMs:  100,
 	}
 }
 func (m *mockRelayPool) MonitoringData() *types.MonitoringData {
@@ -4593,5 +4621,281 @@ func TestHandleEvents_MethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+// Tests for HandleBatchEventLookup
+
+func TestHandleBatchEventLookup_Success(t *testing.T) {
+	eventID1 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	eventID2 := "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	pool := &mockRelayPool{
+		batchQueryResponse: &types.BatchQueryResponse{
+			Results: []types.BatchEventResult{
+				{
+					EventID: eventID1,
+					Event: &types.Event{
+						ID:        eventID1,
+						Kind:      1,
+						PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+						Content:   "Hello, Nostr!",
+						CreatedAt: 1700000000,
+					},
+					Found:     true,
+					FoundOn:   []string{"wss://relay1.example.com", "wss://relay2.example.com"},
+					MissingOn: []string{},
+				},
+				{
+					EventID:   eventID2,
+					Found:     false,
+					FoundOn:   []string{},
+					MissingOn: []string{"wss://relay1.example.com", "wss://relay2.example.com"},
+				},
+			},
+			TotalFound:   1,
+			TotalQueried: 2,
+			TotalTimeMs:  150,
+		},
+	}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := strings.NewReader(`{"ids":["` + eventID1 + `","` + eventID2 + `"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.BatchQueryResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.TotalQueried != 2 {
+		t.Errorf("expected total_queried 2, got %d", response.TotalQueried)
+	}
+
+	if response.TotalFound != 1 {
+		t.Errorf("expected total_found 1, got %d", response.TotalFound)
+	}
+
+	if len(response.Results) != 2 {
+		t.Errorf("expected 2 results, got %d", len(response.Results))
+	}
+
+	// Check first result (found)
+	if !response.Results[0].Found {
+		t.Error("expected first result to be found")
+	}
+	if response.Results[0].Event == nil {
+		t.Error("expected first result to have an event")
+	}
+
+	// Check second result (not found)
+	if response.Results[1].Found {
+		t.Error("expected second result to not be found")
+	}
+}
+
+func TestHandleBatchEventLookup_EmptyIDs(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := strings.NewReader(`{"ids":[]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "at least one event ID is required" {
+		t.Errorf("expected error about at least one ID required, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleBatchEventLookup_InvalidIDLength(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := strings.NewReader(`{"ids":["tooshort"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(errResp["error"], "must be 64 hex characters") {
+		t.Errorf("expected error about 64 hex characters, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleBatchEventLookup_InvalidHexCharacters(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Valid length but invalid characters (g, h are not valid hex)
+	invalidID := "ghijklmnopqrstuvwxyz1234567890abcdef1234567890abcdef1234567890ab"
+	body := strings.NewReader(`{"ids":["` + invalidID + `"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(errResp["error"], "hexadecimal characters") {
+		t.Errorf("expected error about hexadecimal characters, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleBatchEventLookup_MethodNotAllowed(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/batch-lookup", nil)
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	}
+}
+
+func TestHandleBatchEventLookup_InvalidJSON(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	body := strings.NewReader(`{invalid json}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if errResp["error"] != "invalid request body" {
+		t.Errorf("expected error 'invalid request body', got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleBatchEventLookup_TooManyIDs(t *testing.T) {
+	pool := &mockRelayPool{}
+	api := NewAPI(&config.Config{}, nil, pool, nil)
+
+	// Create 101 IDs (exceeds the 100 limit)
+	ids := make([]string, 101)
+	for i := 0; i < 101; i++ {
+		ids[i] = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	}
+	idsJSON, _ := json.Marshal(ids)
+	body := strings.NewReader(`{"ids":` + string(idsJSON) + `}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var errResp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !strings.Contains(errResp["error"], "maximum batch size") {
+		t.Errorf("expected error about maximum batch size, got '%s'", errResp["error"])
+	}
+}
+
+func TestHandleBatchEventLookup_WithNote1Format(t *testing.T) {
+	eventID := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	mockNak := &mockNakClient{
+		decoded: &nak.Decoded{
+			Type: "note",
+			Hex:  eventID,
+		},
+	}
+	pool := &mockRelayPool{
+		batchQueryResponse: &types.BatchQueryResponse{
+			Results: []types.BatchEventResult{
+				{
+					EventID: eventID,
+					Event: &types.Event{
+						ID:        eventID,
+						Kind:      1,
+						PubKey:    "aaaa111111111111111111111111111111111111111111111111111111111111",
+						Content:   "Hello, Nostr!",
+						CreatedAt: 1700000000,
+					},
+					Found:   true,
+					FoundOn: []string{"wss://relay1.example.com"},
+				},
+			},
+			TotalFound:   1,
+			TotalQueried: 1,
+			TotalTimeMs:  50,
+		},
+	}
+	api := NewAPI(&config.Config{}, mockNak, pool, nil)
+
+	body := strings.NewReader(`{"ids":["note1abc123..."]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/events/batch-lookup", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	api.HandleBatchEventLookup(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response types.BatchQueryResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.TotalFound != 1 {
+		t.Errorf("expected total_found 1, got %d", response.TotalFound)
 	}
 }

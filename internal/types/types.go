@@ -294,3 +294,20 @@ type EventsQueryResponse struct {
 	RelayTimings []RelayFetchTiming `json:"relay_timings"`
 	TotalTimeMs  int64              `json:"total_time_ms"`
 }
+
+// BatchEventResult represents the result of fetching a single event in a batch query.
+type BatchEventResult struct {
+	EventID   string   `json:"event_id"`
+	Event     *Event   `json:"event,omitempty"`
+	Found     bool     `json:"found"`
+	FoundOn   []string `json:"found_on"`
+	MissingOn []string `json:"missing_on"`
+}
+
+// BatchQueryResponse represents the response from a batch event lookup.
+type BatchQueryResponse struct {
+	Results      []BatchEventResult `json:"results"`
+	TotalFound   int                `json:"total_found"`
+	TotalQueried int                `json:"total_queried"`
+	TotalTimeMs  int64              `json:"total_time_ms"`
+}

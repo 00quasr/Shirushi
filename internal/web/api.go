@@ -25,6 +25,7 @@ type RelayPool interface {
 	QueryEvents(kindStr, author, limitStr string) ([]types.Event, error)
 	QueryEventsWithTiming(kindStr, author, limitStr string) (*types.EventsQueryResponse, error)
 	QueryEventsByIDs(ids []string) ([]types.Event, error)
+	QueryBatchEventsByIDs(ids []string) *types.BatchQueryResponse
 	QueryEventReplies(eventID string) ([]types.Event, error)
 	QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelaysResponse
 	Subscribe(kinds []int, authors []string, callback func(types.Event)) string
@@ -902,6 +903,75 @@ func (a *API) HandleEventFetchAllRelays(w http.ResponseWriter, r *http.Request) 
 
 	// Query the event from all relays
 	response := a.relayPool.QueryEventFromAllRelays(eventID)
+
+	writeJSON(w, response)
+}
+
+// HandleBatchEventLookup looks up multiple events by their IDs.
+// Accepts POST with JSON body: {"ids": ["id1", "id2", ...]}
+// Each ID can be hex, note1..., or nevent1... format.
+func (a *API) HandleBatchEventLookup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		writeError(w, http.StatusBadRequest, "at least one event ID is required")
+		return
+	}
+
+	// Limit the number of IDs to prevent abuse
+	const maxBatchSize = 100
+	if len(req.IDs) > maxBatchSize {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("maximum batch size is %d events", maxBatchSize))
+		return
+	}
+
+	// Decode and validate all IDs
+	hexIDs := make([]string, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		id = strings.TrimSpace(id)
+
+		// If input is note1... or nevent1..., decode it to hex
+		if strings.HasPrefix(id, "note1") || strings.HasPrefix(id, "nevent1") {
+			if a.nak == nil {
+				writeError(w, http.StatusServiceUnavailable, "nak CLI not available for decoding")
+				return
+			}
+			decoded, err := a.nak.Decode(id)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("failed to decode event ID '%s': %v", id, err))
+				return
+			}
+			id = decoded.Hex
+		}
+
+		// Validate hex format (64 characters, valid hex)
+		if len(id) != 64 {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("event ID '%s' must be 64 hex characters", id))
+			return
+		}
+		for _, c := range id {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("event ID '%s' must contain only hexadecimal characters", id))
+				return
+			}
+		}
+
+		hexIDs = append(hexIDs, id)
+	}
+
+	// Query events in batch
+	response := a.relayPool.QueryBatchEventsByIDs(hexIDs)
 
 	writeJSON(w, response)
 }

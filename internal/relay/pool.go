@@ -729,6 +729,135 @@ func (p *Pool) QueryEventFromAllRelays(eventID string) *types.EventFetchAllRelay
 	return response
 }
 
+// QueryBatchEventsByIDs fetches multiple events by ID from all connected relays,
+// returning per-event results with relay availability information.
+func (p *Pool) QueryBatchEventsByIDs(ids []string) *types.BatchQueryResponse {
+	totalStart := time.Now()
+
+	relays := p.GetConnected()
+	response := &types.BatchQueryResponse{
+		Results:      make([]types.BatchEventResult, 0, len(ids)),
+		TotalQueried: len(ids),
+	}
+
+	if len(relays) == 0 || len(ids) == 0 {
+		// Return empty results for each ID
+		for _, id := range ids {
+			response.Results = append(response.Results, types.BatchEventResult{
+				EventID:   id,
+				Found:     false,
+				FoundOn:   []string{},
+				MissingOn: relays,
+			})
+		}
+		response.TotalTimeMs = time.Since(totalStart).Milliseconds()
+		return response
+	}
+
+	// Track which events are found on which relays
+	type eventRelayInfo struct {
+		event   *types.Event
+		foundOn map[string]bool
+	}
+	eventResults := make(map[string]*eventRelayInfo)
+	var eventMu sync.Mutex
+
+	// Initialize tracking for all requested IDs
+	for _, id := range ids {
+		eventResults[id] = &eventRelayInfo{
+			foundOn: make(map[string]bool),
+		}
+	}
+
+	filter := nostr.Filter{
+		IDs:   ids,
+		Limit: len(ids),
+	}
+
+	// Query each relay individually to track per-relay availability
+	var wg sync.WaitGroup
+	for _, relayURL := range relays {
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+
+			ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
+			defer cancel()
+
+			relay, err := p.pool.EnsureRelay(url)
+			if err != nil {
+				return
+			}
+
+			sub, err := relay.Subscribe(ctx, nostr.Filters{filter})
+			if err != nil {
+				return
+			}
+			defer sub.Unsub()
+
+		eventLoop:
+			for {
+				select {
+				case ev := <-sub.Events:
+					if ev != nil {
+						eventMu.Lock()
+						if info, exists := eventResults[ev.ID]; exists {
+							info.foundOn[url] = true
+							if info.event == nil {
+								info.event = &types.Event{
+									ID:        ev.ID,
+									Kind:      ev.Kind,
+									PubKey:    ev.PubKey,
+									Content:   ev.Content,
+									CreatedAt: int64(ev.CreatedAt),
+									Tags:      convertTags(ev.Tags),
+									Sig:       ev.Sig,
+									Relay:     url,
+								}
+							}
+						}
+						eventMu.Unlock()
+					}
+				case <-sub.EndOfStoredEvents:
+					break eventLoop
+				case <-ctx.Done():
+					break eventLoop
+				}
+			}
+		}(relayURL)
+	}
+
+	wg.Wait()
+
+	// Build results maintaining the order of input IDs
+	for _, id := range ids {
+		info := eventResults[id]
+		result := types.BatchEventResult{
+			EventID:   id,
+			Event:     info.event,
+			Found:     info.event != nil,
+			FoundOn:   make([]string, 0),
+			MissingOn: make([]string, 0),
+		}
+
+		for _, url := range relays {
+			if info.foundOn[url] {
+				result.FoundOn = append(result.FoundOn, url)
+			} else {
+				result.MissingOn = append(result.MissingOn, url)
+			}
+		}
+
+		if result.Found {
+			response.TotalFound++
+		}
+		response.Results = append(response.Results, result)
+	}
+
+	response.TotalTimeMs = time.Since(totalStart).Milliseconds()
+	return response
+}
+
 // GetRelayInfo returns the NIP-11 info for a specific relay.
 // First checks the active connection, then falls back to cache.
 func (p *Pool) GetRelayInfo(url string) *types.RelayInfo {

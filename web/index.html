@@ -383,6 +383,31 @@
                 </div>
             </div>
             <div class="panel">
+                <h2>Batch Query</h2>
+                <p class="hint">Fetch multiple events by their IDs at once. Enter one ID per line (hex, note1..., or nevent1... format)</p>
+                <div class="batch-query-section">
+                    <textarea id="batch-query-input" class="form-textarea batch-query-textarea" rows="6" placeholder="Enter event IDs, one per line:
+abc123...def456 (64-char hex)
+note1abc...
+nevent1xyz..."></textarea>
+                    <div class="batch-query-actions">
+                        <button id="batch-query-btn" class="btn primary">Fetch Events</button>
+                        <button id="clear-batch-btn" class="btn">Clear</button>
+                        <span class="batch-query-count">
+                            <span id="batch-id-count">0</span> event IDs
+                        </span>
+                    </div>
+                    <div id="batch-query-result" class="batch-query-result hidden">
+                        <div class="batch-query-summary">
+                            <span class="batch-found"><span id="batch-found-count">0</span> found</span>
+                            <span class="batch-missing"><span id="batch-missing-count">0</span> missing</span>
+                            <span class="batch-time"><span id="batch-query-time">0</span>ms</span>
+                        </div>
+                        <div class="batch-query-results" id="batch-query-results"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
                 <h2>Event Stream</h2>
                 <div class="filters">
                     <input type="number" id="filter-kind" placeholder="Kind (e.g., 1)">

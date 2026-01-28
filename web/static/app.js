@@ -1397,6 +1397,20 @@ class Shirushi {
                 this.lookupEvent();
             }
         });
+
+        // Batch query handlers
+        document.getElementById('batch-query-btn').addEventListener('click', () => {
+            this.batchQueryEvents();
+        });
+
+        document.getElementById('clear-batch-btn').addEventListener('click', () => {
+            this.clearBatchQuery();
+        });
+
+        // Update batch query ID count on input
+        document.getElementById('batch-query-input').addEventListener('input', () => {
+            this.updateBatchIdCount();
+        });
     }
 
     async loadEvents() {
@@ -3373,6 +3387,207 @@ class Shirushi {
         const resultDiv = document.getElementById('diff-result');
         resultDiv.classList.add('hidden');
         resultDiv.classList.remove('identical', 'different');
+    }
+
+    /**
+     * Update the batch query ID count display
+     */
+    updateBatchIdCount() {
+        const input = document.getElementById('batch-query-input');
+        const countSpan = document.getElementById('batch-id-count');
+        const ids = input.value.trim().split(/[\n,]+/).filter(id => id.trim().length > 0);
+        countSpan.textContent = ids.length;
+    }
+
+    /**
+     * Fetch multiple events by their IDs (batch query)
+     */
+    async batchQueryEvents() {
+        const input = document.getElementById('batch-query-input');
+        const queryBtn = document.getElementById('batch-query-btn');
+        const rawInput = input.value.trim();
+
+        if (!rawInput) {
+            this.toastError('Error', 'Please enter at least one event ID');
+            return;
+        }
+
+        // Parse IDs (split by newlines or commas)
+        const ids = rawInput.split(/[\n,]+/)
+            .map(id => id.trim())
+            .filter(id => id.length > 0);
+
+        if (ids.length === 0) {
+            this.toastError('Error', 'No valid event IDs found');
+            return;
+        }
+
+        if (ids.length > 100) {
+            this.toastError('Error', 'Maximum 100 event IDs allowed per batch');
+            return;
+        }
+
+        // Validate each ID format
+        for (const id of ids) {
+            const isHex = /^[0-9a-fA-F]{64}$/.test(id);
+            const isNote = id.startsWith('note1');
+            const isNevent = id.startsWith('nevent1');
+            if (!isHex && !isNote && !isNevent) {
+                this.toastError('Error', `Invalid format for ID: ${id.substring(0, 20)}...`);
+                return;
+            }
+        }
+
+        // Disable button during query
+        queryBtn.disabled = true;
+        queryBtn.textContent = 'Fetching...';
+
+        try {
+            const response = await fetch('/api/events/batch-lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Failed to batch query events' }));
+                throw new Error(error.error || 'Failed to batch query events');
+            }
+
+            const result = await response.json();
+            this.showBatchQueryResult(result);
+            this.toastSuccess('Complete', `Found ${result.total_found}/${result.total_queried} events`);
+        } catch (error) {
+            console.error('Batch query error:', error);
+            this.toastError('Error', error.message);
+        } finally {
+            queryBtn.disabled = false;
+            queryBtn.textContent = 'Fetch Events';
+        }
+    }
+
+    /**
+     * Display batch query results
+     * @param {Object} result - The batch query response
+     */
+    showBatchQueryResult(result) {
+        const resultDiv = document.getElementById('batch-query-result');
+        const resultsContainer = document.getElementById('batch-query-results');
+
+        // Update summary
+        document.getElementById('batch-found-count').textContent = result.total_found;
+        document.getElementById('batch-missing-count').textContent = result.total_queried - result.total_found;
+        document.getElementById('batch-query-time').textContent = result.total_time_ms;
+
+        const truncate = (str, len = 32) => {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len / 2) + '...' + str.substring(str.length - len / 2) : str;
+        };
+
+        const getKindDescription = (kind) => {
+            const kindDescriptions = {
+                0: 'Metadata',
+                1: 'Note',
+                3: 'Follow List',
+                4: 'DM',
+                5: 'Delete',
+                6: 'Repost',
+                7: 'Reaction',
+                9735: 'Zap',
+                30023: 'Article'
+            };
+            return kindDescriptions[kind] || `Kind ${kind}`;
+        };
+
+        // Render results
+        const html = result.results.map((r, index) => {
+            const statusClass = r.found ? 'found' : 'not-found';
+            const statusIcon = r.found ? '&#10003;' : '&#10007;';
+            const foundOnCount = r.found_on ? r.found_on.length : 0;
+            const missingOnCount = r.missing_on ? r.missing_on.length : 0;
+            const totalRelays = foundOnCount + missingOnCount;
+
+            let eventInfo = '';
+            if (r.found && r.event) {
+                eventInfo = `
+                    <div class="batch-event-info">
+                        <span class="batch-event-kind">${getKindDescription(r.event.kind)}</span>
+                        <span class="batch-event-author" title="${this.escapeHtml(r.event.pubkey)}">by ${this.escapeHtml(truncate(r.event.pubkey, 16))}</span>
+                        <span class="batch-event-content" title="${this.escapeHtml(r.event.content)}">${this.escapeHtml(truncate(r.event.content, 40))}</span>
+                    </div>
+                `;
+            }
+
+            const relayAvailability = totalRelays > 0 ? `
+                <div class="batch-relay-availability">
+                    <span class="batch-relay-found">${foundOnCount} relays</span>
+                    ${missingOnCount > 0 ? `<span class="batch-relay-missing">${missingOnCount} missing</span>` : ''}
+                </div>
+            ` : '';
+
+            return `
+                <div class="batch-result-item ${statusClass}" data-index="${index}">
+                    <div class="batch-result-main">
+                        <span class="batch-result-icon ${statusClass}">${statusIcon}</span>
+                        <span class="batch-result-id monospace" title="${this.escapeHtml(r.event_id)}">${this.escapeHtml(truncate(r.event_id, 24))}</span>
+                        ${eventInfo}
+                        ${relayAvailability}
+                    </div>
+                    <div class="batch-result-actions">
+                        ${r.found ? `
+                            <button class="btn small" onclick="app.showBatchEventJson(${index})">JSON</button>
+                            <button class="btn small" onclick="app.copyToClipboard('${this.escapeHtml(r.event_id)}')">Copy ID</button>
+                        ` : `
+                            <span class="batch-not-found-label">Not Found</span>
+                        `}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        resultsContainer.innerHTML = html;
+        resultDiv.classList.remove('hidden');
+
+        // Store results for later reference
+        this.lastBatchQueryResult = result;
+    }
+
+    /**
+     * Show JSON for a batch query result event
+     * @param {number} index - Index of the event in batch results
+     */
+    showBatchEventJson(index) {
+        if (!this.lastBatchQueryResult || !this.lastBatchQueryResult.results[index]) {
+            this.toastError('Error', 'Event not found');
+            return;
+        }
+
+        const result = this.lastBatchQueryResult.results[index];
+        if (!result.found || !result.event) {
+            this.toastError('Error', 'Event data not available');
+            return;
+        }
+
+        const eventJson = JSON.stringify(result.event, null, 2);
+        this.showModal('Event JSON', `
+            <div class="event-json-container">
+                <pre class="event-json">${this.escapeHtml(eventJson)}</pre>
+                <div class="event-json-actions">
+                    <button class="btn primary" onclick="app.copyToClipboard(\`${eventJson.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`); app.closeModal();">Copy JSON</button>
+                </div>
+            </div>
+        `);
+    }
+
+    /**
+     * Clear the batch query input and results
+     */
+    clearBatchQuery() {
+        document.getElementById('batch-query-input').value = '';
+        document.getElementById('batch-id-count').textContent = '0';
+        document.getElementById('batch-query-result').classList.add('hidden');
+        document.getElementById('batch-query-results').innerHTML = '';
+        this.lastBatchQueryResult = null;
     }
 
     // Publish Tab
