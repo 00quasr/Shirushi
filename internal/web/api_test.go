@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/keanuklestil/shirushi/internal/config"
+	"github.com/keanuklestil/shirushi/internal/nak"
 	"github.com/keanuklestil/shirushi/internal/types"
 )
 
@@ -1318,6 +1319,64 @@ func TestHandleEventPublish_NakUnavailable(t *testing.T) {
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+func TestHandleEventPublish_NoConnectedRelays(t *testing.T) {
+	// Pool has relays but none are connected
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{
+			{URL: "wss://relay1.example.com", Connected: false},
+			{URL: "wss://relay2.example.com", Connected: false},
+		},
+	}
+	// Create a nak instance (path doesn't matter since we fail before using it)
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{"id":"test","pubkey":"test","sig":"test"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var response map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response["error"] != "no connected relays" {
+		t.Errorf("expected error 'no connected relays', got '%s'", response["error"])
+	}
+}
+
+func TestHandleEventPublish_EmptyRelayList(t *testing.T) {
+	// Pool has no relays at all
+	pool := &mockRelayPool{
+		relayList: []types.RelayStatus{},
+	}
+	nakClient := nak.New("/nonexistent/nak")
+	api := NewAPI(&config.Config{}, nakClient, pool, nil)
+
+	body := `{"id":"test","pubkey":"test","sig":"test"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/events/publish", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	api.HandleEventPublish(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var response map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response["error"] != "no connected relays" {
+		t.Errorf("expected error 'no connected relays', got '%s'", response["error"])
 	}
 }
 
