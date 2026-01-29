@@ -6,7 +6,7 @@
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
-    "test": "node tests/vite.config.test.js"
+    "test": "node tests/vite.config.test.js && node tests/npm-scripts.test.js"
   },
   "keywords": [
     "nostr",
