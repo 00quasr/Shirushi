@@ -1,12 +1,13 @@
 {
   "name": "shirushi",
   "version": "1.0.0",
+  "type": "module",
   "description": "A web-based Nostr protocol testing and monitoring tool built in Go",
   "scripts": {
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
-    "test": "node tests/vite.config.test.js && node tests/npm-scripts.test.js"
+    "test": "node tests/vite.config.test.js && node tests/npm-scripts.test.js && node tests/hot-reload.test.js"
   },
   "keywords": [
     "nostr",
