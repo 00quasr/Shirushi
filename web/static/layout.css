@@ -1,0 +1,367 @@
+/* Layout Styles - Header, Tabs, Panels */
+
+/* Header */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.logo {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.logo-text {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.logo-subtitle {
+    color: var(--text-3);
+    font-size: 13px;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-3);
+}
+
+.status-dot.connected {
+    background: var(--success);
+}
+
+.status-dot.disconnected {
+    background: var(--error);
+}
+
+.header-status-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Extension Status */
+#extension-status {
+    cursor: help;
+}
+
+#extension-status-dot {
+    background: var(--text-3);
+}
+
+#extension-status-dot.detected {
+    background: var(--success);
+}
+
+#extension-status-dot.not-detected {
+    background: var(--warning);
+}
+
+/* Mobile Navigation Button */
+.mobile-menu-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-menu-btn:hover,
+.mobile-menu-btn:focus {
+    background: var(--bg-3);
+    outline: none;
+}
+
+.mobile-menu-btn:active {
+    background: var(--bg-4);
+}
+
+.hamburger-line {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-1);
+    border-radius: 1px;
+    transition: transform 0.3s, opacity 0.3s;
+}
+
+/* Hamburger animation to X */
+.mobile-menu-btn.active .hamburger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.mobile-menu-btn.active .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.mobile-menu-btn.active .hamburger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile navigation overlay */
+.mobile-nav-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 0.3s;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+.mobile-nav-overlay.active {
+    opacity: 1;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-1);
+}
+
+.tab {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tab:hover {
+    background: var(--bg-3);
+    color: var(--text-1);
+}
+
+.tab.active {
+    background: var(--bg-3);
+    color: var(--text-0);
+}
+
+/* Main Content */
+main {
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Global hidden class */
+.hidden {
+    display: none !important;
+}
+
+/* Panels */
+.panel {
+    background: var(--bg-1);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.panel h2, .panel h3 {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+}
+
+.hint {
+    color: var(--text-3);
+    font-size: 13px;
+}
+
+/* Tablet responsive styles */
+@media (max-width: 900px) {
+    header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .tabs {
+        overflow-x: auto;
+    }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    /* Show mobile menu button */
+    .mobile-menu-btn {
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    /* Show overlay when active */
+    .mobile-nav-overlay {
+        display: block;
+        pointer-events: none;
+    }
+
+    .mobile-nav-overlay.active {
+        pointer-events: auto;
+    }
+
+    /* Header adjustments for mobile */
+    header {
+        flex-direction: row;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 8px;
+    }
+
+    .logo {
+        flex: 1;
+        gap: 8px;
+    }
+
+    .logo-text {
+        font-size: 18px;
+    }
+
+    .logo-subtitle {
+        display: none;
+    }
+
+    .header-status-group {
+        gap: 8px;
+    }
+
+    .status {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    #connection-text,
+    #extension-status-text {
+        display: none;
+    }
+
+    /* Tabs become a sidebar drawer */
+    .tabs {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        max-width: 80vw;
+        flex-direction: column;
+        gap: 4px;
+        padding: 72px 16px 24px 16px;
+        background: var(--bg-1);
+        border-right: 1px solid var(--border);
+        border-bottom: none;
+        z-index: 999;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tabs.open {
+        transform: translateX(0);
+    }
+
+    /* Tab items as full-width buttons in sidebar */
+    .tab {
+        width: 100%;
+        text-align: left;
+        padding: 14px 16px;
+        font-size: 15px;
+        border-radius: 8px;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+    }
+
+    .tab.active {
+        background: var(--accent);
+        color: var(--text-0);
+    }
+
+    .tab:active {
+        transform: scale(0.98);
+    }
+
+    /* Main content adjustments */
+    main {
+        padding: 16px;
+    }
+
+    /* Panel adjustments */
+    .panel {
+        padding: 16px;
+    }
+}
+
+/* Smaller mobile breakpoint */
+@media (max-width: 480px) {
+    header {
+        padding: 10px 12px;
+    }
+
+    main {
+        padding: 12px;
+    }
+
+    .panel {
+        padding: 14px;
+        margin-bottom: 12px;
+    }
+
+    .tabs {
+        width: 260px;
+        padding: 64px 12px 20px 12px;
+    }
+
+    .tab {
+        padding: 12px 14px;
+        font-size: 14px;
+    }
+}

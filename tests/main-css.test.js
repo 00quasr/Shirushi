@@ -151,13 +151,13 @@ test('index.html includes main.css before style.css', () => {
   assertTrue(mainCssIndex < styleCssIndex, 'main.css should be included before style.css');
 });
 
-// Test 10: style.css still contains component styles
+// Test 10: style.css still contains component styles (not layout styles)
 test('style.css still contains component styles', () => {
   const styleCssPath = join(staticDir, 'style.css');
   const content = readFileSync(styleCssPath, 'utf-8');
-  assertContains(content, 'header', 'style.css should contain header styles');
   assertContains(content, '.btn', 'style.css should contain button styles');
-  assertContains(content, '.panel', 'style.css should contain panel styles');
+  assertContains(content, '.relay-card', 'style.css should contain relay card styles');
+  assertContains(content, '.input-group', 'style.css should contain input group styles');
 });
 
 console.log(`\n========================================`);
