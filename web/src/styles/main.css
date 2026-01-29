@@ -1,0 +1,16 @@
+/**
+ * Shirushi Main Styles
+ * Entry point for modular CSS
+ *
+ * This file imports all style modules and provides
+ * the main entry point for Vite CSS bundling.
+ */
+
+/* CSS Variables - Design Tokens */
+@import './variables.css';
+
+/* Base styles - Reset and typography */
+@import './base.css';
+
+/* Component styles */
+@import './components.css';

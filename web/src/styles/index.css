@@ -1,0 +1,6 @@
+/**
+ * Styles index
+ * Main entry point - re-exports main.css
+ */
+
+@import './main.css';

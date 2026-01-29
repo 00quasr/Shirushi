@@ -1,0 +1,64 @@
+/**
+ * CSS Variables - Design Tokens
+ * Central place for colors, spacing, and other design values
+ */
+
+:root {
+  /* Background colors */
+  --bg-0: #000000;
+  --bg-1: #0a0a0a;
+  --bg-2: #111111;
+  --bg-3: #191919;
+  --bg-4: #222222;
+
+  /* Text colors */
+  --text-0: #ffffff;
+  --text-1: #ededed;
+  --text-2: #a1a1a1;
+  --text-3: #666666;
+
+  /* Border colors */
+  --border: #222222;
+  --border-light: #333333;
+
+  /* Accent colors */
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #eab308;
+
+  /* Font families */
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+
+  /* Font sizes */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+
+  /* Z-index layers */
+  --z-dropdown: 100;
+  --z-modal-backdrop: 200;
+  --z-modal: 201;
+  --z-toast: 300;
+}
