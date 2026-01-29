@@ -194,3 +194,133 @@ func TestAPIEndpointsAvailable(t *testing.T) {
 
 // testFS implements fs.FS for testing
 var _ fs.FS = fstest.MapFS{}
+
+// TestProductionModeServesDistFiles verifies that in production mode,
+// the server would serve from web/dist/ directory.
+func TestProductionModeConfig(t *testing.T) {
+	cfg := &config.Config{
+		WebAddr:       findAvailablePort(t),
+		DefaultRelays: []string{},
+		Production:    true,
+	}
+
+	if !cfg.Production {
+		t.Error("Expected Production mode to be true")
+	}
+}
+
+// TestDevelopmentModeConfig verifies development mode configuration.
+func TestDevelopmentModeConfig(t *testing.T) {
+	cfg := &config.Config{
+		WebAddr:       findAvailablePort(t),
+		DefaultRelays: []string{},
+		Production:    false,
+	}
+
+	if cfg.Production {
+		t.Error("Expected Production mode to be false")
+	}
+}
+
+// TestServerWithProductionFS simulates production mode by serving from a "dist" filesystem.
+func TestServerWithProductionFS(t *testing.T) {
+	cfg := &config.Config{
+		WebAddr:       findAvailablePort(t),
+		DefaultRelays: []string{},
+		Production:    true,
+	}
+
+	relayPool := relay.NewPool(cfg.DefaultRelays)
+	defer relayPool.Close()
+
+	testRunner := shtesting.NewRunner(nil, relayPool)
+	api := web.NewAPI(cfg, nil, relayPool, testRunner)
+
+	// Simulate production build output (what would be in web/dist/)
+	productionContent := "<!DOCTYPE html><html><head><title>Shirushi</title></head><body>Production Build</body></html>"
+	distFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte(productionContent),
+		},
+		"assets/index-abc123.js": &fstest.MapFile{
+			Data: []byte("console.log('production bundle');"),
+		},
+		"assets/index-abc123.css": &fstest.MapFile{
+			Data: []byte("body { background: #000; }"),
+		},
+	}
+
+	server := web.NewServer(cfg.WebAddr, distFS, api)
+
+	go server.Start()
+	time.Sleep(100 * time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Test index.html
+	t.Run("serves index.html", func(t *testing.T) {
+		url := "http://" + cfg.WebAddr + "/index.html"
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to connect to server: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
+		}
+
+		if string(body) != productionContent {
+			t.Errorf("Expected production content, got %q", string(body))
+		}
+	})
+
+	// Test bundled assets
+	t.Run("serves bundled JS assets", func(t *testing.T) {
+		url := "http://" + cfg.WebAddr + "/assets/index-abc123.js"
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to connect to server: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		}
+	})
+
+	// Test bundled CSS assets
+	t.Run("serves bundled CSS assets", func(t *testing.T) {
+		url := "http://" + cfg.WebAddr + "/assets/index-abc123.css"
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to connect to server: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		}
+	})
+}

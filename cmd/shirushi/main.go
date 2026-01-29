@@ -70,7 +70,16 @@ func main() {
 	api := web.NewAPI(cfg, nakClient, relayPool, testRunner)
 
 	// Start web server
-	webFS, _ := fs.Sub(os.DirFS("web"), ".")
+	// In production mode, serve from web/dist/ (Vite build output)
+	// In development mode, serve from web/ (source files)
+	var webFS fs.FS
+	if cfg.Production {
+		webFS, _ = fs.Sub(os.DirFS("web/dist"), ".")
+		log.Println("[Web] Production mode: serving from web/dist/")
+	} else {
+		webFS, _ = fs.Sub(os.DirFS("web"), ".")
+		log.Println("[Web] Development mode: serving from web/")
+	}
 	server := web.NewServer(cfg.WebAddr, webFS, api)
 
 	log.Printf("[Web] Dashboard: http://localhost%s", cfg.WebAddr)

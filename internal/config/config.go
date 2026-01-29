@@ -14,6 +14,7 @@ type Config struct {
 	NakPath       string
 	WebAddr       string
 	DefaultRelays []string
+	Production    bool // When true, serve from web/dist/ instead of web/
 }
 
 // RelayPresets defines preset relay groups (all free public relays)
@@ -50,6 +51,11 @@ func Load() (*Config, error) {
 
 	if relays := os.Getenv("DEFAULT_RELAYS"); relays != "" {
 		cfg.DefaultRelays = parseRelays(relays)
+	}
+
+	// Production mode - serve from web/dist/
+	if prod := os.Getenv("PRODUCTION"); prod == "true" || prod == "1" {
+		cfg.Production = true
 	}
 
 	return cfg, nil
